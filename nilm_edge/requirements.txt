@@ -1,0 +1,4 @@
+numpy==1.23.5
+websockets==10.4
+aiohttp
+tflite-runtime==2.14.0

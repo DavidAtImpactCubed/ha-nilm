@@ -1,0 +1,367 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NILM</title>
+    <script src="vendor/js/tailwindcdn.js"></script>
+    <link rel="stylesheet" href="vendor/css/fontawesome-all.min.css">
+    <!-- Flatpickr CSS -->
+    <link rel="stylesheet" href="vendor/css/flatpickr.min.css">
+    
+    <!-- ADDED: Global Chart.js and Plugin Imports -->
+    <script src="vendor/js/chart.min.js"></script>
+    <script src="vendor/js/chartjs-plugin-annotation.min.js"></script>
+    <!-- ADDED: Chart.js Moment Adapter for Time Scale -->
+    <script src="vendor/js/moment.min.js"></script>
+    <script>
+        if (window.moment) {
+            const browserLocale = (Array.isArray(navigator.languages) && navigator.languages.length)
+                ? navigator.languages[0]
+                : (navigator.language || "en-gb");
+            window.moment.locale(browserLocale);
+        }
+    </script>
+    <script src="vendor/js/chartjs-adapter-moment.min.js"></script>
+    <!-- ADDED: Chart.js Zoom Plugin for Interactivity -->
+    <script src="vendor/js/hammer.min.js"></script>
+    <script src="vendor/js/chartjs-plugin-zoom.min.js"></script>
+
+    <!-- Flatpickr JS -->
+    <script src="vendor/js/flatpickr.min.js"></script>
+
+
+    <style>
+        body {
+            font-family: "Segoe UI", "Helvetica Neue", Helvetica, Arial, sans-serif;
+            background:
+                radial-gradient(circle at top left, rgba(14, 165, 233, 0.10), transparent 24%),
+                radial-gradient(circle at top right, rgba(16, 185, 129, 0.08), transparent 20%),
+                linear-gradient(180deg, #f8fafc 0%, #eef2f7 100%);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 1rem;
+        }
+        .container-wrapper {
+            background: rgba(255, 255, 255, 0.88);
+            padding: 2rem;
+            border-radius: 1.25rem;
+            border: 1px solid #e2e8f0;
+            box-shadow: 0 18px 45px rgba(15, 23, 42, 0.08);
+            width: 100%;
+            max-width: 96rem; /* Allows wider content if needed, like training chart */
+            margin-top: 2rem;
+            backdrop-filter: blur(8px);
+        }
+        .content-section {
+            display: none;
+            padding: 1rem;
+        }
+        .content-section.active {
+            display: block;
+        }
+        .app-header {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 0.75rem;
+            margin-bottom: 1.75rem;
+            text-align: center;
+        }
+        .app-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.45rem 0.85rem;
+            border-radius: 999px;
+            background: rgba(14, 165, 233, 0.1);
+            color: #0369a1;
+            font-size: 0.78rem;
+            font-weight: 800;
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+        }
+        .nav-shell {
+            display: flex;
+            justify-content: center;
+            margin-bottom: 2rem;
+        }
+        .nav-pills {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 0.5rem;
+            width: min(100%, 38rem);
+            padding: 0.45rem;
+            border-radius: 1.15rem;
+            background: rgba(248, 250, 252, 0.95);
+            border: 1px solid #e2e8f0;
+            box-shadow: inset 0 1px 0 rgba(255,255,255,0.7);
+        }
+        .tab-button {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.75rem;
+            padding: 0.95rem 1.1rem;
+            min-height: 3.6rem;
+            transition: all 0.2s ease-in-out;
+            box-shadow: none;
+            border-radius: 0.95rem;
+            font-weight: 700;
+            color: #334155;
+            background: transparent;
+            border: 1px solid transparent;
+            position: relative;
+        }
+        .tab-button.active {
+            color: #0f172a;
+            background: linear-gradient(135deg, #ffffff, #f8fafc);
+            border-color: #dbeafe;
+            transform: translateY(-1px);
+            box-shadow: 0 10px 22px rgba(15, 23, 42, 0.08);
+        }
+        .tab-button.active::after {
+            content: "";
+            position: absolute;
+            inset: auto 16px 8px 16px;
+            height: 3px;
+            border-radius: 999px;
+            background: linear-gradient(135deg, #0284c7, #10b981);
+        }
+        .tab-icon {
+            width: 2.35rem;
+            height: 2.35rem;
+            border-radius: 999px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(148, 163, 184, 0.12);
+            color: #475569;
+            transition: all 0.2s ease-in-out;
+            flex-shrink: 0;
+        }
+        .tab-button.active .tab-icon {
+            background: rgba(14, 165, 233, 0.12);
+            color: #0284c7;
+        }
+        .tab-copy {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            text-align: left;
+            line-height: 1.15;
+        }
+        .tab-title {
+            font-size: 0.96rem;
+            font-weight: 800;
+        }
+        .tab-subtitle {
+            font-size: 0.76rem;
+            color: #64748b;
+            margin-top: 0.18rem;
+        }
+
+        @media (max-width: 760px) {
+            body {
+                padding: 0.5rem;
+            }
+            .container-wrapper {
+                padding: 1rem;
+                margin-top: 0.75rem;
+                border-radius: 1rem;
+            }
+            .app-header {
+                margin-bottom: 1.15rem;
+            }
+            .tab-button {
+                width: 100%;
+            }
+        }
+
+        @media (max-width: 480px) {
+            body {
+                padding: 0;
+            }
+            .container-wrapper {
+                padding: 0.35rem;
+                margin-top: 0;
+                border-radius: 0;
+                box-shadow: none;
+                border-left: none;
+                border-right: none;
+                backdrop-filter: none;
+            }
+            .content-section {
+                padding: 0.15rem 0;
+            }
+            .app-header h1 {
+                font-size: 1.7rem;
+                line-height: 1.15;
+            }
+            .nav-shell {
+                margin-bottom: 1rem;
+            }
+            .nav-pills {
+                grid-template-columns: 1fr;
+                border-radius: 1rem;
+                padding: 0.35rem;
+            }
+            .tab-button {
+                justify-content: flex-start;
+                padding: 0.85rem 0.95rem;
+            }
+        }
+        
+    </style>
+</head>
+<body class="bg-gray-100 text-gray-800">
+    <div class="container-wrapper">
+        <div class="app-header">
+            <div class="app-badge"><i class="fas fa-bolt"></i> NILM</div>
+        </div>
+        
+        <div class="nav-shell">
+            <div class="nav-pills" role="tablist" aria-label="Main navigation">
+            <button id="showConfigBtn" class="tab-button focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-sky-500" role="tab" aria-selected="false">
+                <span class="tab-icon"><i class="fas fa-sliders-h"></i></span>
+                <span class="tab-copy">
+                    <span class="tab-title">Main Configuration</span>
+                    <span class="tab-subtitle">Sensors and models</span>
+                </span>
+            </button>
+            <button id="showTrainingBtn" class="tab-button focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500" role="tab" aria-selected="false">
+                <span class="tab-icon"><i class="fas fa-brain"></i></span>
+                <span class="tab-copy">
+                    <span class="tab-title">Training Interface</span>
+                    <span class="tab-subtitle">Label and prepare jobs</span>
+                </span>
+            </button>
+            </div>
+        </div>
+
+        <!-- Component Containers -->
+        <div id="configSection" class="content-section"></div>
+        <div id="trainingSection" class="content-section"></div>
+    </div>
+
+    <script>
+        const componentLoaders = {}; // Object to store functions to initialize component-specific logic
+
+        document.addEventListener('DOMContentLoaded', function() {
+            const showConfigBtn = document.getElementById('showConfigBtn');
+            const showTrainingBtn = document.getElementById('showTrainingBtn');
+            
+            const configSection = document.getElementById('configSection');
+            const trainingSection = document.getElementById('trainingSection');
+            
+            const allSections = {
+                'config': configSection,
+                'training': trainingSection,
+            };
+            const allButtons = {
+                'config': showConfigBtn,
+                'training': showTrainingBtn,
+            };
+
+            // Function to dynamically load HTML content and execute scripts
+            async function loadComponentContent(componentUrl, targetElementId) {
+                const targetElement = document.getElementById(targetElementId);
+                if (!targetElement) {
+                    console.error(`Target element with ID "${targetElementId}" not found.`);
+                    return;
+                }
+
+                // Preserve existing scripts to prevent re-execution conflicts, then clear innerHTML
+                const existingScripts = Array.from(targetElement.querySelectorAll('script'));
+                existingScripts.forEach(script => script.remove()); // Remove all scripts before clearing content
+
+                targetElement.innerHTML = ''; // Clear existing content
+
+                try {
+                    const cacheBustedUrl = `${componentUrl}${componentUrl.includes('?') ? '&' : '?'}v=${Date.now()}`;
+                    const response = await fetch(cacheBustedUrl, { cache: 'no-store' });
+                    if (!response.ok) {
+                        throw new Error(`Failed to load component from ${componentUrl}: ${response.statusText}`);
+                    }
+                    const html = await response.text();
+                    
+                    // Temporarily append HTML to allow browser to parse it, then extract and re-insert scripts
+                    const tempDiv = document.createElement('div');
+                    tempDiv.innerHTML = html;
+                    
+                    const scripts = Array.from(tempDiv.querySelectorAll('script'));
+                    
+                    // Remove scripts from tempDiv's innerHTML before assigning to targetElement
+                    scripts.forEach(script => script.remove());
+                    targetElement.innerHTML = tempDiv.innerHTML;
+
+                    // Execute scripts by appending to the body, ensuring they run in the global scope
+                    for (const script of scripts) {
+                        const newScript = document.createElement('script');
+                        if (script.src) {
+                            newScript.src = script.src;
+                            newScript.async = false;
+                        } else {
+                            newScript.textContent = script.textContent;
+                        }
+                        document.body.appendChild(newScript);
+                        // No need to remove immediately; they define global functions or run once.
+                        // Future component loads will just overwrite global functions or re-get DOM refs.
+                    }
+                    console.log(`Component loaded: ${componentUrl}`);
+                } catch (error) {
+                    console.error(`Error loading component ${componentUrl}:`, error);
+                    targetElement.innerHTML = `<p class="text-red-500">Failed to load component: ${error.message}</p>`;
+                }
+            }
+
+            // Function to manage section visibility and component loading
+            async function showSection(sectionToShow) {
+                // Call cleanup for ALL active components before switching
+                if (window.cleanupConfigUI) window.cleanupConfigUI();
+                if (window.cleanupTrainingUI) window.cleanupTrainingUI(); // Assuming this already exists
+                // Add cleanup for any other components here (e.g., appliances)
+                // if (window.cleanupAppliancesUI) window.cleanupAppliancesUI();
+
+                // Deactivate all sections and buttons
+                for (const key in allSections) {
+                    allSections[key].classList.remove('active');
+                    allButtons[key].classList.remove('active');
+                    allButtons[key].setAttribute('aria-selected', 'false');
+                }
+                
+                // Activate the selected section and button
+                allSections[sectionToShow].classList.add('active');
+                allButtons[sectionToShow].classList.add('active');
+                allButtons[sectionToShow].setAttribute('aria-selected', 'true');
+                
+                if (sectionToShow === 'config') {
+                    await loadComponentContent('components/config.html', 'configSection');
+                    if (window.initializeConfigUI) {
+                        window.initializeConfigUI();
+                    } else {
+                        console.warn("Config component did not expose 'initializeConfigUI' function.");
+                    }
+                } else if (sectionToShow === 'training') {
+                    await loadComponentContent('components/training.html', 'trainingSection');
+                    
+                    if (window.initializeTrainingUI) { 
+                        window.initializeTrainingUI();
+                    } else {
+                        console.warn("Training component did not expose 'initializeTrainingUI' function.");
+                    }
+                }
+            }
+
+            // Event Listeners for the buttons
+            showConfigBtn.addEventListener('click', () => showSection('config'));
+            showTrainingBtn.addEventListener('click', () => showSection('training'));
+
+            // Show the config section by default when the page loads
+            showSection('config'); 
+        });
+    </script>
+</body>
+</html>

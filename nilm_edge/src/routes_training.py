@@ -1,0 +1,163 @@
+import json
+
+from aiohttp import web
+
+import app_state
+from app_state import maybe_await
+from model_registry import get_bundle_by_id, get_latest_bundle_for_mode
+from prepare_training_data import build_embeddings_training_payload
+
+
+async def receive_training_data_handler(request: web.Request) -> web.Response:
+    try:
+        svc = request.app.get("training_server_manager")
+        if svc is None:
+            return web.json_response({"status": "error", "message": "training_server_manager not configured"}, status=500)
+
+        action = (request.query.get("action") or "").strip().lower()
+        if action not in ("prepare", "send", "status", "training_server_status"):
+            return web.json_response(
+                {"status": "error", "message": "Missing/invalid action. Use ?action=prepare|send|status|training_server_status"},
+                status=400,
+            )
+
+        if action == "prepare":
+            data = await request.json()
+            if not isinstance(data, dict) or not data:
+                return web.json_response({"status": "error", "message": "No JSON body received"}, status=400)
+
+            appliance_name = str(data.get("appliance_name") or "").strip()
+            supervision_mode = str(data.get("supervision_mode") or "intervals").strip().lower()
+            appliance_sensor_id = str(data.get("appliance_sensor_id") or "").strip() or None
+            bundle_id = str(data.get("bundle_id") or "").strip() or None
+            bundle_mode = str(data.get("bundle_mode") or "online").strip().lower()
+            selected_windows = data.get("selectedWindows")
+            full_history = data.get("fullSensorHistoryData")
+            appliance_sensor_history = data.get("applianceSensorHistoryData")
+
+            if not appliance_name:
+                return web.json_response({"status": "error", "message": "appliance_name is required"}, status=400)
+            if not isinstance(full_history, list) or len(full_history) == 0:
+                return web.json_response({"status": "error", "message": "fullSensorHistoryData must be a non-empty list"}, status=400)
+            if supervision_mode not in ("intervals", "sensor"):
+                return web.json_response({"status": "error", "message": "supervision_mode must be 'intervals' or 'sensor'"}, status=400)
+            if supervision_mode == "intervals":
+                if not isinstance(selected_windows, list) or len(selected_windows) == 0:
+                    return web.json_response({"status": "error", "message": "selectedWindows must be a non-empty list for interval supervision"}, status=400)
+            else:
+                if not appliance_sensor_id:
+                    return web.json_response({"status": "error", "message": "appliance_sensor_id is required for sensor supervision"}, status=400)
+                if not isinstance(appliance_sensor_history, list) or len(appliance_sensor_history) == 0:
+                    return web.json_response({"status": "error", "message": "applianceSensorHistoryData must be a non-empty list for sensor supervision"}, status=400)
+
+            selected_bundle = None
+            if bundle_id:
+                selected_bundle = get_bundle_by_id(app_state.model_bundles, bundle_id)
+                if selected_bundle is None:
+                    return web.json_response({"status": "error", "message": f"Unknown bundle_id: {bundle_id}"}, status=400)
+            else:
+                selected_bundle = get_latest_bundle_for_mode(app_state.model_bundles, bundle_mode)
+
+            if selected_bundle is None:
+                return web.json_response({"status": "error", "message": f"No {bundle_mode} model bundle is available for training"}, status=400)
+
+            try:
+                prepared = build_embeddings_training_payload(
+                    fullSensorHistoryData=full_history,
+                    selectedWindows=selected_windows,
+                    applianceSensorHistoryData=appliance_sensor_history,
+                    appliance_name=appliance_name,
+                    appliance_type="",
+                    supervision_mode=supervision_mode,
+                    appliance_sensor_id=appliance_sensor_id,
+                    inference_dir=selected_bundle.inference_dir,
+                    embeddings_only=True,
+                    num_threads=2,
+                    align_grid="start",
+                    max_hold_factor=5.0,
+                )
+                prepared["bundle_id"] = selected_bundle.bundle_id
+                prepared["bundle_mode"] = selected_bundle.mode
+                prepared["bundle_version"] = selected_bundle.model_version
+            except Exception as exc:
+                return web.json_response({"status": "error", "message": f"Failed to prepare training data: {exc}"}, status=500)
+
+            try:
+                job_id = await maybe_await(svc.create_job(prepared))
+            except Exception as exc:
+                return web.json_response({"status": "error", "message": f"Failed to persist job: {exc}"}, status=500)
+
+            stats = prepared.get("stats", {})
+            mode_label = stats.get("supervision_mode", supervision_mode)
+            msg = (
+                f"Ready! Prepared {stats.get('n_embeddings_ok', '?')} embeddings "
+                f"from {stats.get('n_windows_total', '?')} windows using {mode_label} supervision. "
+                f"ON fraction: {float(stats.get('on_fraction', 0.0)):.3f}. "
+                f"Target bundle: {selected_bundle.label}."
+            )
+            return web.json_response(
+                {
+                    "status": "success",
+                    "job_id": job_id,
+                    "stats": stats,
+                    "message": msg,
+                    "bundle": {
+                        "bundle_id": selected_bundle.bundle_id,
+                        "mode": selected_bundle.mode,
+                        "version": selected_bundle.model_version,
+                        "label": selected_bundle.label,
+                    },
+                },
+                status=200,
+            )
+
+        if action == "status":
+            job_id = (request.query.get("job_id") or "").strip()
+            if not job_id:
+                return web.json_response({"status": "error", "message": "Missing job_id in query"}, status=400)
+
+            try:
+                status_payload = await maybe_await(svc.get_status(job_id))
+            except FileNotFoundError:
+                return web.json_response({"status": "error", "message": f"job_id not found: {job_id}"}, status=404)
+            except Exception as exc:
+                return web.json_response({"status": "error", "message": f"Failed to read status: {exc}"}, status=500)
+
+            return web.json_response({"status": "success", **status_payload}, status=200)
+
+        if action == "training_server_status":
+            try:
+                status_payload = await maybe_await(svc.get_training_server_connection_status())
+            except Exception as exc:
+                return web.json_response({"status": "error", "message": f"Failed to check training server connection: {exc}"}, status=500)
+            return web.json_response(status_payload, status=200)
+
+        job_id = (request.query.get("job_id") or "").strip()
+        if not job_id:
+            return web.json_response({"status": "error", "message": "Missing job_id in query"}, status=400)
+
+        try:
+            info = await svc.start_send(job_id)
+        except FileNotFoundError:
+            return web.json_response({"status": "error", "message": f"job_id not found: {job_id}"}, status=404)
+        except Exception as exc:
+            return web.json_response({"status": "error", "message": f"Failed to start training server job: {exc}"}, status=502)
+
+        return web.json_response(
+            {
+                "status": "accepted",
+                "message": "Training server job started. Poll ?action=status for completion.",
+                "job_id": job_id,
+                **info,
+            },
+            status=202,
+        )
+    except json.JSONDecodeError:
+        return web.json_response({"status": "error", "message": "Invalid JSON body"}, status=400)
+    except Exception as exc:
+        return web.json_response({"status": "error", "message": f"Internal server error: {exc}"}, status=500)
+
+
+def register_training_routes(app, ingress_url_base):
+    app.router.add_post(ingress_url_base + "training", receive_training_data_handler)
+    app.router.add_get(ingress_url_base + "training", receive_training_data_handler)

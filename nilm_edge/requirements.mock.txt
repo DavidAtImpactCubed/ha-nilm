@@ -1,0 +1,5 @@
+numpy==1.23.5
+websockets==10.4
+aiohttp
+pandas==2.0.3
+tables==3.8.0

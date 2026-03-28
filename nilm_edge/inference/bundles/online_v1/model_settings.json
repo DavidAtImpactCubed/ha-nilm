@@ -1,0 +1,13 @@
+{
+  "version": 2,
+  "saved_at": "2026-03-24T18:50:33Z",
+  "sequence_length": 599,
+  "pred_idx": 598,
+  "frequency": 8.0,
+  "query_mean": 258.685791015625,
+  "query_std": 682.843994140625,
+  "ref_mean": 227.90562438964844,
+  "ref_std": 599.2196044921875,
+  "power_mean": 32.130123138427734,
+  "power_std": 187.77027893066406
+}

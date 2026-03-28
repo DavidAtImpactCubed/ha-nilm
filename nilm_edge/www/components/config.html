@@ -1,0 +1,2682 @@
+<style>
+    .nilm-config {
+        background:
+            radial-gradient(circle at top left, rgba(14, 165, 233, 0.18), transparent 30%),
+            radial-gradient(circle at top right, rgba(16, 185, 129, 0.16), transparent 28%),
+            linear-gradient(180deg, #f8fafc 0%, #ffffff 100%);
+        border: 1px solid #e2e8f0;
+        border-radius: 20px;
+        box-shadow: 0 18px 45px rgba(15, 23, 42, 0.08);
+        max-width: 1100px;
+        margin: 0 auto;
+        padding: 28px;
+    }
+
+    .nilm-hero {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        margin-bottom: 24px;
+    }
+
+    .nilm-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 6px 12px;
+        border-radius: 999px;
+        background: rgba(14, 165, 233, 0.12);
+        color: #0369a1;
+        font-size: 0.85rem;
+        font-weight: 700;
+        letter-spacing: 0.02em;
+        text-transform: uppercase;
+    }
+
+    .nilm-grid {
+        display: grid;
+        grid-template-columns: minmax(0, 1.6fr) minmax(280px, 0.9fr);
+        gap: 20px;
+    }
+
+    .panel {
+        background: rgba(255, 255, 255, 0.92);
+        border: 1px solid #e2e8f0;
+        border-radius: 18px;
+        padding: 20px;
+    }
+
+    .panel h2 {
+        color: #0f172a;
+        font-size: 1.1rem;
+        font-weight: 700;
+        margin-bottom: 8px;
+    }
+
+    .panel p {
+        color: #475569;
+    }
+
+    .control-row {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto auto auto;
+        gap: 12px;
+        align-items: end;
+        margin-bottom: 16px;
+    }
+
+    .field-label {
+        display: block;
+        color: #334155;
+        font-size: 0.9rem;
+        font-weight: 700;
+        margin-bottom: 6px;
+    }
+
+    .field-input {
+        width: 100%;
+        border: 1px solid #cbd5e1;
+        border-radius: 12px;
+        padding: 10px 12px;
+        color: #0f172a;
+        background: #fff;
+    }
+
+    .field-input:focus {
+        outline: none;
+        border-color: #0ea5e9;
+        box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.15);
+    }
+
+    .action-btn {
+        border: none;
+        border-radius: 12px;
+        padding: 10px 16px;
+        font-weight: 700;
+        cursor: pointer;
+        transition: transform 0.18s ease, box-shadow 0.18s ease, background 0.18s ease;
+    }
+
+    .action-btn:hover {
+        transform: translateY(-1px);
+    }
+
+    .action-primary {
+        background: linear-gradient(135deg, #0284c7, #0369a1);
+        color: #fff;
+        box-shadow: 0 10px 20px rgba(2, 132, 199, 0.2);
+    }
+
+    .action-secondary {
+        background: #e2e8f0;
+        color: #0f172a;
+    }
+
+    .stats-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+        gap: 12px;
+        margin-bottom: 18px;
+    }
+
+    .stat-card {
+        background: linear-gradient(180deg, #ffffff, #f8fafc);
+        border: 1px solid #e2e8f0;
+        border-radius: 14px;
+        padding: 14px;
+    }
+
+    .stat-label {
+        color: #64748b;
+        font-size: 0.82rem;
+        margin-bottom: 4px;
+    }
+
+    .stat-value {
+        color: #0f172a;
+        font-size: 1.25rem;
+        font-weight: 800;
+    }
+
+    .chart-shell {
+        position: relative;
+        height: 360px;
+        border-radius: 16px;
+        overflow: hidden;
+        background: linear-gradient(180deg, rgba(14, 165, 233, 0.05), rgba(255, 255, 255, 0.8));
+        border: 1px solid #dbeafe;
+    }
+
+    .chart-loading {
+        position: absolute;
+        inset: 0;
+        display: none;
+        align-items: center;
+        justify-content: center;
+        background: rgba(248, 250, 252, 0.82);
+        backdrop-filter: blur(2px);
+        z-index: 2;
+    }
+
+    .chart-loading.active {
+        display: flex;
+    }
+
+    .chart-loading-card {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 12px 16px;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.95);
+        border: 1px solid #dbeafe;
+        color: #0f172a;
+        font-weight: 700;
+        box-shadow: 0 10px 30px rgba(14, 165, 233, 0.12);
+    }
+
+    .chart-spinner {
+        width: 18px;
+        height: 18px;
+        border-radius: 999px;
+        border: 2px solid rgba(2, 132, 199, 0.18);
+        border-top-color: #0284c7;
+        animation: spin 0.8s linear infinite;
+    }
+
+    @keyframes spin {
+        to {
+            transform: rotate(360deg);
+        }
+    }
+
+    .status-message {
+        display: none;
+        margin-top: 16px;
+        border-radius: 12px;
+        padding: 12px 14px;
+        font-weight: 600;
+    }
+
+    .status-message.active {
+        display: block;
+    }
+
+    .status-success {
+        background: #dcfce7;
+        color: #166534;
+        border: 1px solid #86efac;
+    }
+
+    .status-error {
+        background: #fee2e2;
+        color: #991b1b;
+        border: 1px solid #fca5a5;
+    }
+
+    .embedding-list {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        max-height: 540px;
+        overflow-y: auto;
+        padding-right: 4px;
+    }
+
+    .models-header {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 12px;
+        margin-bottom: 16px;
+    }
+
+    .models-header-copy {
+        flex: 1 1 auto;
+        min-width: 0;
+    }
+
+    .embedding-card {
+        border: 1px solid #e2e8f0;
+        border-radius: 14px;
+        padding: 14px;
+        background: linear-gradient(180deg, #fff, #f8fafc);
+        position: relative;
+    }
+
+    .embedding-topline {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        margin-bottom: 8px;
+    }
+
+    .embedding-name {
+        color: #0f172a;
+        font-weight: 800;
+        word-break: break-word;
+    }
+
+    .embedding-chip {
+        display: inline-flex;
+        align-items: center;
+        padding: 4px 8px;
+        border-radius: 999px;
+        font-size: 0.75rem;
+        font-weight: 700;
+        text-transform: uppercase;
+    }
+
+    .embedding-chip-trained {
+        background: #dcfce7;
+        color: #166534;
+    }
+
+    .embedding-chip-bundled {
+        background: #e0f2fe;
+        color: #075985;
+    }
+
+    .embedding-meta {
+        color: #475569;
+        font-size: 0.88rem;
+        line-height: 1.45;
+    }
+
+    .embedding-selector-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        margin-top: 12px;
+    }
+
+    .embedding-selector-label-wrap {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        min-width: 0;
+    }
+
+    .embedding-selector-label {
+        color: #475569;
+        font-size: 0.82rem;
+        font-weight: 700;
+        line-height: 1.2;
+        white-space: nowrap;
+        flex: 0 0 auto;
+    }
+
+    .embedding-help-btn {
+        width: 20px;
+        height: 20px;
+        border: 1px solid #bfdbfe;
+        border-radius: 999px;
+        background: rgba(239, 246, 255, 0.95);
+        color: #0369a1;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.72rem;
+        font-weight: 800;
+        cursor: pointer;
+        padding: 0;
+        line-height: 1;
+        transition: transform 0.18s ease, background 0.18s ease;
+    }
+
+    .embedding-help-btn:hover {
+        background: #dbeafe;
+        transform: translateY(-1px);
+    }
+
+    .embedding-selector {
+        min-width: 132px;
+        border: 1px solid #cbd5e1;
+        border-radius: 10px;
+        padding: 8px 10px;
+        color: #0f172a;
+        background: #fff;
+        font-size: 0.88rem;
+    }
+
+    .embedding-switch {
+        position: relative;
+        display: inline-flex;
+        align-items: center;
+        width: 52px;
+        height: 30px;
+    }
+
+    .embedding-switch input {
+        position: absolute;
+        opacity: 0;
+        width: 0;
+        height: 0;
+    }
+
+    .embedding-switch-slider {
+        position: absolute;
+        inset: 0;
+        border-radius: 999px;
+        background: #cbd5e1;
+        transition: background 0.18s ease;
+        cursor: pointer;
+        box-shadow: inset 0 0 0 1px rgba(148, 163, 184, 0.45);
+    }
+
+    .embedding-switch-slider::before {
+        content: "";
+        position: absolute;
+        width: 22px;
+        height: 22px;
+        left: 4px;
+        top: 4px;
+        border-radius: 999px;
+        background: #ffffff;
+        box-shadow: 0 2px 6px rgba(15, 23, 42, 0.18);
+        transition: transform 0.18s ease;
+    }
+
+    .embedding-switch input:checked + .embedding-switch-slider {
+        background: linear-gradient(135deg, #0284c7, #0369a1);
+    }
+
+    .embedding-switch input:checked + .embedding-switch-slider::before {
+        transform: translateX(22px);
+    }
+
+    .embedding-switch input:disabled + .embedding-switch-slider {
+        opacity: 0.6;
+        cursor: wait;
+    }
+
+    .embedding-stats {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 8px;
+        margin-top: 12px;
+    }
+
+    .embedding-entities {
+        margin-top: 12px;
+        padding: 10px 12px;
+        border: 1px solid #dbeafe;
+        border-radius: 12px;
+        background: rgba(239, 246, 255, 0.85);
+    }
+
+    .embedding-entities-label {
+        color: #1e3a8a;
+        font-size: 0.78rem;
+        font-weight: 800;
+        margin-bottom: 6px;
+    }
+
+    .embedding-entity-name {
+        color: #0f172a;
+        font-size: 0.82rem;
+        line-height: 1.45;
+        word-break: break-word;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+    }
+
+    .embedding-footer {
+        display: flex;
+        justify-content: flex-start;
+        margin-top: 12px;
+    }
+
+    .embedding-preview-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        border: 1px solid #bfdbfe;
+        border-radius: 10px;
+        padding: 8px 12px;
+        background: rgba(239, 246, 255, 0.92);
+        color: #1d4ed8;
+        font-weight: 700;
+        cursor: pointer;
+        transition: transform 0.18s ease, box-shadow 0.18s ease, background 0.18s ease;
+    }
+
+    .embedding-preview-btn:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 10px 22px rgba(37, 99, 235, 0.14);
+        background: #dbeafe;
+    }
+
+    .embedding-stat {
+        border: 1px solid #e2e8f0;
+        border-radius: 12px;
+        padding: 10px;
+        background: rgba(248, 250, 252, 0.82);
+    }
+
+    .embedding-stat-label {
+        color: #64748b;
+        font-size: 0.75rem;
+        margin-bottom: 4px;
+    }
+
+    .embedding-stat-value {
+        color: #0f172a;
+        font-size: 0.92rem;
+        font-weight: 800;
+    }
+
+    .embedding-actions {
+        position: absolute;
+        top: 12px;
+        right: 12px;
+    }
+
+    .embedding-delete-btn {
+        width: 32px;
+        height: 32px;
+        border: 1px solid #fecaca;
+        border-radius: 999px;
+        padding: 0;
+        font-weight: 700;
+        color: #b91c1c;
+        background: rgba(255, 241, 242, 0.95);
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        transition: background 0.18s ease, transform 0.18s ease, box-shadow 0.18s ease;
+    }
+
+    .embedding-delete-btn:hover {
+        background: #ffe4e6;
+        transform: translateY(-1px);
+        box-shadow: 0 8px 18px rgba(248, 113, 113, 0.18);
+    }
+
+    .empty-state {
+        border: 1px dashed #cbd5e1;
+        border-radius: 14px;
+        padding: 18px;
+        text-align: center;
+        color: #64748b;
+        background: rgba(248, 250, 252, 0.7);
+    }
+
+    .config-modal-overlay {
+        position: fixed;
+        inset: 0;
+        display: none;
+        align-items: center;
+        justify-content: center;
+        background: rgba(15, 23, 42, 0.38);
+        z-index: 1200;
+        padding: 20px;
+    }
+
+    .config-modal-overlay.active {
+        display: flex;
+    }
+
+    .config-modal-card {
+        width: min(100%, 420px);
+        border-radius: 18px;
+        background: white;
+        border: 1px solid #e2e8f0;
+        box-shadow: 0 24px 60px rgba(15, 23, 42, 0.18);
+        padding: 22px;
+    }
+
+    .config-modal-title {
+        color: #0f172a;
+        font-size: 1.1rem;
+        font-weight: 800;
+        margin-bottom: 8px;
+    }
+
+    .config-modal-copy {
+        color: #475569;
+        line-height: 1.5;
+    }
+
+    .config-modal-actions {
+        display: flex;
+        justify-content: flex-end;
+        gap: 10px;
+        margin-top: 18px;
+    }
+
+    .prediction-modal-overlay {
+        position: fixed;
+        inset: 0;
+        display: none;
+        align-items: center;
+        justify-content: center;
+        background: rgba(15, 23, 42, 0.42);
+        z-index: 1250;
+        padding: 20px;
+    }
+
+    .prediction-modal-overlay.active {
+        display: flex;
+    }
+
+    .prediction-modal-card {
+        width: min(100%, 920px);
+        max-height: min(92vh, 860px);
+        overflow: auto;
+        border-radius: 20px;
+        background: linear-gradient(180deg, #ffffff, #f8fafc);
+        border: 1px solid #dbeafe;
+        box-shadow: 0 26px 64px rgba(15, 23, 42, 0.22);
+        padding: 22px;
+    }
+
+    .prediction-modal-header {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 16px;
+        margin-bottom: 16px;
+    }
+
+    .prediction-modal-title {
+        color: #0f172a;
+        font-size: 1.15rem;
+        font-weight: 800;
+        margin-bottom: 6px;
+    }
+
+    .prediction-modal-copy {
+        color: #475569;
+        line-height: 1.45;
+    }
+
+    .prediction-close-btn {
+        width: 36px;
+        height: 36px;
+        border: 1px solid #cbd5e1;
+        border-radius: 999px;
+        background: white;
+        color: #334155;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .prediction-summary {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+        gap: 10px;
+        margin-bottom: 16px;
+    }
+
+    .prediction-toolbar {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto auto;
+        gap: 10px;
+        align-items: end;
+        margin-bottom: 14px;
+    }
+
+    .prediction-overlay-list {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-bottom: 14px;
+    }
+
+    .prediction-overlay-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        border-radius: 999px;
+        padding: 6px 10px;
+        background: rgba(239, 246, 255, 0.95);
+        border: 1px solid #bfdbfe;
+        color: #0f172a;
+        font-size: 0.82rem;
+        font-weight: 700;
+    }
+
+    .prediction-overlay-dot {
+        width: 10px;
+        height: 10px;
+        border-radius: 999px;
+        flex: 0 0 auto;
+    }
+
+    .prediction-overlay-remove {
+        border: none;
+        background: transparent;
+        color: #475569;
+        cursor: pointer;
+        padding: 0;
+        line-height: 1;
+    }
+
+    .prediction-summary-card {
+        border: 1px solid #e2e8f0;
+        border-radius: 14px;
+        padding: 12px;
+        background: rgba(255, 255, 255, 0.88);
+    }
+
+    .prediction-summary-label {
+        color: #64748b;
+        font-size: 0.78rem;
+        margin-bottom: 4px;
+    }
+
+    .prediction-summary-value {
+        color: #0f172a;
+        font-size: 1rem;
+        font-weight: 800;
+    }
+
+    .prediction-chart-shell {
+        position: relative;
+        height: 452px;
+        border-radius: 16px;
+        border: 1px solid #dbeafe;
+        background: linear-gradient(180deg, rgba(14, 165, 233, 0.05), rgba(255, 255, 255, 0.9));
+        overflow: hidden;
+        display: grid;
+        grid-template-rows: minmax(0, 372px) 80px;
+    }
+
+    .prediction-chart-shell canvas {
+        width: 100%;
+        display: block;
+    }
+
+    .prediction-power-canvas {
+        height: 372px !important;
+    }
+
+    .prediction-interval-canvas {
+        height: 80px !important;
+        border-top: 1px solid #dbeafe;
+        background: rgba(248, 250, 252, 0.92);
+    }
+
+    .prediction-loading,
+    .prediction-empty {
+        position: absolute;
+        inset: 0;
+        display: none;
+        align-items: center;
+        justify-content: center;
+        padding: 18px;
+        text-align: center;
+        color: #475569;
+        font-weight: 700;
+        background: rgba(248, 250, 252, 0.86);
+        backdrop-filter: blur(2px);
+        z-index: 1;
+    }
+
+    .prediction-loading.active,
+    .prediction-empty.active {
+        display: flex;
+    }
+
+    @media (max-width: 960px) {
+        .nilm-grid {
+            grid-template-columns: 1fr;
+        }
+
+        .embedding-list {
+            max-height: none;
+            overflow-y: visible;
+            padding-right: 0;
+        }
+    }
+
+    @media (max-width: 760px) {
+        .nilm-config {
+            padding: 18px;
+            border-radius: 16px;
+        }
+
+        .nilm-hero {
+            margin-bottom: 18px;
+        }
+
+        .nilm-hero h1 {
+            font-size: 1.75rem;
+            line-height: 1.15;
+        }
+
+        .panel {
+            padding: 16px;
+            border-radius: 16px;
+        }
+
+        .control-row {
+            grid-template-columns: 1fr;
+            gap: 10px;
+        }
+
+        .chart-shell {
+            height: 260px;
+        }
+
+        .stats-grid {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 10px;
+        }
+
+        .stat-card {
+            padding: 12px;
+        }
+
+        .stat-value {
+            font-size: 1.05rem;
+        }
+
+        .action-btn {
+            width: 100%;
+            min-height: 44px;
+            padding: 12px 14px;
+        }
+
+        .embedding-topline {
+            flex-direction: column;
+            align-items: flex-start;
+        }
+
+        .chart-loading-card {
+            border-radius: 16px;
+            padding: 10px 12px;
+            font-size: 0.9rem;
+        }
+
+        .prediction-modal-card {
+            padding: 16px;
+        }
+
+        .prediction-toolbar {
+            grid-template-columns: 1fr;
+        }
+
+        .prediction-chart-shell {
+            height: 360px;
+            grid-template-rows: minmax(0, 288px) 72px;
+        }
+
+        .prediction-power-canvas {
+            height: 288px !important;
+        }
+
+        .prediction-interval-canvas {
+            height: 72px !important;
+        }
+    }
+
+    @media (max-width: 480px) {
+        .nilm-config {
+            padding: 8px;
+            border-radius: 10px;
+            margin-inline: 0;
+            border-left: none;
+            border-right: none;
+            box-shadow: none;
+        }
+
+        .nilm-badge {
+            font-size: 0.72rem;
+            padding: 5px 10px;
+        }
+
+        .nilm-hero {
+            gap: 10px;
+            margin-bottom: 14px;
+        }
+
+        .nilm-hero h1 {
+            font-size: 1.45rem;
+        }
+
+        .panel h2 {
+            font-size: 1rem;
+        }
+
+        .panel p {
+            font-size: 0.88rem;
+            line-height: 1.4;
+        }
+
+        .panel {
+            padding: 12px;
+            border-radius: 12px;
+        }
+
+        .control-row {
+            gap: 8px;
+        }
+
+        .field-label {
+            font-size: 0.84rem;
+        }
+
+        .field-input {
+            padding: 11px 12px;
+            font-size: 16px;
+        }
+
+        .chart-shell {
+            height: 200px;
+            border-radius: 12px;
+        }
+
+        .stats-grid {
+            grid-template-columns: 1fr;
+            gap: 8px;
+            margin-bottom: 14px;
+        }
+
+        .stat-card {
+            padding: 10px 12px;
+            border-radius: 12px;
+        }
+
+        .stat-label {
+            font-size: 0.78rem;
+        }
+
+        .embedding-card {
+            padding: 10px;
+        }
+
+        .embedding-meta {
+            font-size: 0.82rem;
+        }
+
+        .status-message {
+            padding: 10px 12px;
+            font-size: 0.9rem;
+        }
+
+        .prediction-modal-header {
+            gap: 10px;
+        }
+
+        .prediction-summary {
+            grid-template-columns: 1fr;
+        }
+
+        .prediction-chart-shell {
+            height: 300px;
+            grid-template-rows: minmax(0, 236px) 64px;
+        }
+
+        .prediction-power-canvas {
+            height: 236px !important;
+        }
+
+        .prediction-interval-canvas {
+            height: 64px !important;
+        }
+    }
+</style>
+
+<div class="nilm-config">
+    <div class="nilm-hero">
+        <div>
+            <div class="nilm-badge">Configuration</div>
+            <h1 class="text-3xl font-bold text-slate-900 mt-3">Main Configuration</h1>
+            <p class="mt-2 text-slate-600 max-w-2xl">
+                Choose the mains signal, preview recent mains history, and review the appliance models currently available to the system.
+            </p>
+        </div>
+    </div>
+
+    <div class="nilm-grid">
+        <section class="panel">
+            <h2>Mains Signal</h2>
+            <p class="mb-4">Select the aggregate power sensor NILM should monitor and preview its recent signal directly here.</p>
+
+            <div class="control-row">
+                <div>
+                    <label class="field-label" for="mainSensorSelect">Main power sensor</label>
+                    <select id="mainSensorSelect" class="field-input"></select>
+                </div>
+                <div>
+                    <label class="field-label" for="historyRangeSelect">Range</label>
+                    <select id="historyRangeSelect" class="field-input">
+                        <option value="1">24h</option>
+                        <option value="3">3d</option>
+                        <option value="7" selected>7d</option>
+                    </select>
+                </div>
+                <button id="refreshSignalButton" class="action-btn action-secondary" type="button">Refresh Signal</button>
+                <button id="saveButton" class="action-btn action-primary" type="button">Save Sensor</button>
+            </div>
+
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-label">Energy</div>
+                    <div id="energyStat" class="stat-value">-</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Average</div>
+                    <div id="avgPowerStat" class="stat-value">-</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Peak</div>
+                    <div id="maxPowerStat" class="stat-value">-</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Latest</div>
+                    <div id="latestPowerStat" class="stat-value">-</div>
+                </div>
+            </div>
+
+            <div class="chart-shell">
+                <div id="chartLoadingOverlay" class="chart-loading">
+                    <div class="chart-loading-card">
+                        <div class="chart-spinner"></div>
+                        <span>Loading mains signal…</span>
+                    </div>
+                </div>
+                <canvas id="mainsSignalChart"></canvas>
+            </div>
+
+            <div id="statusMessage" class="status-message"></div>
+        </section>
+
+        <aside class="panel">
+            <div class="models-header">
+                <div class="models-header-copy">
+                    <h2>Appliance Models</h2>
+                    <p>Appliance models available for NILM disaggregation.</p>
+                </div>
+                <button id="addApplianceButton" class="action-btn action-primary" type="button"><i class="fas fa-plus" aria-hidden="true"></i> Add</button>
+            </div>
+
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-label">Available Models</div>
+                    <div id="embeddingsCountStat" class="stat-value">-</div>
+                </div>
+            </div>
+
+            <div id="embeddingsList" class="embedding-list"></div>
+        </aside>
+    </div>
+</div>
+
+<div id="deleteEmbeddingModal" class="config-modal-overlay">
+    <div class="config-modal-card">
+        <div class="config-modal-title">Delete Appliance Model?</div>
+        <div id="deleteEmbeddingModalMessage" class="config-modal-copy">This will permanently remove the selected appliance model.</div>
+        <div class="config-modal-actions">
+            <button id="cancelDeleteEmbeddingButton" class="action-btn action-secondary" type="button">Cancel</button>
+            <button id="confirmDeleteEmbeddingButton" class="action-btn" style="background:#dc2626;color:#fff;" type="button">Delete</button>
+        </div>
+    </div>
+</div>
+
+<div id="realtimeHelpModal" class="config-modal-overlay">
+    <div class="config-modal-card">
+        <div class="config-modal-title">Publish Real Time</div>
+        <div class="config-modal-copy">
+            Turn this on if you want this appliance model to publish live disaggregation results to Home Assistant while the add-on is running.
+            <br><br>
+            When enabled, Home Assistant entities are created for this appliance model. When disabled, the model stays available for previews and offline use, but it does not publish live sensor updates.
+        </div>
+        <div class="config-modal-actions">
+            <button id="closeRealtimeHelpButton" class="action-btn action-primary" type="button">OK</button>
+        </div>
+    </div>
+</div>
+
+<div id="predictionPreviewModal" class="prediction-modal-overlay">
+    <div class="prediction-modal-card">
+        <div class="prediction-modal-header">
+            <div>
+                <div id="predictionPreviewTitle" class="prediction-modal-title">Prediction Preview</div>
+                <div id="predictionPreviewCopy" class="prediction-modal-copy">Power and state predictions for the selected mains range.</div>
+            </div>
+            <button id="closePredictionPreviewButton" class="prediction-close-btn" type="button" aria-label="Close prediction preview">
+                <i class="fas fa-times" aria-hidden="true"></i>
+            </button>
+        </div>
+        <div class="prediction-summary">
+            <div class="prediction-summary-card">
+                <div class="prediction-summary-label">Range</div>
+                <div id="predictionPreviewRange" class="prediction-summary-value">-</div>
+            </div>
+            <div class="prediction-summary-card">
+                <div class="prediction-summary-label">Energy</div>
+                <div id="predictionPreviewEnergy" class="prediction-summary-value">-</div>
+            </div>
+            <div class="prediction-summary-card">
+                <div class="prediction-summary-label">Share Of Mains</div>
+                <div id="predictionPreviewOnPct" class="prediction-summary-value">-</div>
+            </div>
+        </div>
+        <div class="prediction-toolbar">
+            <div>
+                <label for="predictionOverlaySensorSelect" class="field-label">Compare With Home Assistant Sensor</label>
+                <select id="predictionOverlaySensorSelect" class="field-input">
+                    <option value="">Select sensor</option>
+                </select>
+            </div>
+            <button id="addPredictionOverlayButton" class="action-btn action-secondary" type="button">Add Sensor</button>
+            <button id="resetPredictionZoomButton" class="action-btn action-neutral" type="button">Reset Zoom</button>
+        </div>
+        <div id="predictionOverlayList" class="prediction-overlay-list"></div>
+        <div class="prediction-chart-shell">
+            <div id="predictionPreviewLoading" class="prediction-loading">Loading prediction preview...</div>
+            <div id="predictionPreviewEmpty" class="prediction-empty">No prediction history is available for the selected range yet.</div>
+            <canvas id="predictionPreviewChart" class="prediction-power-canvas"></canvas>
+            <canvas id="predictionPreviewIntervals" class="prediction-interval-canvas"></canvas>
+        </div>
+    </div>
+</div>
+
+<script>
+    let mainSensorSelect;
+    let historyRangeSelect;
+    let refreshSignalButton;
+    let saveButton;
+    let statusMessage;
+    let addApplianceButton;
+    let energyStat;
+    let avgPowerStat;
+    let maxPowerStat;
+    let latestPowerStat;
+    let embeddingsCountStat;
+    let embeddingsList;
+    let chartLoadingOverlay;
+    let deleteEmbeddingModal;
+    let deleteEmbeddingModalMessage;
+    let confirmDeleteEmbeddingButton;
+    let cancelDeleteEmbeddingButton;
+    let realtimeHelpModal;
+    let closeRealtimeHelpButton;
+    let predictionPreviewModal;
+    let predictionPreviewTitle;
+    let predictionPreviewCopy;
+    let predictionPreviewRange;
+    let predictionPreviewEnergy;
+    let predictionPreviewOnPct;
+    let predictionPreviewLoading;
+    let predictionPreviewEmpty;
+    let closePredictionPreviewButton;
+    let predictionOverlaySensorSelect;
+    let addPredictionOverlayButton;
+    let resetPredictionZoomButton;
+    let predictionOverlayList;
+    let predictionPreviewChartCanvas;
+    let predictionPreviewIntervalsCanvas;
+    let mainsSignalChart;
+    let predictionPreviewChart;
+    let predictionIntervalsChart;
+    let predictionOverlaySensors = [];
+    let currentPreviewModelName = null;
+    let currentPreviewBasePowerSeries = [];
+    let currentPreviewStateSeries = [];
+    let currentPreviewStartUtc = null;
+    let currentPreviewEndUtc = null;
+    let fullSignalSeries = [];
+    let signalChartDebounceTimer;
+    let predictionPreviewChartDebounceTimer;
+    let predictionPreviewProgressTimer;
+    let latestPowerPollTimer;
+    let sensorsById = new Map();
+    let allSensorsById = new Map();
+
+    let saveButtonHandler;
+    let addApplianceButtonHandler;
+    let refreshSignalButtonHandler;
+    let sensorChangeHandler;
+    let rangeChangeHandler;
+    let embeddingsListClickHandler;
+    let embeddingsListChangeHandler;
+    let confirmDeleteEmbeddingHandler;
+    let cancelDeleteEmbeddingHandler;
+    let closeRealtimeHelpHandler;
+    let realtimeHelpOverlayHandler;
+    let closePredictionPreviewHandler;
+    let predictionPreviewOverlayHandler;
+    let addPredictionOverlayHandler;
+    let resetPredictionZoomHandler;
+    let latestPowerPollTickHandler;
+    let messageTimeoutId;
+    let pendingDeleteEmbeddingName = null;
+
+    const PREVIEW_OVERLAY_COLORS = [
+        "#f97316",
+        "#16a34a",
+        "#7c3aed",
+        "#ef4444",
+        "#0f766e",
+        "#d97706",
+    ];
+
+    function formatPower(value) {
+        if (!Number.isFinite(value)) return "-";
+        return `${Math.round(value)} W`;
+    }
+
+    function formatUiDateTime(value) {
+        const date = value instanceof Date ? value : new Date(value);
+        if (Number.isNaN(date.getTime())) return typeof value === "string" ? value : "Unknown";
+        return new Intl.DateTimeFormat("en-GB", {
+            year: "numeric",
+            month: "2-digit",
+            day: "2-digit",
+            hour: "2-digit",
+            minute: "2-digit",
+            second: "2-digit",
+            hour12: false,
+        }).format(date);
+    }
+
+    function formatTimestamp(isoString) {
+        if (!isoString) return "Unknown";
+        const date = new Date(isoString);
+        if (Number.isNaN(date.getTime())) return isoString;
+        return formatUiDateTime(date);
+    }
+
+    function formatEnergy(wh) {
+        if (!Number.isFinite(wh)) return "Unknown";
+        if (wh >= 1000) return `${(wh / 1000).toFixed(2)} kWh`;
+        return `${wh.toFixed(1)} Wh`;
+    }
+
+    function formatPercent(value) {
+        if (!Number.isFinite(value)) return "Unknown";
+        return `${value.toFixed(1)}%`;
+    }
+
+    function slugifyApplianceName(value) {
+        return String(value || "")
+            .trim()
+            .toLowerCase()
+            .replace(/[^a-z0-9]+/g, "_")
+            .replace(/^_+|_+$/g, "");
+    }
+
+    function realtimeEntityIdsForModel(embedding) {
+        const applianceSlug = slugifyApplianceName(embedding?.name || "");
+        const bundleSlug = slugifyApplianceName(embedding?.bundle_id || "");
+        const suffix = bundleSlug ? `${applianceSlug}_${bundleSlug}` : applianceSlug;
+        return {
+            power: `sensor.nilm_${suffix}_power`,
+            state: `binary_sensor.nilm_${suffix}_on`,
+        };
+    }
+
+    function openDeleteEmbeddingModal(modelKey, label) {
+        pendingDeleteEmbeddingName = modelKey;
+        if (deleteEmbeddingModalMessage) {
+            deleteEmbeddingModalMessage.textContent = `Delete appliance model "${label}"? This action cannot be undone.`;
+        }
+        if (deleteEmbeddingModal) deleteEmbeddingModal.classList.add("active");
+    }
+
+    function closeDeleteEmbeddingModal() {
+        pendingDeleteEmbeddingName = null;
+        if (deleteEmbeddingModal) deleteEmbeddingModal.classList.remove("active");
+    }
+
+    function openRealtimeHelpModal() {
+        if (realtimeHelpModal) realtimeHelpModal.classList.add("active");
+    }
+
+    function closeRealtimeHelpModal() {
+        if (realtimeHelpModal) realtimeHelpModal.classList.remove("active");
+    }
+
+    function closePredictionPreview() {
+        if (predictionPreviewModal) predictionPreviewModal.classList.remove("active");
+        if (predictionPreviewLoading) predictionPreviewLoading.classList.remove("active");
+        if (predictionPreviewEmpty) predictionPreviewEmpty.classList.remove("active");
+        if (predictionPreviewChartDebounceTimer) {
+            clearTimeout(predictionPreviewChartDebounceTimer);
+            predictionPreviewChartDebounceTimer = null;
+        }
+        if (predictionPreviewProgressTimer) {
+            clearInterval(predictionPreviewProgressTimer);
+            predictionPreviewProgressTimer = null;
+        }
+        if (predictionPreviewProgressTimer) {
+            clearInterval(predictionPreviewProgressTimer);
+            predictionPreviewProgressTimer = null;
+        }
+        if (predictionPreviewChart) {
+            predictionPreviewChart.destroy();
+            predictionPreviewChart = null;
+        }
+        predictionIntervalsChart = null;
+        if (predictionPreviewIntervalsCanvas) {
+            const ctx = predictionPreviewIntervalsCanvas.getContext("2d");
+            if (ctx) {
+                ctx.clearRect(0, 0, predictionPreviewIntervalsCanvas.width, predictionPreviewIntervalsCanvas.height);
+            }
+        }
+        predictionOverlaySensors = [];
+        currentPreviewModelName = null;
+        currentPreviewBasePowerSeries = [];
+        currentPreviewStateSeries = [];
+        currentPreviewStartUtc = null;
+        currentPreviewEndUtc = null;
+        renderPredictionOverlayList();
+    }
+
+    function showPredictionPreviewLoading(message = "Loading prediction preview...") {
+        if (predictionPreviewLoading) {
+            predictionPreviewLoading.textContent = message;
+            predictionPreviewLoading.classList.add("active");
+        }
+    }
+
+    function hidePredictionPreviewLoading() {
+        if (predictionPreviewProgressTimer) {
+            clearInterval(predictionPreviewProgressTimer);
+            predictionPreviewProgressTimer = null;
+        }
+        if (predictionPreviewLoading) {
+            predictionPreviewLoading.classList.remove("active");
+            predictionPreviewLoading.textContent = "Loading prediction preview...";
+        }
+    }
+
+    function setPredictionPreviewProgress(message, percent) {
+        const safePercent = Number.isFinite(percent) ? Math.max(0, Math.min(100, Math.round(percent))) : null;
+        showPredictionPreviewLoading(
+            safePercent === null
+                ? message
+                : `${message} ${safePercent}%`
+        );
+    }
+
+    function previewProgressMessage(phase) {
+        switch (String(phase || "").toLowerCase()) {
+            case "queued":
+                return "Preparing preview request...";
+            case "history":
+                return "Loading mains history from Home Assistant...";
+            case "history_ready":
+                return "Mains history loaded. Starting NILM inference...";
+            case "postprocess":
+                return "Building ON intervals...";
+            case "done":
+                return "Rendering prediction charts...";
+            case "error":
+                return "Prediction preview failed";
+            case "inference":
+            default:
+                return "Running NILM inference over the selected range...";
+        }
+    }
+
+    async function waitForPredictionPreviewJob(jobId) {
+        while (true) {
+            const response = await fetch(`preview-jobs/${encodeURIComponent(jobId)}`);
+            const payload = await response.json().catch(() => ({}));
+            if (!response.ok) {
+                throw new Error(payload.message || `Failed to load preview progress: HTTP ${response.status}`);
+            }
+
+            setPredictionPreviewProgress(
+                previewProgressMessage(payload.phase || payload.status),
+                Number(payload.percent)
+            );
+
+            if (payload.status === "done") {
+                return payload.result || { power_series: [], state_series: [] };
+            }
+            if (payload.status === "error") {
+                throw new Error(payload.message || "Prediction preview failed.");
+            }
+
+            await new Promise((resolve) => {
+                predictionPreviewProgressTimer = window.setTimeout(resolve, 100);
+            });
+            predictionPreviewProgressTimer = null;
+        }
+    }
+
+    function formatRangeLabel(startDate, endDate) {
+        if (!(startDate instanceof Date) || Number.isNaN(startDate.getTime()) || !(endDate instanceof Date) || Number.isNaN(endDate.getTime())) {
+            return "-";
+        }
+        return `${formatUiDateTime(startDate)} to ${formatUiDateTime(endDate)}`;
+    }
+
+    function buildOnIntervals(series) {
+        if (!Array.isArray(series) || series.length < 2) return [];
+        const intervals = [];
+        let activeStart = null;
+
+        for (let i = 0; i < series.length - 1; i += 1) {
+            const a = series[i];
+            const b = series[i + 1];
+            if (!Number.isFinite(a?.x) || !Number.isFinite(b?.x) || !Number.isFinite(a?.y)) continue;
+
+            const isOn = a.y >= 0.5;
+            if (isOn && activeStart === null) {
+                activeStart = a.x;
+            }
+
+            if ((!isOn || i === series.length - 2) && activeStart !== null) {
+                const intervalEnd = isOn ? b.x : a.x;
+                if (Number.isFinite(intervalEnd) && intervalEnd > activeStart) {
+                    intervals.push({ start: activeStart, end: intervalEnd });
+                }
+                activeStart = null;
+            }
+        }
+
+        return intervals;
+    }
+
+    function renderPredictionIntervalStrip(intervals) {
+        const canvas = predictionPreviewIntervalsCanvas;
+        if (!canvas || !predictionPreviewChart) return;
+
+        const ctx = canvas.getContext("2d");
+        if (!ctx) return;
+
+        const dpr = window.devicePixelRatio || 1;
+        const width = canvas.clientWidth || 0;
+        const height = canvas.clientHeight || 0;
+        if (!width || !height) return;
+
+        if (canvas.width !== Math.round(width * dpr) || canvas.height !== Math.round(height * dpr)) {
+            canvas.width = Math.round(width * dpr);
+            canvas.height = Math.round(height * dpr);
+        }
+
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+        ctx.scale(dpr, dpr);
+        ctx.clearRect(0, 0, width, height);
+
+        const xScale = predictionPreviewChart.scales?.x;
+        const chartArea = predictionPreviewChart.chartArea;
+        if (!xScale || !chartArea) return;
+
+        const top = 10;
+        const bottom = height - 12;
+        const rectHeight = Math.max(18, bottom - top);
+
+        ctx.fillStyle = "rgba(22, 163, 74, 0.85)";
+        for (const interval of intervals) {
+            const start = Math.max(xScale.min, interval.start);
+            const end = Math.min(xScale.max, interval.end);
+            if (!(end > start)) continue;
+
+            const leftPx = xScale.getPixelForValue(start);
+            const rightPx = xScale.getPixelForValue(end);
+            const left = Math.max(chartArea.left, Math.min(leftPx, rightPx));
+            const right = Math.min(chartArea.right, Math.max(leftPx, rightPx));
+            if (right <= left) continue;
+            ctx.fillRect(left, top, right - left, rectHeight);
+        }
+
+        ctx.strokeStyle = "#cbd5e1";
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(chartArea.left, 0.5);
+        ctx.lineTo(chartArea.right, 0.5);
+        ctx.stroke();
+    }
+
+    function renderPredictionOverlayList() {
+        if (!predictionOverlayList) return;
+        predictionOverlayList.innerHTML = "";
+        if (!predictionOverlaySensors.length) return;
+
+        predictionOverlaySensors.forEach((overlay) => {
+            const chip = document.createElement("div");
+            chip.className = "prediction-overlay-chip";
+            chip.innerHTML = `
+                <span class="prediction-overlay-dot" style="background:${overlay.color};"></span>
+                <span>${overlay.friendlyName || overlay.entityId}</span>
+                <button class="prediction-overlay-remove" type="button" aria-label="Remove overlay sensor" data-overlay-remove="${overlay.entityId}">
+                    <i class="fas fa-times" aria-hidden="true"></i>
+                </button>
+            `;
+            predictionOverlayList.appendChild(chip);
+        });
+    }
+
+    function populatePredictionOverlaySensorSelect() {
+        if (!predictionOverlaySensorSelect) return;
+
+        const sensors = Array.from(allSensorsById.values())
+            .filter((sensor) => sensor?.entity_id)
+            .sort((a, b) => String(a.friendly_name || a.entity_id).localeCompare(String(b.friendly_name || b.entity_id)));
+
+        predictionOverlaySensorSelect.innerHTML = `<option value="">Select sensor</option>`;
+        sensors.forEach((sensor) => {
+            const option = document.createElement("option");
+            option.value = sensor.entity_id;
+            option.textContent = sensor.friendly_name || sensor.entity_id;
+            predictionOverlaySensorSelect.appendChild(option);
+        });
+    }
+
+    async function addPredictionOverlaySensor() {
+        const entityId = predictionOverlaySensorSelect?.value;
+        if (!entityId || !currentPreviewStartUtc || !currentPreviewEndUtc) return;
+        if (predictionOverlaySensors.some((item) => item.entityId === entityId)) return;
+
+        if (addPredictionOverlayButton) addPredictionOverlayButton.disabled = true;
+        if (predictionOverlaySensorSelect) predictionOverlaySensorSelect.disabled = true;
+        showPredictionPreviewLoading("Loading comparison sensor...");
+        try {
+            const series = await fetchSeriesForSensor(entityId, {
+                startUtc: currentPreviewStartUtc,
+                endUtc: currentPreviewEndUtc,
+            });
+            const sensor = allSensorsById.get(entityId);
+            predictionOverlaySensors.push({
+                entityId,
+                friendlyName: sensor?.friendly_name || entityId,
+                color: PREVIEW_OVERLAY_COLORS[predictionOverlaySensors.length % PREVIEW_OVERLAY_COLORS.length],
+                series,
+            });
+            renderPredictionOverlayList();
+            renderPredictionPreviewChart(currentPreviewBasePowerSeries, currentPreviewStateSeries, currentPreviewModelName);
+        } finally {
+            hidePredictionPreviewLoading();
+            if (addPredictionOverlayButton) addPredictionOverlayButton.disabled = false;
+            if (predictionOverlaySensorSelect) predictionOverlaySensorSelect.disabled = false;
+        }
+    }
+
+    function removePredictionOverlaySensor(entityId) {
+        predictionOverlaySensors = predictionOverlaySensors.filter((item) => item.entityId !== entityId);
+        renderPredictionOverlayList();
+        renderPredictionPreviewChart(currentPreviewBasePowerSeries, currentPreviewStateSeries, currentPreviewModelName);
+    }
+
+    function renderPredictionPreviewChart(powerSeries, stateSeries, modelName) {
+        const powerCtx = predictionPreviewChartCanvas?.getContext("2d");
+        if (!powerCtx) return;
+
+        if (predictionPreviewChart) {
+            predictionPreviewChart.destroy();
+            predictionPreviewChart = null;
+        }
+        predictionIntervalsChart = null;
+
+        const intervals = buildOnIntervals(stateSeries);
+        const minX = powerSeries.length ? powerSeries[0].x : undefined;
+        const maxX = powerSeries.length ? powerSeries[powerSeries.length - 1].x : undefined;
+        const overlayDatasets = predictionOverlaySensors.map((overlay) => ({
+            label: overlay.friendlyName || overlay.entityId,
+            data: Number.isFinite(minX) && Number.isFinite(maxX)
+                ? decimateSeriesForRange(overlay.series, minX, maxX, 1200)
+                : overlay.series,
+            parsing: false,
+            normalized: true,
+            borderColor: overlay.color,
+            backgroundColor: overlay.color,
+            borderWidth: 2,
+            pointRadius: 0,
+            tension: 0.12,
+            borderDash: [8, 4],
+        }));
+
+        predictionPreviewChart = new Chart(powerCtx, {
+            type: "line",
+            data: {
+                datasets: [
+                    {
+                        label: "Power Prediction (W)",
+                        data: Number.isFinite(minX) && Number.isFinite(maxX)
+                            ? decimateSeriesForRange(powerSeries, minX, maxX, 1200)
+                            : powerSeries,
+                        parsing: false,
+                        normalized: true,
+                        borderColor: "#0284c7",
+                        backgroundColor: "rgba(2, 132, 199, 0.12)",
+                        borderWidth: 2,
+                        pointRadius: 0,
+                        tension: 0.15,
+                    }
+                ].concat(overlayDatasets)
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                animation: false,
+                interaction: {
+                    mode: "index",
+                    intersect: false,
+                },
+                plugins: {
+                    legend: {
+                        display: true,
+                        labels: {
+                            boxWidth: 12,
+                        }
+                    },
+                    tooltip: {
+                        callbacks: {
+                            title(items) {
+                                const raw = items?.[0]?.parsed?.x;
+                                return Number.isFinite(raw) ? formatUiDateTime(raw) : "";
+                            },
+                            label(context) {
+                                return `${context.dataset.label}: ${Math.round(context.parsed.y)} W`;
+                            }
+                        }
+                    },
+                    zoom: {
+                        limits: Number.isFinite(minX) && Number.isFinite(maxX)
+                            ? { x: { min: minX, max: maxX } }
+                            : {},
+                        pan: {
+                            enabled: true,
+                            mode: "x",
+                            onPanComplete: () => updatePredictionPreviewChartData(),
+                        },
+                        zoom: {
+                            wheel: {
+                                enabled: true,
+                            },
+                            pinch: {
+                                enabled: true,
+                            },
+                            drag: {
+                                enabled: true,
+                                backgroundColor: "rgba(2, 132, 199, 0.08)",
+                                borderColor: "rgba(2, 132, 199, 0.35)",
+                                borderWidth: 1,
+                            },
+                            mode: "x",
+                            onZoomComplete: () => updatePredictionPreviewChartData(),
+                        }
+                    }
+                },
+                scales: {
+                    x: {
+                        type: "time",
+                        time: {
+                            unit: "hour",
+                        },
+                        ticks: {
+                            autoSkip: true,
+                            maxRotation: 0,
+                            maxTicksLimit: isPhoneScreen() ? 4 : 8,
+                        },
+                        min: minX,
+                        max: maxX,
+                        title: {
+                            display: true,
+                            text: "Time"
+                        }
+                    },
+                    y: {
+                        beginAtZero: true,
+                        title: {
+                            display: true,
+                            text: "Power (W)"
+                        }
+                    }
+                }
+            },
+            plugins: [{
+                id: "prediction-interval-strip-sync",
+                afterRender: () => renderPredictionIntervalStrip(intervals),
+                resize: () => renderPredictionIntervalStrip(intervals),
+            }],
+        });
+
+        if (predictionPreviewTitle) {
+            predictionPreviewTitle.textContent = `${modelName} Prediction Preview`;
+        }
+    }
+
+    function updatePredictionPreviewChartData() {
+        if (!predictionPreviewChart || !currentPreviewBasePowerSeries.length) {
+            return;
+        }
+
+        clearTimeout(predictionPreviewChartDebounceTimer);
+        predictionPreviewChartDebounceTimer = setTimeout(() => {
+            const xScale = predictionPreviewChart.scales?.x;
+            const minX = Number.isFinite(xScale?.min) ? xScale.min : currentPreviewBasePowerSeries[0].x;
+            const maxX = Number.isFinite(xScale?.max)
+                ? xScale.max
+                : currentPreviewBasePowerSeries[currentPreviewBasePowerSeries.length - 1].x;
+            const range = maxX - minX;
+            const hour = 3600000;
+            const day = 24 * hour;
+
+            if (predictionPreviewChart.options?.scales?.x?.time) {
+                predictionPreviewChart.options.scales.x.time.unit =
+                    range <= 2 * hour ? "minute" :
+                    range <= 2 * day ? "hour" :
+                    "day";
+            }
+
+            if (predictionPreviewChart.options?.scales?.x?.ticks) {
+                predictionPreviewChart.options.scales.x.ticks.maxTicksLimit = isPhoneScreen() ? 4 : 8;
+            }
+
+            if (predictionPreviewChart.data?.datasets?.[0]) {
+                predictionPreviewChart.data.datasets[0].data = decimateSeriesForRange(
+                    currentPreviewBasePowerSeries,
+                    minX,
+                    maxX,
+                    1200
+                );
+            }
+
+            predictionOverlaySensors.forEach((overlay, index) => {
+                const dataset = predictionPreviewChart.data?.datasets?.[index + 1];
+                if (!dataset) return;
+                dataset.data = decimateSeriesForRange(overlay.series, minX, maxX, 1200);
+            });
+
+            predictionPreviewChart.update("none");
+            renderPredictionIntervalStrip(buildOnIntervals(currentPreviewStateSeries));
+        }, 80);
+    }
+
+    async function openPredictionPreview(modelKey, modelName) {
+        if (!predictionPreviewModal) return;
+
+        predictionPreviewModal.classList.add("active");
+        setPredictionPreviewProgress("Preparing preview request...", 2);
+        if (predictionPreviewEmpty) predictionPreviewEmpty.classList.remove("active");
+        if (predictionPreviewChart) {
+            predictionPreviewChart.destroy();
+            predictionPreviewChart = null;
+        }
+        if (predictionPreviewTitle) predictionPreviewTitle.textContent = `${modelName} Prediction Preview`;
+
+        const { startUtc, endUtc } = getSelectedRangeBounds();
+        currentPreviewModelName = modelName;
+        currentPreviewStartUtc = startUtc;
+        currentPreviewEndUtc = endUtc;
+        predictionOverlaySensors = [];
+        renderPredictionOverlayList();
+        populatePredictionOverlaySensorSelect();
+        if (predictionPreviewRange) predictionPreviewRange.textContent = formatRangeLabel(startUtc, endUtc);
+        if (predictionPreviewCopy) {
+            predictionPreviewCopy.textContent = "Power and state predictions for the selected mains range.";
+        }
+        if (predictionPreviewEnergy) predictionPreviewEnergy.textContent = "-";
+        if (predictionPreviewOnPct) predictionPreviewOnPct.textContent = "-";
+
+        try {
+            const previewUrl = `embeddings/${encodeURIComponent(modelKey)}/preview`;
+            const response = await fetch(previewUrl, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    start: startUtc.toISOString(),
+                    end: endUtc.toISOString(),
+                }),
+            });
+            if (!response.ok) {
+                const errorPayload = await response.json().catch(() => ({}));
+                throw new Error(errorPayload.message || `Failed to load prediction preview: HTTP ${response.status}`);
+            }
+
+            const startPayload = await response.json().catch(() => ({}));
+            if (!startPayload.job_id) {
+                throw new Error("Prediction preview job did not start correctly.");
+            }
+
+            const payload = await waitForPredictionPreviewJob(startPayload.job_id);
+            const powerSeries = Array.isArray(payload.power_series) ? payload.power_series : [];
+            const stateSeries = Array.isArray(payload.state_series) ? payload.state_series : [];
+            setPredictionPreviewProgress("Rendering prediction charts...", 100);
+
+            if (!powerSeries.length && !stateSeries.length) {
+                if (predictionPreviewEmpty) predictionPreviewEmpty.classList.add("active");
+                return;
+            }
+
+            const energyWh = computeSeriesEnergyWh(powerSeries);
+            const mainsEnergyWh = computeSeriesEnergyWh(fullSignalSeries);
+            const mainsSharePct = mainsEnergyWh > 1e-9 ? (energyWh / mainsEnergyWh) * 100 : NaN;
+            currentPreviewBasePowerSeries = powerSeries;
+            currentPreviewStateSeries = stateSeries;
+
+            if (predictionPreviewEnergy) predictionPreviewEnergy.textContent = formatEnergy(energyWh);
+            if (predictionPreviewOnPct) predictionPreviewOnPct.textContent = formatPercent(mainsSharePct);
+
+            renderPredictionPreviewChart(powerSeries, stateSeries, modelName);
+        } catch (error) {
+            console.error("Prediction preview failed:", error);
+            if (predictionPreviewCopy) {
+                predictionPreviewCopy.textContent = error.message || "Failed to load prediction preview.";
+            }
+            if (predictionPreviewEmpty) predictionPreviewEmpty.classList.add("active");
+        } finally {
+            hidePredictionPreviewLoading();
+        }
+    }
+
+    function computeSeriesEnergyWh(series) {
+        if (!Array.isArray(series) || series.length < 2) return 0;
+        let totalWh = 0;
+        for (let i = 0; i < series.length - 1; i += 1) {
+            const a = series[i];
+            const b = series[i + 1];
+            if (!Number.isFinite(a?.x) || !Number.isFinite(b?.x) || !Number.isFinite(a?.y)) continue;
+            const dtHours = Math.max(0, b.x - a.x) / 3600000;
+            totalWh += Math.max(0, a.y) * dtHours;
+        }
+        return totalWh;
+    }
+
+    function toIsoUtcNoMs(date) {
+        return new Date(date.getTime() - date.getMilliseconds()).toISOString().replace(".000Z", "Z");
+    }
+
+    function getSelectedRangeBounds() {
+        const days = parseInt(historyRangeSelect?.value, 10) || 7;
+        const now = new Date();
+        const endUtc = new Date(now.getTime());
+        const startUtc = new Date(endUtc.getTime() - (days * 24 * 60 * 60 * 1000));
+        return { startUtc, endUtc };
+    }
+
+    function isCompactScreen() {
+        return window.matchMedia("(max-width: 760px)").matches;
+    }
+
+    function isPhoneScreen() {
+        return window.matchMedia("(max-width: 480px)").matches;
+    }
+
+    function showMessage(message, type) {
+        if (messageTimeoutId) clearTimeout(messageTimeoutId);
+        if (!statusMessage) return;
+
+        statusMessage.textContent = message;
+        statusMessage.classList.remove("status-success", "status-error");
+        statusMessage.classList.add(`status-${type}`, "active");
+
+        messageTimeoutId = setTimeout(() => {
+            if (!statusMessage) return;
+            statusMessage.classList.remove("active");
+            statusMessage.textContent = "";
+        }, 5000);
+    }
+
+    function setStatsFromSeries(series) {
+        const values = Array.isArray(series) ? series.map(point => Number(point?.y)).filter(Number.isFinite) : [];
+        const sampleCount = values.length;
+        const totalEnergyWh = computeSeriesEnergyWh(series);
+
+        energyStat.textContent = sampleCount ? formatEnergy(totalEnergyWh) : "-";
+        avgPowerStat.textContent = sampleCount ? formatPower(values.reduce((sum, value) => sum + value, 0) / sampleCount) : "-";
+        maxPowerStat.textContent = sampleCount ? formatPower(Math.max(...values)) : "-";
+        latestPowerStat.textContent = sampleCount ? formatPower(values[values.length - 1]) : "-";
+    }
+
+    function updateLatestPowerFromSensors() {
+        if (!latestPowerStat || !mainSensorSelect?.value) return;
+        const sensor = sensorsById.get(mainSensorSelect.value);
+        const liveValue = Number(sensor?.state);
+        if (Number.isFinite(liveValue)) {
+            latestPowerStat.textContent = formatPower(liveValue);
+        }
+    }
+
+    async function fetchSensors() {
+        const response = await fetch("sensors");
+        if (!response.ok) {
+            throw new Error(`Failed to load sensors: HTTP ${response.status}`);
+        }
+
+        const sensors = await response.json();
+        return Array.isArray(sensors) ? sensors : [];
+    }
+
+    function showChartLoading() {
+        if (chartLoadingOverlay) chartLoadingOverlay.classList.add("active");
+    }
+
+    function hideChartLoading() {
+        if (chartLoadingOverlay) chartLoadingOverlay.classList.remove("active");
+    }
+
+    function decimateSeriesForRange(series, minX, maxX, targetPoints = 1200) {
+        if (!Array.isArray(series) || series.length === 0) return [];
+
+        let lo = 0;
+        let hi = series.length;
+        while (lo < hi) {
+            const mid = (lo + hi) >> 1;
+            if (series[mid].x < minX) lo = mid + 1;
+            else hi = mid;
+        }
+        const start = lo;
+
+        lo = 0;
+        hi = series.length;
+        while (lo < hi) {
+            const mid = (lo + hi) >> 1;
+            if (series[mid].x <= maxX) lo = mid + 1;
+            else hi = mid;
+        }
+        const end = lo;
+
+        const visibleLength = Math.max(0, end - start);
+        if (visibleLength <= 0) return [];
+        if (visibleLength <= targetPoints) return series.slice(start, end);
+
+        const samplesPerBlock = 2;
+        const blocks = Math.max(1, Math.floor(targetPoints / samplesPerBlock));
+        const stride = Math.ceil(visibleLength / blocks);
+        const out = [series[start]];
+
+        for (let i = start; i < end; i += stride) {
+            const blockEnd = Math.min(i + stride, end);
+            let minY = Infinity;
+            let maxY = -Infinity;
+            let minPt = null;
+            let maxPt = null;
+
+            for (let j = i; j < blockEnd; j++) {
+                const pt = series[j];
+                if (pt.y < minY) {
+                    minY = pt.y;
+                    minPt = pt;
+                }
+                if (pt.y > maxY) {
+                    maxY = pt.y;
+                    maxPt = pt;
+                }
+            }
+
+            const lastOut = out[out.length - 1];
+            if (minPt && minPt.x !== lastOut.x) out.push(minPt);
+            if (maxPt && maxPt !== minPt && maxPt.x !== out[out.length - 1].x) out.push(maxPt);
+        }
+
+        const last = series[end - 1];
+        if (out[out.length - 1].x !== last.x) out.push(last);
+
+        out.sort((a, b) => a.x - b.x);
+
+        if (out.length <= targetPoints) return out;
+
+        const thinned = [];
+        const step = Math.ceil(out.length / targetPoints);
+        for (let i = 0; i < out.length; i += step) thinned.push(out[i]);
+        if (thinned[thinned.length - 1].x !== last.x) thinned.push(last);
+        return thinned;
+    }
+
+    function updateSignalChartData() {
+        if (!mainsSignalChart || !fullSignalSeries.length) {
+            if (mainsSignalChart) {
+                mainsSignalChart.data.datasets[0].data = [];
+                mainsSignalChart.update("none");
+            }
+            return;
+        }
+
+        clearTimeout(signalChartDebounceTimer);
+        signalChartDebounceTimer = setTimeout(() => {
+            const xScale = mainsSignalChart.scales?.x;
+            const minX = Number.isFinite(xScale?.min) ? xScale.min : fullSignalSeries[0].x;
+            const maxX = Number.isFinite(xScale?.max) ? xScale.max : fullSignalSeries[fullSignalSeries.length - 1].x;
+            const range = maxX - minX;
+            const hour = 3600000;
+            const day = 24 * hour;
+
+            if (mainsSignalChart.options?.scales?.x?.time) {
+                mainsSignalChart.options.scales.x.time.unit =
+                    range <= 2 * hour ? "minute" :
+                    range <= 2 * day ? "hour" :
+                    "day";
+            }
+            if (mainsSignalChart.options?.scales?.x?.ticks) {
+                mainsSignalChart.options.scales.x.ticks.maxTicksLimit = isPhoneScreen() ? 3 : (isCompactScreen() ? 4 : 8);
+            }
+
+            mainsSignalChart.data.datasets[0].data = decimateSeriesForRange(fullSignalSeries, minX, maxX, 1200);
+            mainsSignalChart.update("none");
+        }, 80);
+    }
+
+    function renderSignalChart(series) {
+        if (mainsSignalChart) mainsSignalChart.destroy();
+
+        const chartEl = document.getElementById("mainsSignalChart");
+        const ctx = chartEl.getContext("2d");
+        const minX = series.length ? series[0].x : undefined;
+        const maxX = series.length ? series[series.length - 1].x : undefined;
+
+        mainsSignalChart = new Chart(ctx, {
+            type: "line",
+            data: {
+                datasets: [{
+                    label: "Mains Power",
+                    data: series,
+                    parsing: false,
+                    normalized: true,
+                    borderColor: "#0284c7",
+                    backgroundColor: "rgba(14, 165, 233, 0.15)",
+                    fill: true,
+                    pointRadius: 0,
+                    borderWidth: 1.5,
+                    tension: 0.08,
+                    spanGaps: true,
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                animation: false,
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        callbacks: {
+                            label: (ctx) => ` ${formatPower(ctx.parsed.y)}`
+                        }
+                    },
+                    zoom: {
+                        pan: {
+                            enabled: !isPhoneScreen(),
+                            mode: "x",
+                            overScaleMode: "x",
+                            threshold: 0,
+                            onPanComplete: () => updateSignalChartData()
+                        },
+                        zoom: {
+                            wheel: { enabled: !isPhoneScreen(), speed: 0.1 },
+                            pinch: { enabled: !isPhoneScreen() },
+                            drag: { enabled: false },
+                            mode: "x",
+                            onZoomComplete: () => updateSignalChartData()
+                        },
+                        limits: minX !== undefined && maxX !== undefined ? { x: { min: minX, max: maxX } } : {}
+                    },
+                },
+                scales: {
+                    x: {
+                        type: "time",
+                        time: {
+                            tooltipFormat: "PPpp",
+                            displayFormats: {
+                                hour: "EEE HH:mm",
+                                day: "EEE dd/MM",
+                                week: "dd/MM",
+                            }
+                        },
+                        min: minX,
+                        max: maxX,
+                        ticks: {
+                            maxRotation: 0,
+                            autoSkip: true,
+                            maxTicksLimit: isPhoneScreen() ? 3 : (isCompactScreen() ? 4 : 8),
+                            callback: (value, index, ticks) => {
+                                const raw = (ticks && ticks[index] && typeof ticks[index].value === "number")
+                                    ? ticks[index].value
+                                    : (typeof value === "number" ? value : Date.parse(value));
+
+                                if (!Number.isFinite(raw)) return "";
+
+                                const unit = mainsSignalChart?.options?.scales?.x?.time?.unit;
+                                const d = new Date(raw);
+
+                                if (isPhoneScreen()) {
+                                    if (unit === "minute" || unit === "hour") {
+                                        return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+                                    }
+                                    return d.toLocaleDateString([], { day: "2-digit", month: "2-digit" });
+                                }
+
+                                if (unit === "minute") {
+                                    return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+                                }
+                                if (unit === "hour") {
+                                    return d.toLocaleString([], { weekday: "short", hour: "2-digit", minute: "2-digit" });
+                                }
+                                return d.toLocaleDateString([], { weekday: "short", day: "2-digit", month: "2-digit" });
+                            }
+                        },
+                        title: {
+                            display: true,
+                            text: "Time"
+                        }
+                    },
+                    y: {
+                        beginAtZero: true,
+                        title: {
+                            display: true,
+                            text: "Power (W)"
+                        }
+                    }
+                }
+            }
+        });
+
+        updateSignalChartData();
+    }
+
+    function renderEmbeddings(embeddings) {
+        embeddingsList.innerHTML = "";
+
+        if (embeddings === null) {
+            embeddingsCountStat.textContent = "-";
+            embeddingsList.innerHTML = `
+                <div class="empty-state">
+                    Loading appliance models...
+                </div>
+            `;
+            return;
+        }
+
+        const safeEmbeddings = (Array.isArray(embeddings) ? embeddings : [])
+            .filter((item) => item?.source === "trained")
+            .sort((a, b) => {
+                const aTime = Date.parse(a?.updated_at || "") || 0;
+                const bTime = Date.parse(b?.updated_at || "") || 0;
+                return bTime - aTime;
+            });
+
+        embeddingsCountStat.textContent = String(safeEmbeddings.length);
+
+        if (!safeEmbeddings.length) {
+            embeddingsList.innerHTML = `
+                <div class="empty-state">
+                    No appliance models found yet. Train an appliance from the Training Interface and it will appear here.
+                </div>
+            `;
+            return;
+        }
+
+        safeEmbeddings.forEach((embedding) => {
+            const card = document.createElement("div");
+            card.className = "embedding-card";
+
+            const metadata = embedding.metadata || {};
+            const fineTuneTarget = String(metadata.fine_tune_target || "").toLowerCase();
+            const bestF1Value = fineTuneTarget === "power"
+                ? Number(metadata.power_f1)
+                : Number(metadata.onoff_f1);
+            const bestF1Text = Number.isFinite(bestF1Value) ? bestF1Value.toFixed(3) : "Unknown";
+            const publishOnline = Boolean(metadata.publish_online);
+            const realtimeEntities = realtimeEntityIdsForModel(embedding);
+            const liveOutputMarkup = embedding.bundle_mode === "online"
+                ? `
+                    <div class="embedding-selector-row">
+                        <div class="embedding-selector-label-wrap">
+                            <div class="embedding-selector-label">Publish Real Time</div>
+                            <button class="embedding-help-btn" type="button" data-realtime-help="true" aria-label="What does Publish Real Time mean?">?</button>
+                        </div>
+                        <label class="embedding-switch" title="${publishOnline ? "Publishing in real time to Home Assistant" : "Not publishing in real time to Home Assistant"}">
+                            <input type="checkbox" data-embedding-online="${embedding.model_key}" ${publishOnline ? "checked" : ""}>
+                            <span class="embedding-switch-slider" aria-hidden="true"></span>
+                        </label>
+                    </div>
+                `
+                : `
+                    <div class="embedding-selector-row">
+                        <div class="embedding-selector-label-wrap">
+                            <div class="embedding-selector-label">Publish Real Time</div>
+                            <button class="embedding-help-btn" type="button" data-realtime-help="true" aria-label="What does Publish Real Time mean?">?</button>
+                        </div>
+                        <div class="stat-label">Offline only</div>
+                    </div>
+                `;
+            const realtimeEntitiesMarkup = (embedding.bundle_mode === "online" && publishOnline)
+                ? `
+                    <div class="embedding-entities">
+                        <div class="embedding-entities-label">Home Assistant Entities</div>
+                        <div class="embedding-entity-name">${realtimeEntities.power}</div>
+                        <div class="embedding-entity-name">${realtimeEntities.state}</div>
+                    </div>
+                `
+                : "";
+
+            card.innerHTML = `
+                <div class="embedding-topline">
+                    <div>
+                        <div class="embedding-name">${embedding.name}</div>
+                        <div class="stat-label">${embedding.bundle_label || ""}</div>
+                    </div>
+                </div>
+                <div class="embedding-meta">
+                    Updated: <strong>${formatTimestamp(embedding.updated_at)}</strong>
+                </div>
+                ${liveOutputMarkup}
+                <div class="embedding-stats">
+                    <div class="embedding-stat">
+                        <div class="embedding-stat-label">Training Quality (0-1)</div>
+                        <div class="embedding-stat-value">${bestF1Text}</div>
+                    </div>
+                </div>
+                ${realtimeEntitiesMarkup}
+                <div class="embedding-footer">
+                    <button class="embedding-preview-btn" type="button" data-embedding-preview="${embedding.model_key}" data-embedding-label="${embedding.name}">
+                        <i class="fas fa-chart-line" aria-hidden="true"></i>
+                        Generate Predictions
+                    </button>
+                </div>
+                ${embedding.deletable ? `
+                    <div class="embedding-actions">
+                        <button class="embedding-delete-btn" type="button" data-embedding-delete="${embedding.model_key}" data-embedding-label="${embedding.name}" title="Delete appliance model" aria-label="Delete appliance model">
+                            <i class="fas fa-trash-alt" aria-hidden="true"></i>
+                        </button>
+                    </div>
+                ` : ``}
+            `;
+
+            embeddingsList.appendChild(card);
+        });
+    }
+
+    async function deleteEmbedding(modelKey) {
+        const response = await fetch(`embeddings/${encodeURIComponent(modelKey)}`, { method: "DELETE" });
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok) {
+            throw new Error(payload.message || `Failed to delete appliance model: HTTP ${response.status}`);
+        }
+
+        showMessage(payload.message || "Deleted appliance model.", "success");
+        await fetchEmbeddings();
+    }
+
+    async function updateEmbeddingOnlineMode(modelKey, publishOnline) {
+        let response = await fetch(`embeddings/${encodeURIComponent(modelKey)}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ publish_online: !!publishOnline }),
+        });
+        if (response.status === 405) {
+            response = await fetch(`embeddings/${encodeURIComponent(modelKey)}?action=update`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ publish_online: !!publishOnline }),
+            });
+        }
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok) {
+            throw new Error(payload.message || `Failed to update appliance model: HTTP ${response.status}`);
+        }
+
+        await fetchEmbeddings();
+        showMessage(
+            publishOnline
+                ? "Real-time publishing enabled for this appliance model."
+                : "Real-time publishing disabled for this appliance model.",
+            "success"
+        );
+    }
+
+    async function fetchSensorsAndPopulateSelect(selectedSensorId) {
+        const allSensors = await fetchSensors();
+        allSensorsById = new Map(allSensors.map((sensor) => [sensor.entity_id, sensor]));
+        const sensors = allSensors.filter((sensor) =>
+            sensor?.entity_id &&
+            !sensor.is_virtual &&
+            sensor.source !== "dl" &&
+            !sensor.entity_id.startsWith("sensor.nilm_") &&
+            !sensor.entity_id.startsWith("sensor.nilm_")
+        );
+        sensorsById = new Map(sensors.map((sensor) => [sensor.entity_id, sensor]));
+        mainSensorSelect.innerHTML = "";
+
+        if (!Array.isArray(sensors) || sensors.length === 0) {
+            mainSensorSelect.innerHTML = `<option value="">No power sensors found</option>`;
+            mainSensorSelect.disabled = true;
+            return;
+        }
+
+        mainSensorSelect.disabled = false;
+        sensors.forEach((sensor) => {
+            const option = document.createElement("option");
+            option.value = sensor.entity_id;
+            option.textContent = sensor.friendly_name || sensor.entity_id;
+            mainSensorSelect.appendChild(option);
+        });
+
+        if (selectedSensorId && sensors.some(sensor => sensor.entity_id === selectedSensorId)) {
+            mainSensorSelect.value = selectedSensorId;
+        } else {
+            mainSensorSelect.value = sensors[0].entity_id;
+        }
+
+        updateLatestPowerFromSensors();
+    }
+
+    async function refreshLatestPowerStat() {
+        if (!mainSensorSelect?.value) return;
+        try {
+            const allSensors = await fetchSensors();
+            allSensorsById = new Map(allSensors.map((sensor) => [sensor.entity_id, sensor]));
+            const sensors = allSensors.filter((sensor) =>
+                sensor?.entity_id &&
+                !sensor.is_virtual &&
+                sensor.source !== "dl" &&
+                !sensor.entity_id.startsWith("sensor.nilm_") &&
+                !sensor.entity_id.startsWith("sensor.nilm_")
+            );
+            sensorsById = new Map(sensors.map((sensor) => [sensor.entity_id, sensor]));
+            updateLatestPowerFromSensors();
+        } catch (error) {
+            console.debug("Latest power refresh skipped:", error);
+        }
+    }
+
+    function buildHistoryUrlForSensor(sensorEntityId, bounds = null) {
+        const { startUtc, endUtc } = bounds || getSelectedRangeBounds();
+        const startDateForPath = encodeURIComponent(toIsoUtcNoMs(startUtc));
+        const endDateForQuery = encodeURIComponent(toIsoUtcNoMs(endUtc));
+        const sensorId = encodeURIComponent(sensorEntityId || "");
+
+        return `history/period/${startDateForPath}?end_time=${endDateForQuery}&filter_entity_id=${sensorId}`;
+    }
+
+    function buildHistoryUrl() {
+        return buildHistoryUrlForSensor(mainSensorSelect.value || "");
+    }
+
+    async function fetchSeriesForSensor(sensorEntityId, bounds = null) {
+        if (!sensorEntityId) return [];
+
+        const response = await fetch(buildHistoryUrlForSensor(sensorEntityId, bounds));
+        if (!response.ok) {
+            return [];
+        }
+
+        const payload = await response.json().catch(() => []);
+        const rawSeries = Array.isArray(payload) && Array.isArray(payload[0]) ? payload[0] : [];
+        return rawSeries
+            .map((point) => {
+                const timeValue = typeof point?.x === "number" ? point.x : Date.parse(point?.x);
+                const powerValue = Number(point?.y);
+                if (!Number.isFinite(timeValue) || !Number.isFinite(powerValue)) {
+                    return null;
+                }
+                return { x: timeValue, y: powerValue };
+            })
+            .filter((point) => point !== null)
+            .sort((a, b) => a.x - b.x);
+    }
+
+    async function fetchAndRenderSignal() {
+        if (!mainSensorSelect.value) {
+            fullSignalSeries = [];
+            setStatsFromSeries([]);
+            renderSignalChart([]);
+            return;
+        }
+
+        showChartLoading();
+        try {
+            const response = await fetch(buildHistoryUrl());
+            if (!response.ok) {
+                throw new Error(`Failed to load history: HTTP ${response.status}`);
+            }
+
+            const payload = await response.json();
+            const rawSeries = Array.isArray(payload) && Array.isArray(payload[0]) ? payload[0] : [];
+            fullSignalSeries = rawSeries
+                .map((point) => {
+                    const timeValue = typeof point?.x === "number" ? point.x : Date.parse(point?.x);
+                    const powerValue = Number(point?.y);
+                    if (!Number.isFinite(timeValue) || !Number.isFinite(powerValue)) {
+                        return null;
+                    }
+                    return { x: timeValue, y: powerValue };
+                })
+                .filter((point) => point !== null)
+                .sort((a, b) => a.x - b.x);
+
+            setStatsFromSeries(fullSignalSeries);
+            updateLatestPowerFromSensors();
+            renderSignalChart(fullSignalSeries);
+        } finally {
+            hideChartLoading();
+        }
+    }
+
+    async function fetchEmbeddings() {
+        const response = await fetch("embeddings");
+        if (!response.ok) {
+            throw new Error(`Failed to load appliance models: HTTP ${response.status}`);
+        }
+
+        const payload = await response.json();
+        const embeddings = (Array.isArray(payload.embeddings) ? payload.embeddings : [])
+            .filter((embedding) => embedding?.source === "trained");
+        renderEmbeddings(embeddings);
+    }
+
+    async function fetchConfig() {
+        const response = await fetch("config");
+        if (!response.ok) {
+            throw new Error(`Failed to load configuration: HTTP ${response.status}`);
+        }
+
+        const config = await response.json();
+        await fetchSensorsAndPopulateSelect(config.main_sensor_id);
+    }
+
+    async function saveConfig() {
+        if (!mainSensorSelect.value) {
+            showMessage("Choose a mains sensor before saving.", "error");
+            return;
+        }
+
+        const response = await fetch("config", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({ main_sensor_id: mainSensorSelect.value })
+        });
+
+        if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(errorText || `HTTP ${response.status}`);
+        }
+
+        showMessage("Main sensor saved successfully.", "success");
+    }
+
+    async function refreshAll() {
+        try {
+            await fetchConfig();
+            await Promise.all([
+                fetchAndRenderSignal(),
+                fetchEmbeddings(),
+            ]);
+            showMessage("Configuration, mains signal, and appliance models loaded.", "success");
+        } catch (error) {
+            console.error("Config UI refresh failed:", error);
+            showMessage(error.message || "Failed to refresh the configuration page.", "error");
+        }
+    }
+
+    window.initializeConfigUI = function() {
+        mainSensorSelect = document.getElementById("mainSensorSelect");
+        historyRangeSelect = document.getElementById("historyRangeSelect");
+        refreshSignalButton = document.getElementById("refreshSignalButton");
+        saveButton = document.getElementById("saveButton");
+        addApplianceButton = document.getElementById("addApplianceButton");
+        chartLoadingOverlay = document.getElementById("chartLoadingOverlay");
+        statusMessage = document.getElementById("statusMessage");
+        deleteEmbeddingModal = document.getElementById("deleteEmbeddingModal");
+        deleteEmbeddingModalMessage = document.getElementById("deleteEmbeddingModalMessage");
+        confirmDeleteEmbeddingButton = document.getElementById("confirmDeleteEmbeddingButton");
+        cancelDeleteEmbeddingButton = document.getElementById("cancelDeleteEmbeddingButton");
+        realtimeHelpModal = document.getElementById("realtimeHelpModal");
+        closeRealtimeHelpButton = document.getElementById("closeRealtimeHelpButton");
+        predictionPreviewModal = document.getElementById("predictionPreviewModal");
+        predictionPreviewTitle = document.getElementById("predictionPreviewTitle");
+        predictionPreviewCopy = document.getElementById("predictionPreviewCopy");
+        predictionPreviewRange = document.getElementById("predictionPreviewRange");
+        predictionPreviewEnergy = document.getElementById("predictionPreviewEnergy");
+        predictionPreviewOnPct = document.getElementById("predictionPreviewOnPct");
+        predictionPreviewLoading = document.getElementById("predictionPreviewLoading");
+        predictionPreviewEmpty = document.getElementById("predictionPreviewEmpty");
+        closePredictionPreviewButton = document.getElementById("closePredictionPreviewButton");
+        predictionOverlaySensorSelect = document.getElementById("predictionOverlaySensorSelect");
+        addPredictionOverlayButton = document.getElementById("addPredictionOverlayButton");
+        resetPredictionZoomButton = document.getElementById("resetPredictionZoomButton");
+        predictionOverlayList = document.getElementById("predictionOverlayList");
+        predictionPreviewChartCanvas = document.getElementById("predictionPreviewChart");
+        predictionPreviewIntervalsCanvas = document.getElementById("predictionPreviewIntervals");
+        closeDeleteEmbeddingModal();
+        closeRealtimeHelpModal();
+        closePredictionPreview();
+        energyStat = document.getElementById("energyStat");
+        avgPowerStat = document.getElementById("avgPowerStat");
+        maxPowerStat = document.getElementById("maxPowerStat");
+        latestPowerStat = document.getElementById("latestPowerStat");
+        embeddingsCountStat = document.getElementById("embeddingsCountStat");
+        embeddingsList = document.getElementById("embeddingsList");
+
+        saveButtonHandler = async () => {
+            try {
+                await saveConfig();
+                await fetchAndRenderSignal();
+            } catch (error) {
+                console.error("Save failed:", error);
+                showMessage(error.message || "Failed to save configuration.", "error");
+            }
+        };
+        addApplianceButtonHandler = () => {
+            const trainingButton = document.getElementById("showTrainingBtn");
+            if (trainingButton) {
+                trainingButton.click();
+            }
+        };
+        refreshSignalButtonHandler = async () => {
+            try {
+                await fetchAndRenderSignal();
+                showMessage("Mains signal refreshed.", "success");
+            } catch (error) {
+                console.error("Signal refresh failed:", error);
+                showMessage(error.message || "Failed to refresh mains signal.", "error");
+            }
+        };
+        embeddingsListClickHandler = async (event) => {
+            const helpButton = event.target.closest("[data-realtime-help]");
+            if (helpButton) {
+                openRealtimeHelpModal();
+                return;
+            }
+            const previewButton = event.target.closest("[data-embedding-preview]");
+            if (previewButton) {
+                await openPredictionPreview(
+                    previewButton.getAttribute("data-embedding-preview"),
+                    previewButton.getAttribute("data-embedding-label") || previewButton.getAttribute("data-embedding-preview")
+                );
+                return;
+            }
+            const button = event.target.closest("[data-embedding-delete]");
+            if (!button) return;
+            const modelKey = button.getAttribute("data-embedding-delete");
+            const label = button.getAttribute("data-embedding-label") || modelKey;
+            openDeleteEmbeddingModal(modelKey, label);
+        };
+        embeddingsListChangeHandler = async (event) => {
+            const selector = event.target.closest("[data-embedding-online]");
+            if (!selector) return;
+
+            const modelKey = selector.getAttribute("data-embedding-online");
+            const publishOnline = Boolean(selector.checked);
+            selector.disabled = true;
+            try {
+                await updateEmbeddingOnlineMode(modelKey, publishOnline);
+            } catch (error) {
+                console.error("Appliance model online mode update failed:", error);
+                showMessage(error.message || "Failed to update appliance model.", "error");
+                await fetchEmbeddings();
+            }
+        };
+        confirmDeleteEmbeddingHandler = async () => {
+            if (!pendingDeleteEmbeddingName) return;
+            try {
+                const name = pendingDeleteEmbeddingName;
+                await deleteEmbedding(name);
+                closeDeleteEmbeddingModal();
+            } catch (error) {
+                console.error("Appliance model delete failed:", error);
+                showMessage(error.message || "Failed to delete appliance model.", "error");
+            }
+        };
+        cancelDeleteEmbeddingHandler = () => closeDeleteEmbeddingModal();
+        closeRealtimeHelpHandler = () => closeRealtimeHelpModal();
+        closePredictionPreviewHandler = () => closePredictionPreview();
+        predictionPreviewOverlayHandler = (event) => {
+            const removeButton = event.target.closest("[data-overlay-remove]");
+            if (removeButton) {
+                removePredictionOverlaySensor(removeButton.getAttribute("data-overlay-remove"));
+                return;
+            }
+            if (event.target === predictionPreviewModal) {
+                closePredictionPreview();
+            }
+        };
+        realtimeHelpOverlayHandler = (event) => {
+            if (event.target === realtimeHelpModal) {
+                closeRealtimeHelpModal();
+            }
+        };
+        addPredictionOverlayHandler = async () => {
+            try {
+                await addPredictionOverlaySensor();
+            } catch (error) {
+                console.error("Prediction overlay add failed:", error);
+                showMessage(error.message || "Failed to add comparison sensor.", "error");
+            }
+        };
+        resetPredictionZoomHandler = () => {
+            if (predictionPreviewChart?.resetZoom) {
+                predictionPreviewChart.resetZoom();
+                updatePredictionPreviewChartData();
+            }
+        };
+        sensorChangeHandler = async () => {
+            try {
+                await fetchAndRenderSignal();
+            } catch (error) {
+                console.error("Signal update after sensor change failed:", error);
+                showMessage(error.message || "Failed to update mains signal.", "error");
+            }
+        };
+        rangeChangeHandler = sensorChangeHandler;
+        latestPowerPollTickHandler = () => {
+            refreshLatestPowerStat();
+        };
+
+        saveButton.addEventListener("click", saveButtonHandler);
+        addApplianceButton.addEventListener("click", addApplianceButtonHandler);
+        refreshSignalButton.addEventListener("click", refreshSignalButtonHandler);
+        embeddingsList.addEventListener("click", embeddingsListClickHandler);
+        embeddingsList.addEventListener("change", embeddingsListChangeHandler);
+        confirmDeleteEmbeddingButton.addEventListener("click", confirmDeleteEmbeddingHandler);
+        cancelDeleteEmbeddingButton.addEventListener("click", cancelDeleteEmbeddingHandler);
+        closeRealtimeHelpButton.addEventListener("click", closeRealtimeHelpHandler);
+        realtimeHelpModal.addEventListener("click", realtimeHelpOverlayHandler);
+        closePredictionPreviewButton.addEventListener("click", closePredictionPreviewHandler);
+        predictionPreviewModal.addEventListener("click", predictionPreviewOverlayHandler);
+        if (addPredictionOverlayButton) addPredictionOverlayButton.addEventListener("click", addPredictionOverlayHandler);
+        if (resetPredictionZoomButton) resetPredictionZoomButton.addEventListener("click", resetPredictionZoomHandler);
+        mainSensorSelect.addEventListener("change", sensorChangeHandler);
+        historyRangeSelect.addEventListener("change", rangeChangeHandler);
+        latestPowerPollTimer = window.setInterval(latestPowerPollTickHandler, 15000);
+
+        renderSignalChart([]);
+        renderEmbeddings(null);
+        refreshAll();
+    };
+
+    window.cleanupConfigUI = function() {
+        if (saveButton && saveButtonHandler) saveButton.removeEventListener("click", saveButtonHandler);
+        if (addApplianceButton && addApplianceButtonHandler) addApplianceButton.removeEventListener("click", addApplianceButtonHandler);
+        if (refreshSignalButton && refreshSignalButtonHandler) refreshSignalButton.removeEventListener("click", refreshSignalButtonHandler);
+        if (embeddingsList && embeddingsListClickHandler) embeddingsList.removeEventListener("click", embeddingsListClickHandler);
+        if (embeddingsList && embeddingsListChangeHandler) embeddingsList.removeEventListener("change", embeddingsListChangeHandler);
+        if (confirmDeleteEmbeddingButton && confirmDeleteEmbeddingHandler) confirmDeleteEmbeddingButton.removeEventListener("click", confirmDeleteEmbeddingHandler);
+        if (cancelDeleteEmbeddingButton && cancelDeleteEmbeddingHandler) cancelDeleteEmbeddingButton.removeEventListener("click", cancelDeleteEmbeddingHandler);
+        if (closeRealtimeHelpButton && closeRealtimeHelpHandler) closeRealtimeHelpButton.removeEventListener("click", closeRealtimeHelpHandler);
+        if (realtimeHelpModal && realtimeHelpOverlayHandler) realtimeHelpModal.removeEventListener("click", realtimeHelpOverlayHandler);
+        if (closePredictionPreviewButton && closePredictionPreviewHandler) closePredictionPreviewButton.removeEventListener("click", closePredictionPreviewHandler);
+        if (predictionPreviewModal && predictionPreviewOverlayHandler) predictionPreviewModal.removeEventListener("click", predictionPreviewOverlayHandler);
+        if (addPredictionOverlayButton && addPredictionOverlayHandler) addPredictionOverlayButton.removeEventListener("click", addPredictionOverlayHandler);
+        if (resetPredictionZoomButton && resetPredictionZoomHandler) resetPredictionZoomButton.removeEventListener("click", resetPredictionZoomHandler);
+        if (mainSensorSelect && sensorChangeHandler) mainSensorSelect.removeEventListener("change", sensorChangeHandler);
+        if (historyRangeSelect && rangeChangeHandler) historyRangeSelect.removeEventListener("change", rangeChangeHandler);
+
+        if (messageTimeoutId) {
+            clearTimeout(messageTimeoutId);
+            messageTimeoutId = null;
+        }
+        if (latestPowerPollTimer) {
+            clearInterval(latestPowerPollTimer);
+            latestPowerPollTimer = null;
+        }
+        if (signalChartDebounceTimer) {
+            clearTimeout(signalChartDebounceTimer);
+            signalChartDebounceTimer = null;
+        }
+        if (predictionPreviewChartDebounceTimer) {
+            clearTimeout(predictionPreviewChartDebounceTimer);
+            predictionPreviewChartDebounceTimer = null;
+        }
+
+        closeDeleteEmbeddingModal();
+        closeRealtimeHelpModal();
+        closePredictionPreview();
+
+        if (mainsSignalChart) {
+            mainsSignalChart.destroy();
+            mainsSignalChart = null;
+        }
+
+        mainSensorSelect = null;
+        historyRangeSelect = null;
+        refreshSignalButton = null;
+        saveButton = null;
+        addApplianceButton = null;
+        chartLoadingOverlay = null;
+        statusMessage = null;
+        deleteEmbeddingModal = null;
+        deleteEmbeddingModalMessage = null;
+        confirmDeleteEmbeddingButton = null;
+        cancelDeleteEmbeddingButton = null;
+        realtimeHelpModal = null;
+        closeRealtimeHelpButton = null;
+        predictionPreviewModal = null;
+        predictionPreviewTitle = null;
+        predictionPreviewCopy = null;
+        predictionPreviewRange = null;
+        predictionPreviewEnergy = null;
+        predictionPreviewOnPct = null;
+        predictionPreviewLoading = null;
+        predictionPreviewEmpty = null;
+        closePredictionPreviewButton = null;
+        predictionOverlaySensorSelect = null;
+        addPredictionOverlayButton = null;
+        resetPredictionZoomButton = null;
+        predictionOverlayList = null;
+        predictionPreviewChartCanvas = null;
+        predictionPreviewIntervalsCanvas = null;
+        energyStat = null;
+        avgPowerStat = null;
+        maxPowerStat = null;
+        latestPowerStat = null;
+        embeddingsCountStat = null;
+        embeddingsList = null;
+        fullSignalSeries = [];
+        saveButtonHandler = null;
+        addApplianceButtonHandler = null;
+        refreshSignalButtonHandler = null;
+        sensorChangeHandler = null;
+        rangeChangeHandler = null;
+        embeddingsListClickHandler = null;
+        embeddingsListChangeHandler = null;
+        confirmDeleteEmbeddingHandler = null;
+        cancelDeleteEmbeddingHandler = null;
+        closeRealtimeHelpHandler = null;
+        realtimeHelpOverlayHandler = null;
+        closePredictionPreviewHandler = null;
+        predictionPreviewOverlayHandler = null;
+        addPredictionOverlayHandler = null;
+        resetPredictionZoomHandler = null;
+        latestPowerPollTickHandler = null;
+        pendingDeleteEmbeddingName = null;
+        sensorsById = new Map();
+        allSensorsById = new Map();
+    };
+</script>

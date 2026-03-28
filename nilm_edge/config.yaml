@@ -1,0 +1,22 @@
+name: "NILM"
+version: "1.0.0"
+slug: "nilm"
+description: "Real-time load disaggregation for Home Assistant"
+homeassistant_api: true
+startup: application
+panel_icon: "mdi:flash"
+panel_title: "NILM"
+ports:
+  "8099/tcp": 8099
+
+ingress: true
+
+environment:
+  TRAINING_SERVER_URL: "http://homeassistant.local:8080/train"
+
+arch:
+  - aarch64
+  - amd64
+  - armhf
+  - armv7
+  - i386

@@ -1,0 +1,3023 @@
+<style>
+    .nilm-training {
+        background:
+            radial-gradient(circle at top left, rgba(14, 165, 233, 0.18), transparent 30%),
+            radial-gradient(circle at top right, rgba(16, 185, 129, 0.16), transparent 28%),
+            linear-gradient(180deg, #f8fafc 0%, #ffffff 100%);
+        border: 1px solid #e2e8f0;
+        border-radius: 20px;
+        box-shadow: 0 18px 45px rgba(15, 23, 42, 0.08);
+        max-width: 1100px;
+        margin: 0 auto;
+        padding: 28px;
+    }
+
+    .nilm-hero {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        margin-bottom: 24px;
+    }
+
+    .nilm-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 6px 12px;
+        border-radius: 999px;
+        background: rgba(14, 165, 233, 0.12);
+        color: #0369a1;
+        font-size: 0.85rem;
+        font-weight: 700;
+        letter-spacing: 0.02em;
+        text-transform: uppercase;
+    }
+
+    .panel-surface {
+        background: rgba(255, 255, 255, 0.92);
+        border: 1px solid #e2e8f0;
+        border-radius: 18px;
+        padding: 20px;
+        box-shadow: 0 10px 30px rgba(15, 23, 42, 0.04);
+    }
+
+    .panel-surface h2 {
+        color: #0f172a;
+        font-size: 1.1rem;
+        font-weight: 700;
+        margin-bottom: 8px;
+    }
+
+    .panel-copy {
+        color: #475569;
+    }
+
+    .field-label {
+        display: block;
+        color: #334155;
+        font-size: 0.9rem;
+        font-weight: 700;
+        margin-bottom: 6px;
+    }
+
+    .field-input {
+        width: 100%;
+        border: 1px solid #cbd5e1;
+        border-radius: 12px;
+        padding: 10px 12px;
+        color: #0f172a;
+        background: #fff;
+        box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+    }
+
+    .field-input:focus {
+        outline: none;
+        border-color: #0ea5e9;
+        box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.15);
+    }
+
+    .action-btn {
+        border: none;
+        border-radius: 12px;
+        padding: 10px 16px;
+        min-height: 44px;
+        font-weight: 700;
+        cursor: pointer;
+        transition: transform 0.18s ease, box-shadow 0.18s ease, background 0.18s ease;
+    }
+
+    .action-btn:hover {
+        transform: translateY(-1px);
+    }
+
+    .action-primary {
+        background: linear-gradient(135deg, #0284c7, #0369a1);
+        color: #fff;
+        box-shadow: 0 10px 20px rgba(2, 132, 199, 0.2);
+    }
+
+    .action-secondary {
+        background: linear-gradient(135deg, #4f46e5, #2563eb);
+        color: #fff;
+        box-shadow: 0 10px 20px rgba(37, 99, 235, 0.18);
+    }
+
+    .action-neutral {
+        background: #e2e8f0;
+        color: #0f172a;
+    }
+
+    .action-success {
+        background: linear-gradient(135deg, #16a34a, #15803d);
+        color: #fff;
+        box-shadow: 0 10px 20px rgba(22, 163, 74, 0.18);
+    }
+
+    .action-accent {
+        background: linear-gradient(135deg, #7c3aed, #6d28d9);
+        color: #fff;
+        box-shadow: 0 10px 20px rgba(124, 58, 237, 0.18);
+    }
+
+    .toolbar-panel {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+        gap: 12px;
+        align-items: end;
+        margin-bottom: 16px;
+        padding: 16px;
+        border-radius: 16px;
+        background: rgba(248, 250, 252, 0.78);
+        border: 1px solid #e2e8f0;
+    }
+
+    .chart-container {
+        cursor: grab;
+        position: relative;
+        touch-action: none;
+        user-select: none;
+        min-height: 32rem;
+        border-radius: 16px;
+        overflow: hidden;
+        border: 1px solid #dbeafe;
+        background:
+            linear-gradient(180deg, rgba(14, 165, 233, 0.05), rgba(255, 255, 255, 0.82));
+    }
+    .chart-container.selection-active {
+        cursor: crosshair;
+    }
+    .modal-overlay {
+        position: fixed;
+        inset: 0;
+        background-color: rgba(0, 0, 0, 0.5);
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        z-index: 1000;
+        padding: 16px;
+        overflow: auto;
+    }
+    .modal-content {
+        background-color: white;
+        padding: 24px;
+        box-shadow: 0 18px 40px rgba(15, 23, 42, 0.18);
+        text-align: center;
+        max-width: 400px;
+        border-radius: 18px;
+        border: 1px solid #e2e8f0;
+    }
+    .tooltip {
+        visibility: hidden;
+        opacity: 0;
+        transition: opacity 0.3s, visibility 0.3s;
+        z-index: 1001;
+        pointer-events: none;
+    }
+    .group:hover .tooltip {
+        visibility: visible;
+        opacity: 1;
+    }
+    .accordion-content {
+        max-height: 0;
+        overflow: hidden;
+        transition: max-height 0.3s ease-out;
+    }
+    .accordion-content.expanded {
+        max-height: 1000px;
+        transition: max-height 0.3s ease-in;
+    }
+    .accordion-icon {
+        transition: transform 0.3s ease-in-out;
+    }
+    .accordion-icon.rotated {
+        transform: rotate(180deg);
+    }
+    .local-loading-spinner-container {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background-color: rgba(248, 250, 252, 0.82);
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        z-index: 50;
+        border-radius: 16px;
+        backdrop-filter: blur(2px);
+    }
+    .spinner {
+        border: 4px solid rgba(2, 132, 199, 0.16);
+        border-left-color: #0284c7;
+        border-radius: 50%;
+        width: 40px;
+        height: 40px;
+        animation: spin 1s linear infinite;
+    }
+    @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+    }
+    /* IMPORTANT: Ensure the 'hidden' class has display: none; */
+    .hidden {
+        display: none !important; /* Use !important to ensure it overrides other display properties */
+    }
+
+    .badge { display:inline-flex; align-items:center; padding:2px 10px; border-radius:9999px; font-weight:600; font-size:12px; }
+    .badge-gray { background:#f3f4f6; color:#374151; }
+    .badge-blue { background:#dbeafe; color:#1e40af; }
+    .badge-yellow { background:#fef3c7; color:#92400e; }
+    .badge-green { background:#dcfce7; color:#166534; }
+    .badge-red { background:#fee2e2; color:#991b1b; }
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
+
+    .selection-assistant {
+        background:
+            radial-gradient(circle at top left, rgba(14, 165, 233, 0.12), transparent 35%),
+            linear-gradient(180deg, #f8fafc 0%, #ffffff 100%);
+        border: 1px solid #dbeafe;
+        border-radius: 14px;
+        padding: 12px;
+        box-shadow: none;
+    }
+
+    .selection-assistant-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 8px;
+        margin-bottom: 0;
+        min-width: 0;
+        flex: 1 1 0;
+    }
+
+    .selection-assistant-actions {
+        display: flex;
+        flex-wrap: nowrap;
+        gap: 8px;
+        flex: 0 0 auto;
+        align-self: end;
+    }
+
+    .chart-primary-action {
+        display: grid;
+        grid-template-columns: auto auto minmax(0, 1fr);
+        align-items: start;
+        gap: 12px;
+        margin-bottom: 16px;
+    }
+
+    .chart-primary-action > .relative.group {
+        align-self: center;
+    }
+
+    .chart-primary-action .selection-assistant {
+        display: flex;
+        align-items: end;
+        flex-wrap: nowrap;
+        gap: 10px;
+        padding: 10px 12px;
+        width: 100%;
+        margin-left: 0;
+        min-width: 0;
+    }
+
+    .selection-assistant .flatpickr-wrapper,
+    .selection-assistant .flatpickr-input[readonly],
+    .selection-assistant .field-input {
+        width: 100%;
+    }
+
+    .chart-primary-action .selection-assistant-actions > button {
+        width: auto;
+        white-space: nowrap;
+    }
+
+    .training-table th {
+        color: #475569;
+        font-size: 0.78rem;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        font-weight: 800;
+    }
+
+    .training-table tbody tr {
+        transition: background 0.18s ease;
+    }
+
+    .training-table tbody tr:hover {
+        background: rgba(248, 250, 252, 0.9);
+    }
+
+    .training-table td {
+        padding-top: 10px;
+        padding-bottom: 10px;
+        border-bottom: 1px solid #eef2f7;
+        vertical-align: top;
+    }
+
+    .preview-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+        gap: 14px;
+    }
+
+    .preview-card {
+        border: 1px solid #e2e8f0;
+        border-radius: 16px;
+        padding: 14px;
+        background: linear-gradient(180deg, #ffffff, #f8fafc);
+        box-shadow: 0 8px 20px rgba(15, 23, 42, 0.05);
+    }
+
+    .preview-card-top {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 10px;
+        margin-bottom: 10px;
+    }
+
+    .preview-card-title {
+        color: #0f172a;
+        font-weight: 800;
+        font-size: 0.95rem;
+    }
+
+    .preview-card-meta {
+        color: #64748b;
+        font-size: 0.8rem;
+        margin-top: 2px;
+    }
+
+    .preview-card-range {
+        color: #334155;
+        font-size: 0.88rem;
+        line-height: 1.45;
+        margin-bottom: 10px;
+    }
+
+    .preview-card-canvas {
+        border-radius: 12px;
+        overflow: hidden;
+        border: 1px solid #dbeafe;
+        background: linear-gradient(180deg, rgba(14, 165, 233, 0.04), rgba(255, 255, 255, 0.92));
+        padding: 4px;
+    }
+
+    .status-inline {
+        border-radius: 12px;
+        padding: 12px 14px;
+        font-weight: 600;
+        background: rgba(248, 250, 252, 0.78);
+        border: 1px solid #e2e8f0;
+    }
+
+    .jobs-pagination {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        margin-top: 16px;
+        padding-top: 12px;
+        border-top: 1px solid #e2e8f0;
+    }
+
+    .jobs-pagination-copy {
+        color: #64748b;
+        font-size: 0.88rem;
+    }
+
+    .jobs-pagination-actions {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .jobs-page-btn {
+        min-width: 96px;
+    }
+
+    .training-server-status-card {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 14px;
+        margin-bottom: 18px;
+        padding: 14px 16px;
+        border-radius: 16px;
+        border: 1px solid #dbeafe;
+        background: linear-gradient(180deg, rgba(239, 246, 255, 0.9), rgba(255, 255, 255, 0.96));
+    }
+
+    .training-server-status-copy {
+        flex: 1 1 auto;
+        min-width: 0;
+    }
+
+    .training-server-status-title {
+        color: #0f172a;
+        font-size: 0.98rem;
+        font-weight: 800;
+        margin-bottom: 4px;
+    }
+
+    .training-server-status-message {
+        color: #475569;
+        font-size: 0.9rem;
+        line-height: 1.45;
+    }
+
+    .training-server-status-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 6px 10px;
+        border-radius: 999px;
+        font-size: 0.78rem;
+        font-weight: 800;
+        text-transform: uppercase;
+        letter-spacing: 0.03em;
+        white-space: nowrap;
+    }
+
+    .training-server-status-ready {
+        background: #dcfce7;
+        color: #166534;
+    }
+
+    .training-server-status-warning {
+        background: #fef3c7;
+        color: #92400e;
+    }
+
+    .training-server-status-error {
+        background: #fee2e2;
+        color: #991b1b;
+    }
+
+    @media (max-width: 640px) {
+        .nilm-training {
+            padding: 12px;
+            border-radius: 12px;
+            box-shadow: none;
+            border-left: none;
+            border-right: none;
+        }
+        .nilm-hero {
+            gap: 10px;
+            margin-bottom: 16px;
+        }
+        .nilm-hero h1 {
+            font-size: 1.55rem;
+            line-height: 1.15;
+        }
+        .panel-surface {
+            padding: 14px;
+            border-radius: 16px;
+        }
+        .toolbar-panel {
+            grid-template-columns: 1fr;
+            padding: 12px;
+        }
+        .training-server-status-card {
+            flex-direction: column;
+            align-items: stretch;
+        }
+        .jobs-pagination {
+            flex-direction: column;
+            align-items: stretch;
+        }
+        .jobs-pagination-actions {
+            width: 100%;
+        }
+        .jobs-page-btn {
+            flex: 1 1 0;
+        }
+        .chart-container {
+            min-height: 28rem;
+        }
+        .chart-primary-action {
+            grid-template-columns: 1fr;
+        }
+        .selection-assistant-grid {
+            grid-template-columns: 1fr;
+            min-width: 100%;
+        }
+        .chart-primary-action .selection-assistant {
+            flex-direction: column;
+            width: 100%;
+            align-items: stretch;
+            margin-left: 0;
+            gap: 12px;
+        }
+        .action-btn {
+            width: 100%;
+        }
+        .chart-primary-action .selection-assistant-actions,
+        .chart-primary-action .selection-assistant-actions > button {
+            width: 100%;
+        }
+        .selection-assistant-actions {
+            align-self: stretch;
+        }
+    }
+
+    .btn-delete {
+        width: 34px;
+        height: 34px;
+        background: transparent;
+        border: 1px solid #fecaca;
+        color: #dc2626;
+        padding: 0;
+        border-radius: 999px;
+        cursor: pointer;
+        transition: all 0.2s;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        margin-inline: auto;
+    }
+
+    .btn-delete:hover {
+        background: #fef2f2;
+        border-color: #f87171;
+        transform: scale(1.05);
+    }
+
+    .icon-trash {
+        font-size: 14px;
+        line-height: 1;
+    }
+
+    .job-appliance {
+        color: #0f172a;
+        font-weight: 800;
+    }
+
+    .job-meta {
+        color: #64748b;
+        font-size: 0.78rem;
+        margin-top: 3px;
+        line-height: 1.4;
+    }
+
+    .job-range {
+        color: #334155;
+        font-size: 0.82rem;
+        line-height: 1.45;
+    }
+
+    .result-pill {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 92px;
+        padding: 6px 10px;
+        border-radius: 999px;
+        font-size: 0.78rem;
+        font-weight: 800;
+        border: 1px solid #cbd5e1;
+        background: #f8fafc;
+        color: #475569;
+    }
+
+    .result-pill-ready {
+        background: #dcfce7;
+        color: #166534;
+        border-color: #86efac;
+    }
+
+    #noJobsMsg {
+        border: 1px dashed #cbd5e1;
+        border-radius: 14px;
+        padding: 18px;
+        text-align: center;
+        color: #64748b;
+        background: rgba(248, 250, 252, 0.7);
+    }
+
+</style>
+
+<div class="nilm-training">
+    <header class="nilm-hero">
+        <div>
+            <div class="nilm-badge">Training</div>
+            <h1 class="text-3xl md:text-4xl font-bold text-gray-900 mt-3">Appliance Training Session</h1>
+            <p class="panel-copy mt-3 max-w-2xl">Prepare NILM training data from mains history using interval supervision or a ground-truth appliance sensor.</p>
+        </div>
+    </header>
+
+    <div id="trainingServerStatusCard" class="training-server-status-card">
+        <div class="training-server-status-copy">
+            <div class="training-server-status-title">Training Server Connection</div>
+            <div id="trainingServerStatusMessage" class="training-server-status-message">Checking training server connection before training...</div>
+        </div>
+        <div class="flex items-center gap-3">
+            <span id="trainingServerStatusBadge" class="training-server-status-badge training-server-status-warning">Checking</span>
+            <button id="retryTrainingServerStatusBtn" class="action-btn action-neutral" type="button">
+                <i class="fas fa-sync mr-2" aria-hidden="true"></i> Retry
+            </button>
+        </div>
+    </div>
+
+    <!-- How This Training Session Works Info Section (Accordion) -->
+    <div class="panel-surface mb-8" style="background: linear-gradient(180deg, rgba(224, 242, 254, 0.7), rgba(255, 255, 255, 0.95)); border-color: #bfdbfe;">
+        <button id="infoAccordionToggle" class="w-full text-left flex justify-between items-center text-xl font-semibold text-blue-800 focus:outline-none">
+            <span class="flex items-center">
+                <i class="fas fa-info-circle mr-2"></i> How This Training Session Works
+            </span>
+            <i id="accordionIcon" class="fas fa-chevron-down accordion-icon"></i>
+        </button>
+        <div id="infoAccordionContent" class="accordion-content pt-4">
+            <p class="text-gray-700 mb-3">
+                This page prepares an appliance model from the mains signal. Use the training server connection card first, then choose the supervision mode that matches the data you have.
+            </p>
+            <ol class="list-decimal list-inside text-gray-700 space-y-2 pl-4">
+                <li>
+                    In "<strong class="text-gray-900">Appliance for Training</strong>", enter the <strong class="text-gray-900">Appliance Name</strong> and choose a supervision mode:
+                    <span class="text-gray-900 font-semibold">ON intervals in mains</span> if you only know when the appliance was on, or
+                    <span class="text-gray-900 font-semibold">Ground-truth appliance power sensor</span> if you have a real appliance meter.
+                </li>
+                <li>
+                    Confirm that the <strong class="text-gray-900">Training Server Connection</strong> card shows the server as ready before spending time labeling data. If not, fix the connection first and use <strong class="text-gray-900">Retry</strong>.
+                </li>
+                <li>
+                    Choose the mains history range with <strong class="text-gray-900">Quick Range</strong> or <strong class="text-gray-900">Select Date Range</strong>. You can pan and zoom the chart, and the current visible window is mirrored in the time fields beside the chart.
+                </li>
+                <li>
+                    In <strong class="text-gray-900">ON intervals in mains</strong> mode, press <span class="bg-sky-600 text-white px-2 py-0.5 rounded-md text-sm inline-flex items-center"><i class="fas fa-plus-circle mr-1"></i>Draw Interval</span> and then tap or click once for the start and once for the end. You can also edit the <strong class="text-gray-900">Start</strong> and <strong class="text-gray-900">End</strong> fields manually and press <strong class="text-gray-900">Add Interval</strong>.
+                </li>
+                <li>
+                    In <strong class="text-gray-900">Ground-truth appliance power sensor</strong> mode, select the appliance sensor and verify its power trace against the mains chart over the same range. No interval drawing is needed in this mode.
+                </li>
+                <li>
+                    Review the <strong class="text-gray-900">Selected Windows Preview</strong> when using interval supervision. Make sure the windows cover the appliance activity you want the model to learn.
+                </li>
+                <li>
+                    When everything looks correct, click <strong class="text-gray-900">Check All Data</strong>. If preparation succeeds, the session creates a ready-to-send training package for the appliance name you entered.
+                </li>
+                <li>
+                    Then click <strong class="text-gray-900">Send to Training Server</strong> to launch training and follow progress in <strong class="text-gray-900">Training Jobs</strong>. Once training finishes, the new appliance model will appear on the main configuration page.
+                </li>
+            </ol>
+        </div>
+    </div>
+    <!-- End Info Section -->
+
+    <main class="space-y-6">
+        <!-- Appliance for Training Section -->
+        <div class="panel-surface">
+            <h2 class="text-xl font-semibold mb-4 border-b pb-2">Appliance for Training</h2>
+            <div class="mb-4">
+                <label for="supervisionModeSelect" class="field-label">Supervision Mode</label>
+                <select id="supervisionModeSelect" class="field-input">
+                    <option value="intervals" selected>ON intervals in mains</option>
+                    <option value="sensor">Ground-truth appliance power sensor</option>
+                </select>
+                <p id="supervisionModeHint" class="text-xs text-slate-500 mt-2">Use interval supervision when you only know when the appliance was ON inside the mains signal.</p>
+            </div>
+            <div class="mb-4">
+                <label for="trainingBundleSelect" class="field-label">Model Version</label>
+                <select id="trainingBundleSelect" class="field-input">
+                    <option value="">Loading model versions...</option>
+                </select>
+                <p id="trainingBundleHint" class="text-xs text-slate-500 mt-2">New training uses the latest available model version by default.</p>
+            </div>
+            <div class="mb-4">
+                <label for="applianceNameInput" class="field-label">Appliance Name (e.g., Refrigerator)</label>
+                <input type="text" id="applianceNameInput" class="field-input" placeholder="Enter appliance name">
+                <p id="applianceNameError" class="text-red-500 text-xs mt-1 hidden">Appliance name is required.</p>
+            </div>
+            <div id="sensorSupervisionSection" class="mb-4 hidden">
+                <label for="applianceSensorSelect" class="field-label">Ground-Truth Appliance Sensor</label>
+                <select id="applianceSensorSelect" class="field-input">
+                    <option value="">Select appliance power sensor</option>
+                </select>
+                <p class="text-xs text-slate-500 mt-2">Choose the Home Assistant sensor that directly measures the appliance power over the same mains range.</p>
+            </div>
+            <p id="applianceInfoStatus" class="text-sm text-green-600 mt-2 text-center hidden"></p>
+        </div>
+
+        <!-- Main Chart Section -->
+        <div class="panel-surface">
+            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4">
+                <div>
+                    <h2 class="text-xl font-semibold">Mains Power Signal</h2>
+                    <p class="panel-copy text-sm mt-1">Inspect the mains trace, navigate the current view, and label appliance activity with intervals.</p>
+                </div>
+                <div class="flex items-center space-x-2 mt-4 sm:mt-0">
+                    
+                </div>
+            </div>
+
+            <!-- New: Date Range Selector for Chart (Flatpickr) -->
+            <div class="toolbar-panel">
+                <div>
+                    <label for="quickRangeSelect" class="field-label">Quick Range</label>
+                    <select id="quickRangeSelect" class="field-input">
+                        <option value="1">1 day</option>
+                        <option value="3">3 days</option>
+                        <option value="7" selected>7 days</option>
+                    </select>
+                </div>
+                <div>
+                    <label for="dateRangePicker" class="field-label">Select Date Range</label>
+                    <input type="text" id="dateRangePicker" class="field-input" placeholder="Select date range">
+                </div>
+            </div>
+            <p id="dateRangeError" class="text-red-500 text-xs mt-1 text-center hidden">Invalid date range. Please select a start and end date, and ensure the range is no more than 7 days.</p>
+            <!-- REMOVED: Display for current active date range -->
+            <!-- <div id="currentDateRangeDisplay" class="text-sm text-gray-600 mt-2 text-center hidden"></div> -->
+
+            <div class="chart-primary-action">
+                <div class="relative group">
+                    <button id="selectModeBtn" class="action-btn action-primary inline-flex items-center justify-center">
+                        <i class="fas fa-plus-circle text-lg mr-2" aria-hidden="true"></i>
+                        <span id="selectModeBtnLabel">Draw Interval</span>
+                    </button>
+                    <span id="selectModeTooltip" class="tooltip absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-1 bg-gray-800 text-white text-xs rounded-md whitespace-nowrap">Start guided interval drawing.</span>
+                </div>
+                <div class="relative group">
+                    <button id="chartResetZoomBtn" class="action-btn action-secondary inline-flex items-center justify-center">
+                        <i class="fas fa-sync-alt text-lg mr-2" aria-hidden="true"></i>
+                        <span>Reset Zoom</span>
+                    </button>
+                    <span class="tooltip absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-1 bg-gray-800 text-white text-xs rounded-md whitespace-nowrap">Reset chart zoom to the loaded range.</span>
+                </div>
+                <div id="selectionAssistantSection" class="selection-assistant">
+                    <div class="selection-assistant-grid">
+                        <div>
+                            <label for="manualStartInput" class="block text-xs font-semibold uppercase tracking-wide text-slate-500 mb-1">Start</label>
+                            <input type="text" id="manualStartInput" class="field-input text-sm" placeholder="dd/mm/yyyy hh:mm">
+                        </div>
+                        <div>
+                            <label for="manualEndInput" class="block text-xs font-semibold uppercase tracking-wide text-slate-500 mb-1">End</label>
+                            <input type="text" id="manualEndInput" class="field-input text-sm" placeholder="dd/mm/yyyy hh:mm">
+                        </div>
+                    </div>
+                    <div class="selection-assistant-actions">
+                        <button id="addManualIntervalBtn" class="action-btn action-primary">
+                            <i class="fas fa-plus-circle mr-2" aria-hidden="true"></i>Add Interval
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <div id="chartContainer" class="relative h-96 chart-container">
+                <canvas id="powerChart"></canvas>
+                <!-- Custom fixed info display - NOW FIXED TOP RIGHT -->
+                <div id="custom-chart-info" class="absolute top-2 right-2 bg-gray-800 text-white text-xs p-2 rounded-md z-10 hidden pointer-events-none"></div>
+                <!-- Localized Loading Spinner -->
+                <!-- Ensure this starts hidden to prevent flicker -->
+                <div id="localLoadingSpinner" class="local-loading-spinner-container hidden">
+                    <div class="spinner"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Selection Previews Section -->
+        <div id="previewSection" class="panel-surface hidden">
+            <div class="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3 mb-4">
+                <div>
+                    <h2 class="text-xl font-semibold">Selected Windows Preview</h2>
+                    <p class="panel-copy text-sm mt-1">Review each labeled interval before preparing the training package.</p>
+                </div>
+            </div>
+            <div id="selectionPreview" class="preview-grid">
+                <!-- Preview charts will be dynamically added here -->
+                <p id="noPreviews" class="text-sm text-gray-500 p-2 text-center w-full">No time windows selected yet. Press Draw Interval on the chart or use the manual interval inputs to create one.</p>
+            </div>
+        </div>
+
+        <!-- Training prep + training server actions -->
+        <div class="mt-6 text-center space-y-3">
+            <button id="checkAllDataBtn" class="action-btn action-accent text-lg px-8 py-3">
+                <i class="fas fa-check-circle mr-2" aria-hidden="true"></i> Check All Data
+            </button>
+
+            <!-- Appears only after prep is ready -->
+            <button id="sendToTrainingServerBtn" class="hidden action-btn action-success text-lg px-8 py-3">
+                <i class="fas fa-server mr-2" aria-hidden="true"></i> Send to Training Server
+            </button>
+
+            <!-- Status text -->
+            <p id="trainingPrepStatus" class="status-inline text-sm text-gray-600 hidden"></p>
+        </div>
+
+        <!-- Training Jobs Table -->
+        <div class="panel-surface mt-8">
+            <div class="flex items-center justify-between mb-4">
+                <div>
+                    <h2 class="text-xl font-semibold">Training Jobs</h2>
+                    <p class="panel-copy text-sm mt-1">Track prepared jobs, uploads, and training results in one place.</p>
+                </div>
+                <button id="refreshJobsBtn"
+                    class="action-btn action-neutral">
+                    <i class="fas fa-sync mr-2"></i> Refresh
+                </button>
+            </div>
+        
+            <p id="noJobsMsg" class="text-sm text-gray-500">No jobs yet. Prepare and send a job to see it here.</p>
+        
+            <div class="overflow-x-auto">
+                <table class="min-w-full text-sm training-table">
+                    <thead class="text-left text-gray-700 border-b">
+                        <tr>
+                            <th class="py-2 pr-4">Appliance</th>
+                            <th class="py-2 pr-4">Range</th>
+                            <th class="py-2 pr-4">Status</th>
+                            <th class="py-2 pr-4 text-center">Remove</th>
+                        </tr>
+                    </thead>
+                    <tbody id="jobsTableBody" class="text-gray-800"></tbody>
+                </table>
+            </div>
+            <div id="jobsPagination" class="jobs-pagination hidden">
+                <div id="jobsPaginationInfo" class="jobs-pagination-copy"></div>
+                <div class="jobs-pagination-actions">
+                    <button id="jobsPrevPageBtn" class="action-btn action-neutral jobs-page-btn" type="button">
+                        <i class="fas fa-chevron-left mr-2" aria-hidden="true"></i> Previous
+                    </button>
+                    <button id="jobsNextPageBtn" class="action-btn action-neutral jobs-page-btn" type="button">
+                        Next <i class="fas fa-chevron-right ml-2" aria-hidden="true"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </main>
+</div>
+
+<!-- Custom Modal for Overlap Warning -->
+<div id="overlapModal" class="modal-overlay" style="display: none;">
+    <div class="modal-content">
+        <h3 class="text-xl font-semibold text-red-600 mb-4">Overlap Detected!</h3>
+        <p class="text-gray-700 mb-6">Selected time window overlaps with an existing one. Please make a distinct selection.</p>
+        <button id="closeModalBtn" class="bg-gradient-to-br from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white font-bold py-2 px-4 rounded-md shadow-md hover:shadow-lg transition duration-300 border border-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-opacity-50">Got It</button>
+    </div>
+</div>
+
+<!-- New Confirmation Modal for Clear All Selections -->
+<div id="clearConfirmModal" class="modal-overlay" style="display: none;">
+    <div class="modal-content">
+        <h3 class="text-xl font-semibold text-gray-800 mb-4">Clear All Selections?</h3>
+        <p class="text-gray-700 mb-6">This will remove all selected time windows. Are you sure?</p>
+        <div class="flex justify-center space-x-4">
+            <button id="confirmClearBtn" class="bg-gradient-to-br from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white font-bold py-2 px-4 rounded-md shadow-md hover:shadow-lg transition duration-300 border border-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-opacity-50">Clear All</button>
+            <button id="cancelClearBtn" class="bg-gradient-to-br from-gray-500 to-gray-600 hover:from-gray-600 hover:to-gray-700 text-white font-bold py-2 px-4 rounded-md shadow-md hover:shadow-lg transition duration-300 border border-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-opacity-50">Cancel</button>
+        </div>
+    </div>
+</div>
+
+<!-- New Validation Result Modal -->
+<div id="validationResultModal" class="modal-overlay" style="display: none;">
+    <div class="modal-content">
+        <h3 id="validationResultTitle" class="text-xl font-semibold mb-4"></h3>
+        <p id="validationResultMessage" class="text-gray-700 mb-6"></p>
+        <!-- FIX: Removed 'disabled' attribute from the HTML button definition -->
+        <button id="closeValidationResultModalBtn" class="bg-gradient-to-br from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white font-bold py-2 px-4 rounded-md shadow-md hover:shadow-lg transition duration-300 border border-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50">OK</button>
+    </div>
+</div>
+
+<div id="deleteJobConfirmModal" class="modal-overlay" style="display: none;">
+    <div class="modal-content">
+        <h3 class="text-xl font-semibold text-gray-800 mb-4">Remove Job?</h3>
+        <p id="deleteJobConfirmMessage" class="text-gray-700 mb-6">This will remove the selected job from the local jobs list.</p>
+        <div class="flex justify-center space-x-4">
+            <button id="confirmDeleteJobBtn" class="bg-gradient-to-br from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white font-bold py-2 px-4 rounded-md shadow-md hover:shadow-lg transition duration-300 border border-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-opacity-50">Remove</button>
+            <button id="cancelDeleteJobBtn" class="bg-gradient-to-br from-gray-500 to-gray-600 hover:from-gray-600 hover:to-gray-700 text-white font-bold py-2 px-4 rounded-md shadow-md hover:shadow-lg transition duration-300 border border-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-opacity-50">Cancel</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    // Module-scoped variables - declared once when the script is first parsed
+    let powerChart; // Chart.js instance for the power chart
+    let fullSensorHistoryData = []; // Stores the full historical data
+    let applianceSensorHistoryData = []; // Optional ground-truth appliance power trace
+    let firstTimestamp = 0; // Timestamp of the first data point of the *full available data*
+    let lastTimestamp = 0; // Timestamp of the last data point of the *full available data*
+    let currentChartMinTime = 0; // The actual min time currently displayed in the chart
+    let currentChartMaxTime = 0; // The actual max time currently displayed in the chart
+    let dateRangePickerInstance; // Flatpickr instance
+    let manualStartPickerInstance;
+    let manualEndPickerInstance;
+
+    let selectionModeActive = false; 
+    let isSettingEndpoint = false;
+    let activeSelectionId = null;
+    let selectedWindows = []; // Stores all selected time windows
+    let trainingServerConnectionReady = false;
+
+    let jobsUIReadyPromise = null;
+    let pendingJobEvents = []; // {kind:"prepared"|"sent", data:{...}}
+
+    // DOM element references (will be assigned inside initializeTrainingUI)
+    let jobsTableBody;
+    let noJobsMsg;
+    let refreshJobsBtn;
+    let jobsPagination;
+    let jobsPaginationInfo;
+    let jobsPrevPageBtn;
+    let jobsNextPageBtn;
+    let trainingServerStatusCard;
+    let trainingServerStatusMessage;
+    let trainingServerStatusBadge;
+    let retryTrainingServerStatusBtn;
+    let jobsUI = null;
+    let sendToTrainingServerBtn;
+    let trainingPrepStatus;
+    let ctx;
+    let chartContainer;
+    let customChartInfo;
+    let powerChartCanvas; 
+    let localLoadingSpinner;
+    
+    let overlapModal;
+    let closeModalBtn;
+    let clearConfirmModal;
+    let confirmClearBtn;
+    let cancelClearBtn;
+
+    let selectModeTooltip;
+    let selectModeBtn;
+    let selectModeBtnIcon;
+    let selectModeBtnLabel;
+    let chartResetZoomBtn;
+
+    let applianceNameInput;
+    let supervisionModeSelect;
+    let supervisionModeHint;
+    let trainingBundleSelect;
+    let trainingBundleHint;
+    let sensorSupervisionSection;
+    let applianceSensorSelect;
+    let applianceNameError;
+    let applianceInfoStatus;
+
+    let checkAllDataBtn;
+    let validationResultModal;
+    let validationResultTitle;
+    let validationResultMessage;
+    let closeValidationResultModalBtn;
+    let deleteJobConfirmModal;
+    let deleteJobConfirmMessage;
+    let confirmDeleteJobBtn;
+    let cancelDeleteJobBtn;
+
+    let infoAccordionToggle;
+    let infoAccordionContent;
+    let accordionIcon;
+
+    // References to new elements that were causing ReferenceReferences if not found
+    let selectionPreviewContainer; // Declared here, assigned in initializeTrainingUI
+    let noPreviewsMessage; // Declared here, assigned in initializeTrainingUI
+    
+    // --- New Date Selector DOM references ---
+    let dateRangePicker; // Reference for the single Flatpickr input
+    let quickRangeSelect;
+    let dateRangeError;
+    let manualStartInput;
+    let manualEndInput;
+    let addManualIntervalBtn;
+    let selectionAssistantSection;
+    // Removed: let currentDateRangeDisplay; // New: Reference for date range display
+
+    // --- FIX: Declare named handler functions at module level for proper cleanup ---
+    let confirmClearHandler;
+    let cancelClearHandler;
+    let closeValidationResultHandler;
+    let infoAccordionToggleHandler;
+    let quickRangeChangeHandler;
+    let addManualIntervalHandler;
+    let supervisionModeChangeHandler;
+    let manualIntervalInputHandler;
+    let retryTrainingServerStatusHandler;
+    // applyDateRangeHandler is now the Flatpickr onChange event
+
+
+    // --- FIX: Define MAIN_SENSOR_ENTITY_ID for history API calls ---
+    let MAIN_SENSOR_ENTITY_ID = "sensor.mock_mains";
+    let trainingJobId = null;
+    let availableTrainingBundles = [];
+
+    // Define initializeTrainingUI in the global scope so web_ui.html can call it
+    window.initializeTrainingUI = function() {
+        console.log("Initializing Training UI component...");
+
+        let preparedTrainingPackage = null; // holds backend result after prep
+        let busyProgressTimer = null;
+        let busyProgressValue = 0;
+        const browserLocale = (Array.isArray(navigator.languages) && navigator.languages.length
+            ? navigator.languages[0]
+            : (navigator.language || "en-GB"));
+        const prefers24Hour = (() => {
+            try {
+                const hourCycle = new Intl.DateTimeFormat(browserLocale, { hour: "numeric" }).resolvedOptions().hourCycle;
+                return hourCycle === "h23" || hourCycle === "h24";
+            } catch (error) {
+                return true;
+            }
+        })();
+
+        function formatUiDateTime(value) {
+            const date = value instanceof Date ? value : new Date(value);
+            if (Number.isNaN(date.getTime())) return "";
+            return date.toLocaleString(browserLocale, {
+                year: "numeric",
+                month: "2-digit",
+                day: "2-digit",
+                hour: "2-digit",
+                minute: "2-digit",
+                second: "2-digit",
+                hour12: !prefers24Hour,
+            });
+        }
+
+        function formatUiDateShort(value, withWeekday = false) {
+            const date = value instanceof Date ? value : new Date(value);
+            if (Number.isNaN(date.getTime())) return "";
+            return date.toLocaleDateString(browserLocale, {
+                weekday: withWeekday ? "short" : undefined,
+                day: "2-digit",
+                month: "2-digit",
+            });
+        }
+
+        function formatUiTime(value, withSeconds = false) {
+            const date = value instanceof Date ? value : new Date(value);
+            if (Number.isNaN(date.getTime())) return "";
+            return date.toLocaleTimeString(browserLocale, {
+                hour: "2-digit",
+                minute: "2-digit",
+                second: withSeconds ? "2-digit" : undefined,
+                hour12: !prefers24Hour,
+            });
+        }
+
+        function selectedTrainingBundle() {
+            if (!trainingBundleSelect?.value) return null;
+            return availableTrainingBundles.find((bundle) => bundle.bundle_id === trainingBundleSelect.value) || null;
+        }
+
+        async function fetchTrainingBundles() {
+            const response = await fetch("model-bundles");
+            if (!response.ok) {
+                throw new Error(`Failed to load model versions: HTTP ${response.status}`);
+            }
+            const payload = await response.json().catch(() => ({}));
+            availableTrainingBundles = Array.isArray(payload.bundles) ? payload.bundles : [];
+
+            if (!trainingBundleSelect) return;
+
+            trainingBundleSelect.innerHTML = "";
+            if (!availableTrainingBundles.length) {
+                trainingBundleSelect.innerHTML = `<option value="">No model versions available</option>`;
+                trainingBundleSelect.disabled = true;
+                return;
+            }
+
+            trainingBundleSelect.disabled = false;
+            availableTrainingBundles.forEach((bundle) => {
+                const option = document.createElement("option");
+                option.value = bundle.bundle_id;
+                option.textContent = bundle.label || `${bundle.mode} v${bundle.version}`;
+                option.dataset.bundleMode = bundle.mode || "";
+                trainingBundleSelect.appendChild(option);
+            });
+
+            const defaultBundle = availableTrainingBundles.find((bundle) => bundle.is_default_for_training)
+                || availableTrainingBundles[0];
+            if (defaultBundle) {
+                trainingBundleSelect.value = defaultBundle.bundle_id;
+                if (trainingBundleHint) {
+                    trainingBundleHint.textContent = `New training uses ${defaultBundle.label || defaultBundle.bundle_id} by default.`;
+                }
+            }
+        }
+
+        function setUiBusy(isBusy, msg = "") {
+            if (isBusy) showLoadingIndicator();
+            else hideLoadingIndicator();
+
+            if (checkAllDataBtn) checkAllDataBtn.disabled = isBusy || !trainingServerConnectionReady;
+            if (sendToTrainingServerBtn) sendToTrainingServerBtn.disabled = isBusy || !trainingServerConnectionReady;
+            if (retryTrainingServerStatusBtn) retryTrainingServerStatusBtn.disabled = isBusy;
+
+            if (trainingPrepStatus) {
+                if (msg) {
+                trainingPrepStatus.textContent = msg;
+                trainingPrepStatus.classList.remove("hidden");
+                } else {
+                trainingPrepStatus.classList.add("hidden");
+                }
+            }
+        }
+
+        function clearBusyProgress() {
+            if (busyProgressTimer) {
+                clearInterval(busyProgressTimer);
+                busyProgressTimer = null;
+            }
+            busyProgressValue = 0;
+        }
+
+        function formatBusyProgressMessage(label, percent, maxPercent) {
+            if (percent >= maxPercent) return `${label} Finalizing...`;
+            return `${label} ${percent}%`;
+        }
+
+        function startBusyProgress(label, maxPercent = 94) {
+            clearBusyProgress();
+            busyProgressValue = 6;
+            setUiBusy(true, formatBusyProgressMessage(label, busyProgressValue, maxPercent));
+
+            busyProgressTimer = setInterval(() => {
+                const remaining = maxPercent - busyProgressValue;
+                if (remaining <= 0) return;
+                const increment = Math.max(1, Math.ceil(remaining * 0.18));
+                busyProgressValue = Math.min(maxPercent, busyProgressValue + increment);
+                setUiBusy(true, formatBusyProgressMessage(label, busyProgressValue, maxPercent));
+            }, 650);
+        }
+
+        async function finishBusyProgress(label, finalMessage = "") {
+            clearBusyProgress();
+            setUiBusy(true, `${label} 100%`);
+            await new Promise(resolve => setTimeout(resolve, 220));
+            setUiBusy(false, finalMessage);
+        }
+
+        function setTrainingServerStatusUi({ ok = false, state = "unreachable", message = "" } = {}) {
+            trainingServerConnectionReady = !!ok;
+
+            if (trainingServerStatusMessage) {
+                trainingServerStatusMessage.textContent = message || (ok
+                    ? "Training server connection looks ready."
+                    : "Training server connection is not available.");
+            }
+
+            if (trainingServerStatusBadge) {
+                trainingServerStatusBadge.classList.remove("training-server-status-ready", "training-server-status-warning", "training-server-status-error");
+                if (ok) {
+                    trainingServerStatusBadge.textContent = "Ready";
+                    trainingServerStatusBadge.classList.add("training-server-status-ready");
+                } else if (state === "checking") {
+                    trainingServerStatusBadge.textContent = "Checking";
+                    trainingServerStatusBadge.classList.add("training-server-status-warning");
+                } else if (state === "auth_error" || state === "missing_config" || state === "invalid_config") {
+                    trainingServerStatusBadge.textContent = "Attention";
+                    trainingServerStatusBadge.classList.add("training-server-status-warning");
+                } else {
+                    trainingServerStatusBadge.textContent = "Offline";
+                    trainingServerStatusBadge.classList.add("training-server-status-error");
+                }
+            }
+
+            if (checkAllDataBtn) checkAllDataBtn.disabled = !trainingServerConnectionReady;
+            if (sendToTrainingServerBtn) sendToTrainingServerBtn.disabled = !trainingServerConnectionReady;
+        }
+
+        async function checkTrainingServerConnection(showSuccessFeedback = false) {
+            setTrainingServerStatusUi({
+                ok: false,
+                state: "checking",
+                message: "Checking training server connection before training..."
+            });
+
+            if (retryTrainingServerStatusBtn) retryTrainingServerStatusBtn.disabled = true;
+
+            try {
+                const response = await fetch("training?action=training_server_status");
+                const payload = await response.json().catch(() => ({}));
+                if (!response.ok) {
+                    const legacyActionError = typeof payload?.message === "string"
+                        && payload.message.includes("Missing/invalid action")
+                        && payload.message.includes("prepare|send|status|training_server_status");
+                    if (legacyActionError) {
+                        setTrainingServerStatusUi({
+                            ok: false,
+                            state: "invalid_config",
+                            message: "This running add-on version does not support training server preflight checks yet. Restart or update the add-on to enable this warning."
+                        });
+                        return;
+                    }
+                    throw new Error(payload.message || `HTTP ${response.status}`);
+                }
+
+                setTrainingServerStatusUi(payload);
+
+                if (showSuccessFeedback && payload.ok && trainingPrepStatus) {
+                    trainingPrepStatus.textContent = "Training server connection is ready.";
+                    trainingPrepStatus.classList.remove("hidden");
+                }
+            } catch (error) {
+                console.error("Training server status check failed:", error);
+                setTrainingServerStatusUi({
+                    ok: false,
+                    state: "unreachable",
+                    message: error.message || "Training server connection could not be checked."
+                });
+            } finally {
+                if (retryTrainingServerStatusBtn) retryTrainingServerStatusBtn.disabled = false;
+            }
+        }
+
+        function showSendToTrainingServerReady() {
+            if (sendToTrainingServerBtn) sendToTrainingServerBtn.classList.remove("hidden");
+        }
+
+        function hideSendToTrainingServer() {
+            if (sendToTrainingServerBtn) sendToTrainingServerBtn.classList.add("hidden");
+        }
+
+        function toIsoUtcNoMs(date) {
+            return new Date(date.getTime() - date.getMilliseconds()).toISOString().replace(".000Z", "Z");
+        }
+
+        function getUtcDayRange(days) {
+            const safeDays = Math.min(Math.max(parseInt(days, 10) || 7, 1), 7);
+            const today = new Date();
+            const endDate = new Date(today.getTime());
+            const startDate = new Date(endDate.getTime() - (safeDays * 24 * 60 * 60 * 1000));
+            return { startDate, endDate, safeDays };
+        }
+
+        function syncQuickRangeWithDates(startMs, endMs) {
+            if (!quickRangeSelect || !Number.isFinite(startMs) || !Number.isFinite(endMs)) return;
+            const oneDayMs = 24 * 60 * 60 * 1000;
+            const numberOfCalendarDays = Math.round((endMs - startMs + 1) / oneDayMs);
+            if ([1, 3, 7].includes(numberOfCalendarDays)) {
+                quickRangeSelect.value = String(numberOfCalendarDays);
+            }
+        }
+
+        function applyQuickRange(days) {
+            const { startDate, endDate, safeDays } = getUtcDayRange(days);
+            if (dateRangeError) dateRangeError.classList.add('hidden');
+            if (dateRangePickerInstance) {
+                dateRangePickerInstance.setDate([startDate, endDate], false);
+            } else if (dateRangePicker) {
+                const fmt = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+                dateRangePicker.value = `${fmt(startDate)} to ${fmt(endDate)}`;
+            }
+            if (quickRangeSelect) quickRangeSelect.value = String(safeDays);
+            fetchSensorHistoryData(startDate.getTime(), endDate.getTime());
+        }
+
+        function currentSupervisionMode() {
+            return supervisionModeSelect?.value === "sensor" ? "sensor" : "intervals";
+        }
+
+        function updateSupervisionModeUI() {
+            const mode = currentSupervisionMode();
+            const isSensor = mode === "sensor";
+
+            if (sensorSupervisionSection) sensorSupervisionSection.classList.toggle('hidden', !isSensor);
+            if (selectionAssistantSection) selectionAssistantSection.classList.toggle('hidden', isSensor);
+            const previewSection = document.getElementById('previewSection');
+            if (previewSection && isSensor) previewSection.classList.add('hidden');
+            const selectModeControl = selectModeBtn?.closest('.relative.group');
+            if (selectModeControl) selectModeControl.classList.toggle('hidden', isSensor);
+            if (selectModeBtn) selectModeBtn.disabled = isSensor;
+            if (supervisionModeHint) {
+                supervisionModeHint.textContent = isSensor
+                    ? "Use sensor supervision when you have a Home Assistant power sensor for this appliance."
+                    : "Use interval supervision when you only know when the appliance was ON inside the mains signal.";
+            }
+
+            if (isSensor && selectionModeActive) {
+                finishIntervalSelectionMode();
+            }
+            if (!isSensor) {
+                applianceSensorHistoryData = [];
+            }
+            if (powerChart) {
+                initializePowerChart(fullSensorHistoryData, firstTimestamp, lastTimestamp);
+            }
+        }
+
+        function finishIntervalSelectionMode() {
+            selectionModeActive = false;
+            isSettingEndpoint = false;
+            activeSelectionId = null;
+            if (powerChart?.options?.plugins?.zoom) {
+                powerChart.options.plugins.zoom.pan.enabled = true;
+                powerChart.options.plugins.zoom.zoom.wheel.enabled = true;
+                powerChart.options.plugins.zoom.zoom.pinch.enabled = true;
+                powerChart.options.plugins.zoom.zoom.drag.enabled = false;
+                powerChart.update('none');
+            }
+            if (selectModeBtnLabel) selectModeBtnLabel.textContent = "Draw Interval";
+            if (selectModeBtnIcon) {
+                selectModeBtnIcon.classList.remove('fa-xmark');
+                selectModeBtnIcon.classList.remove('fa-check');
+                selectModeBtnIcon.classList.add('fa-plus-circle');
+            }
+            if (selectModeTooltip) selectModeTooltip.textContent = "Start guided interval drawing.";
+            if (selectModeBtn) {
+                selectModeBtn.classList.remove('from-emerald-500', 'to-emerald-600', 'hover:from-emerald-600', 'hover:to-emerald-700', 'border-emerald-700', 'focus:ring-emerald-500');
+                selectModeBtn.classList.add('from-sky-500', 'to-sky-600', 'hover:from-sky-600', 'hover:to-sky-700', 'border-sky-700', 'focus:ring-sky-500');
+            }
+            if (chartContainer) chartContainer.classList.remove('selection-active');
+        }
+
+        function beginIntervalSelectionMode() {
+            if (!powerChart || currentSupervisionMode() !== 'intervals') return;
+            selectionModeActive = true;
+            isSettingEndpoint = false;
+            activeSelectionId = null;
+            if (powerChart?.options?.plugins?.zoom) {
+                powerChart.options.plugins.zoom.pan.enabled = false;
+                powerChart.options.plugins.zoom.zoom.wheel.enabled = false;
+                powerChart.options.plugins.zoom.zoom.pinch.enabled = false;
+                powerChart.options.plugins.zoom.zoom.drag.enabled = false;
+                powerChart.update('none');
+            }
+            if (selectModeBtnLabel) selectModeBtnLabel.textContent = "Tap Start";
+            if (selectModeBtnIcon) {
+                selectModeBtnIcon.classList.remove('fa-plus-circle');
+                selectModeBtnIcon.classList.remove('fa-check');
+                selectModeBtnIcon.classList.add('fa-xmark');
+            }
+            if (selectModeTooltip) selectModeTooltip.textContent = "Tap the chart to place the interval start.";
+            if (selectModeBtn) {
+                selectModeBtn.classList.remove('from-sky-500', 'to-sky-600', 'hover:from-sky-600', 'hover:to-sky-700', 'border-sky-700', 'focus:ring-sky-500');
+                selectModeBtn.classList.add('from-emerald-500', 'to-emerald-600', 'hover:from-emerald-600', 'hover:to-emerald-700', 'border-emerald-700', 'focus:ring-emerald-500');
+            }
+            if (chartContainer) chartContainer.classList.add('selection-active');
+        }
+
+        async function fetchAvailablePowerSensors() {
+            const response = await fetch('sensors');
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            return await response.json();
+        }
+
+        function populateApplianceSensorSelect(sensors, mainsSensorId) {
+            if (!applianceSensorSelect) return;
+            const previous = applianceSensorSelect.value;
+            applianceSensorSelect.innerHTML = '<option value="">Select appliance power sensor</option>';
+
+            (Array.isArray(sensors) ? sensors : [])
+                .filter(sensor =>
+                    sensor?.entity_id &&
+                    sensor.entity_id !== mainsSensorId &&
+                    !sensor.is_virtual &&
+                    sensor.source !== 'dl' &&
+                    !sensor.entity_id.startsWith('sensor.nilm_') &&
+                    !sensor.entity_id.startsWith('sensor.nilm_')
+                )
+                .forEach(sensor => {
+                    const option = document.createElement('option');
+                    option.value = sensor.entity_id;
+                    option.textContent = sensor.friendly_name || sensor.entity_id;
+                    applianceSensorSelect.appendChild(option);
+                });
+
+            if (previous && Array.from(applianceSensorSelect.options).some(opt => opt.value === previous)) {
+                applianceSensorSelect.value = previous;
+            }
+        }
+
+        async function refreshApplianceSensorOverlay() {
+            if (currentSupervisionMode() !== 'sensor' || !applianceSensorSelect || !applianceSensorSelect.value) {
+                applianceSensorHistoryData = [];
+                if (powerChart) initializePowerChart(fullSensorHistoryData, firstTimestamp, lastTimestamp);
+                return;
+            }
+            if (!Number.isFinite(firstTimestamp) || !Number.isFinite(lastTimestamp) || firstTimestamp <= 0 || lastTimestamp <= 0) {
+                applianceSensorHistoryData = [];
+                return;
+            }
+
+            showLoadingIndicator();
+            try {
+                const rawApplianceSeries = await fetchHistorySeries(
+                    applianceSensorSelect.value,
+                    firstTimestamp,
+                    lastTimestamp
+                );
+                applianceSensorHistoryData = buildTrainingAlignedOverlaySeries(rawApplianceSeries, fullSensorHistoryData);
+                if (powerChart) initializePowerChart(fullSensorHistoryData, firstTimestamp, lastTimestamp);
+            } finally {
+                hideLoadingIndicator();
+            }
+        }
+
+        async function fetchHistorySeries(entityId, startMs, endMs) {
+            if (!entityId) return [];
+
+            const startDateObj = new Date(startMs);
+            const endDateObj = new Date(endMs);
+            const startDateForPath = encodeURIComponent(toIsoUtcNoMs(startDateObj));
+            const endDateForQuery = encodeURIComponent(toIsoUtcNoMs(endDateObj));
+            const url = `history/period/${startDateForPath}?end_time=${endDateForQuery}&filter_entity_id=${encodeURIComponent(entityId)}`;
+
+            const response = await fetch(url);
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => ({ message: 'Unknown error' }));
+                throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
+            }
+
+            const data = await response.json();
+            const sensorDataRaw = data && data.length > 0 && data[0] ? data[0] : [];
+            return sensorDataRaw
+                .map((d) => {
+                    const timeValue = Date.parse(d.x);
+                    const stateValue = parseFloat(d.y);
+                    if (isNaN(timeValue) || isNaN(stateValue)) return null;
+                    return { x: timeValue, y: stateValue };
+                })
+                .filter(Boolean)
+                .sort((a, b) => a.x - b.x);
+        }
+
+        function estimateNominalStepMs(series) {
+            if (!Array.isArray(series) || series.length < 2) return 8000;
+            const diffs = [];
+            for (let i = 1; i < series.length; i += 1) {
+                const dt = Number(series[i]?.x) - Number(series[i - 1]?.x);
+                if (Number.isFinite(dt) && dt > 0) diffs.push(dt);
+            }
+            if (!diffs.length) return 8000;
+            diffs.sort((a, b) => a - b);
+            return diffs[Math.floor(diffs.length / 2)] || 8000;
+        }
+
+        function buildTrainingAlignedOverlaySeries(rawSeries, referenceSeries, maxHoldFactor = 5) {
+            if (!Array.isArray(referenceSeries) || !referenceSeries.length) return [];
+
+            const refs = referenceSeries
+                .map((point) => ({ x: Number(point?.x) }))
+                .filter((point) => Number.isFinite(point.x));
+
+            if (!refs.length) return [];
+
+            const raw = (Array.isArray(rawSeries) ? rawSeries : [])
+                .map((point) => ({ x: Number(point?.x), y: Number(point?.y) }))
+                .filter((point) => Number.isFinite(point.x) && Number.isFinite(point.y))
+                .sort((a, b) => a.x - b.x);
+
+            if (!raw.length) {
+                return refs.map((point) => ({ x: point.x, y: 0 }));
+            }
+
+            const nominalStepMs = estimateNominalStepMs(refs);
+            const maxHoldMs = Math.max(nominalStepMs, nominalStepMs * maxHoldFactor);
+            const out = [];
+            let idx = -1;
+
+            for (const ref of refs) {
+                while (idx + 1 < raw.length && raw[idx + 1].x <= ref.x) {
+                    idx += 1;
+                }
+
+                let y = 0;
+                if (idx >= 0) {
+                    const age = ref.x - raw[idx].x;
+                    if (age >= 0 && age <= maxHoldMs) {
+                        y = Math.max(0, raw[idx].y);
+                    }
+                }
+
+                out.push({ x: ref.x, y });
+            }
+
+            return out;
+        }
+
+        function formatForDateTimeLocal(ms) {
+            if (!Number.isFinite(ms)) return '';
+            const d = new Date(ms);
+            const pad = (n) => String(n).padStart(2, '0');
+            return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+        }
+
+        function parseDateTimeLocal(value) {
+            if (!value) return NaN;
+            const match = String(value).trim().match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})$/);
+            if (!match) return NaN;
+            const [, year, month, day, hour, minute] = match;
+            return new Date(
+                Number(year),
+                Number(month) - 1,
+                Number(day),
+                Number(hour),
+                Number(minute),
+                0,
+                0
+            ).getTime();
+        }
+
+        function snapToNearestTimestamp(ts) {
+            if (!Number.isFinite(ts) || !Array.isArray(fullSensorHistoryData) || fullSensorHistoryData.length === 0) {
+                return ts;
+            }
+
+            let lo = 0;
+            let hi = fullSensorHistoryData.length;
+            while (lo < hi) {
+                const mid = (lo + hi) >> 1;
+                if (fullSensorHistoryData[mid].x < ts) lo = mid + 1;
+                else hi = mid;
+            }
+
+            if (lo <= 0) return fullSensorHistoryData[0].x;
+            if (lo >= fullSensorHistoryData.length) return fullSensorHistoryData[fullSensorHistoryData.length - 1].x;
+
+            const prev = fullSensorHistoryData[lo - 1].x;
+            const next = fullSensorHistoryData[lo].x;
+            return Math.abs(prev - ts) <= Math.abs(next - ts) ? prev : next;
+        }
+
+        function setManualIntervalInputs(startMs, endMs) {
+            const startValue = formatForDateTimeLocal(startMs);
+            const endValue = formatForDateTimeLocal(endMs);
+            if (manualStartPickerInstance) {
+                manualStartPickerInstance.setDate(startValue, false, "Y-m-d H:i");
+            } else if (manualStartInput) {
+                manualStartInput.value = startValue;
+            }
+            if (manualEndPickerInstance) {
+                manualEndPickerInstance.setDate(endValue, false, "Y-m-d H:i");
+            } else if (manualEndInput) {
+                manualEndInput.value = endValue;
+            }
+        }
+
+        function syncManualInputsToChartView() {
+            const xScale = powerChart?.scales?.x;
+            if (!xScale || !Number.isFinite(xScale.min) || !Number.isFinite(xScale.max)) return;
+            setManualIntervalInputs(xScale.min, xScale.max);
+        }
+
+        function syncManualInputBounds() {
+            if (!manualStartInput || !manualEndInput || !Number.isFinite(firstTimestamp) || !Number.isFinite(lastTimestamp) || firstTimestamp <= 0 || lastTimestamp <= 0) {
+                return;
+            }
+
+            const minValue = formatForDateTimeLocal(firstTimestamp);
+            const maxValue = formatForDateTimeLocal(lastTimestamp);
+            if (manualStartPickerInstance) {
+                manualStartPickerInstance.set("minDate", minValue);
+                manualStartPickerInstance.set("maxDate", maxValue);
+            }
+            if (manualEndPickerInstance) {
+                manualEndPickerInstance.set("minDate", minValue);
+                manualEndPickerInstance.set("maxDate", maxValue);
+            }
+        }
+
+        function commitSelectionInterval(startMs, endMs) {
+            if (!powerChart || !powerChart.options?.plugins?.annotation?.annotations) {
+                showValidationResultModal("Chart Not Ready", "Load mains data before creating an interval.", true);
+                return false;
+            }
+
+            if (!Array.isArray(fullSensorHistoryData) || fullSensorHistoryData.length === 0) {
+                showValidationResultModal("No Data Loaded", "Please load mains history before adding an interval.", true);
+                return false;
+            }
+
+            const orderedStart = Math.min(startMs, endMs);
+            const orderedEnd = Math.max(startMs, endMs);
+
+            if (orderedStart === orderedEnd) {
+                showValidationResultModal("Invalid Interval", "Start and end time must be different.", true);
+                return false;
+            }
+
+            if (orderedStart < firstTimestamp || orderedEnd > lastTimestamp) {
+                showValidationResultModal("Outside Loaded Range", "The interval must stay inside the currently loaded mains history range.", true);
+                return false;
+            }
+
+            if (hasOverlap(orderedStart, orderedEnd, powerChart.options.plugins.annotation.annotations)) {
+                showOverlapModal();
+                return false;
+            }
+
+            const annotationId = `selection_${Date.now()}`;
+            const annotation = {
+                id: annotationId,
+                type: 'box',
+                xMin: orderedStart,
+                xMax: orderedEnd,
+                backgroundColor: 'rgba(156, 163, 175, 0.3)',
+                borderColor: 'rgb(107, 114, 128)',
+                borderWidth: 1,
+                isPending: false,
+                applianceName: applianceNameInput ? applianceNameInput.value.trim() : ''
+            };
+
+            powerChart.options.plugins.annotation.annotations[annotationId] = annotation;
+            addSelectionPreview(annotation);
+            powerChart.update('none');
+            setManualIntervalInputs(orderedStart, orderedEnd);
+            return true;
+        }
+
+        function applyManualIntervalToChartView() {
+            const rawStart = parseDateTimeLocal(manualStartInput?.value);
+            const rawEnd = parseDateTimeLocal(manualEndInput?.value);
+            if (!Number.isFinite(rawStart) || !Number.isFinite(rawEnd) || !powerChart) {
+                return;
+            }
+
+            const orderedStart = Math.min(rawStart, rawEnd);
+            const orderedEnd = Math.max(rawStart, rawEnd);
+
+            if (!Number.isFinite(firstTimestamp) || !Number.isFinite(lastTimestamp) || firstTimestamp <= 0 || lastTimestamp <= 0) {
+                return;
+            }
+
+            const viewStart = Math.max(firstTimestamp, orderedStart);
+            const viewEnd = Math.min(lastTimestamp, orderedEnd);
+            if (viewEnd <= viewStart) return;
+
+            powerChart.zoomScale('x', { min: viewStart, max: viewEnd }, 'none');
+            updateChartDataAndAxisBasedOnZoom();
+        }
+
+        // --- ALL Function Definitions (ORDERED BY DEPENDENCY: inner/utility first, then callers) ---
+
+        // 1. Basic Utility Functions
+        function showLoadingIndicator() {
+            if (localLoadingSpinner) localLoadingSpinner.classList.remove('hidden');
+            // Removed: if (currentDateRangeDisplay) currentDateRangeDisplay.classList.add('hidden'); // Hide range display when loading
+            console.log("DEBUG: Loading indicator shown.");
+        }
+
+        function hideLoadingIndicator() {
+            if (localLoadingSpinner) {
+                localLoadingSpinner.classList.add('hidden');
+                console.log("DEBUG: Loading indicator hidden.");
+            } else {
+                console.warn("DEBUG: localLoadingSpinner not found when trying to hide.");
+            }
+        }
+        
+        // 2. Modal Helper Functions (depend on basic DOM elements and show/hide logic)
+        function showOverlapModal() {
+            console.log("DEBUG: Calling showOverlapModal().");
+            if (overlapModal) {
+                overlapModal.style.display = 'flex';
+            } else {
+                 console.warn("DEBUG: overlapModal not found when trying to show.");
+            }
+        }
+
+        function hideOverlapModal() {
+            if (overlapModal) {
+                overlapModal.style.display = 'none';
+            }
+        }
+
+        function showClearConfirmModal() {
+            console.log("DEBUG: Calling showClearConfirmModal().");
+            if (clearConfirmModal) {
+                clearConfirmModal.style.display = 'flex';
+            } else {
+                console.warn("DEBUG: clearConfirmModal not found when trying to show.");
+            }
+        }
+
+        function hideClearConfirmModal() {
+            if (clearConfirmModal) {
+                clearConfirmModal.style.display = 'none';
+            }
+        }
+
+        function showValidationResultModal(title, message, isError = false) {
+            console.log("DEBUG: Calling showValidationResultModal() with title:", title, "message:", message, "isError:", isError);
+            if (validationResultTitle) validationResultTitle.textContent = title;
+            if (validationResultMessage) validationResultMessage.textContent = message;
+            if (validationResultTitle) {
+                validationResultTitle.classList.toggle('text-green-600', !isError);
+                validationResultTitle.classList.toggle('text-red-600', isError);
+            }
+            if (validationResultModal) {
+                validationResultModal.style.display = 'flex';
+            } else {
+                 console.warn("DEBUG: validationResultModal not found when trying to show.");
+            }
+        }
+
+        // 3. Selection Logic Helpers (depend on selectedWindows, Chart.js annotations)
+        function hasOverlap(newMin, newMax, existingAnnotations, currentActiveId = null) {
+            const orderedNewMin = Math.min(newMin, newMax);
+            const orderedNewMax = Math.max(newMin, newMax);
+            for (const key in existingAnnotations) {
+                const ann = existingAnnotations[key];
+                if (ann.type === 'box' && ann.id !== currentActiveId && !ann.isPending) {
+                    const existingMin = Math.min(ann.xMin, ann.xMax);
+                    const existingMax = Math.max(ann.xMin, ann.xMax);
+                    
+                    if (orderedNewMin < existingMax && orderedNewMax > existingMin) {
+                        return true; // Overlap detected
+                    }
+                }
+            }
+            return false; // No overlap
+        }
+        
+        // 4a. Core Selection Action for Removal (no dependencies here, but is called by renderSelectionPreviews)
+        function removeSelection(idToRemove) {
+            if (powerChart && powerChart.options && powerChart.options.plugins && powerChart.options.plugins.annotation && powerChart.options.plugins.annotation.annotations) {
+                delete powerChart.options.plugins.annotation.annotations[idToRemove];
+                powerChart.update();
+            }
+            selectedWindows = selectedWindows.filter(window => window.id !== idToRemove);
+            renderSelectionPreviews(); 
+        }
+
+        // 4b. Selection Preview Rendering (depends on removeSelection, fullSensorHistoryData, Chart.js, DOM elements)
+        function renderSelectionPreviews() {
+            if (!selectionPreviewContainer || !document.getElementById('previewSection') || !noPreviewsMessage) {
+                console.warn("DEBUG: renderSelectionPreviews: Missing one or more required DOM elements for preview rendering.");
+                return;
+            }
+
+            selectionPreviewContainer.innerHTML = '';
+            const previewSection = document.getElementById('previewSection');
+
+            if (selectedWindows.length === 0) {
+                previewSection.classList.add('hidden');
+                noPreviewsMessage.classList.remove('hidden');
+            } else {
+                previewSection.classList.remove('hidden');
+                noPreviewsMessage.classList.add('hidden');
+                selectedWindows.forEach((annotation, index) => {
+                    const durationMs = Math.max(0, Number(annotation.end) - Number(annotation.start));
+                    const durationMinutes = durationMs / (60 * 1000);
+                    const durationLabel = durationMinutes >= 60
+                        ? `${(durationMinutes / 60).toFixed(durationMinutes >= 120 ? 1 : 2)} h`
+                        : `${Math.max(1, Math.round(durationMinutes))} min`;
+                    const startLabel = formatUiDateTime(annotation.start);
+                    const endLabel = formatUiDateTime(annotation.end);
+
+                    const previewWrapper = document.createElement('div');
+                    previewWrapper.id = `preview-${annotation.id}`;
+                    previewWrapper.className = 'preview-card relative'; 
+
+                    const deleteButton = document.createElement('button');
+                    deleteButton.innerHTML = '&times;';
+                    deleteButton.className = 'absolute top-1 right-1 text-red-600 hover:text-red-800 font-bold text-xl w-6 h-6 flex items-center justify-center rounded-full bg-gray-200 hover:bg-gray-300 transition duration-150 ease-in-out leading-none';
+                    deleteButton.onclick = () => removeSelection(annotation.id); 
+
+                    const header = document.createElement('div');
+                    header.className = 'preview-card-top';
+                    header.innerHTML = `
+                        <div>
+                            <div class="preview-card-title">Window ${index + 1}</div>
+                            <div class="preview-card-meta">${durationLabel}</div>
+                        </div>
+                    `;
+                    previewWrapper.appendChild(header);
+                    previewWrapper.appendChild(deleteButton); 
+
+                    const rangeInfo = document.createElement('div');
+                    rangeInfo.className = 'preview-card-range';
+                    rangeInfo.innerHTML = `<strong>Start:</strong> ${startLabel}<br><strong>End:</strong> ${endLabel}`;
+                    previewWrapper.appendChild(rangeInfo);
+
+                    const chartFrame = document.createElement('div');
+                    chartFrame.className = 'preview-card-canvas';
+                    const canvas = document.createElement('canvas');
+                    canvas.id = `previewChart-${annotation.id}`;
+                    canvas.style.height = '80px'; 
+                    chartFrame.appendChild(canvas);
+                    previewWrapper.appendChild(chartFrame);
+                    selectionPreviewContainer.appendChild(previewWrapper);
+
+                    const previewCtx = canvas.getContext('2d');
+                    const windowData = fullSensorHistoryData.filter(d => d.x >= annotation.start && d.x <= annotation.end);
+
+                    new Chart(previewCtx, {
+                        type: 'line',
+                        data: {
+                            datasets: [{
+                                label: 'Power (W)', 
+                                data: windowData,
+                                borderColor: 'rgb(75, 192, 192)', 
+                                backgroundColor: 'rgba(75, 192, 192, 0.2)', 
+                                borderWidth: 0.5,
+                                pointRadius: 0,
+                                tension: 0.1,
+                                fill: true 
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: true, 
+                            animation: false, 
+                            plugins: {
+                                legend: { display: false },
+                                tooltip: { enabled: false } 
+                            },
+                            scales: {
+                                x: {
+                                    ticks: { display: false }, 
+                                    title: { display: false }, 
+                                    min: annotation.start, 
+                                    max: annotation.end,   
+                                    type: 'time', 
+                                    time: { unit: 'second' }, 
+                                    grid: { display: false } 
+                                },
+                                y: {
+                                    ticks: { display: false }, 
+                                    title: { display: false }, 
+                                    beginAtZero: true,
+                                    grid: { display: false } 
+                                }
+                            }
+                        }
+                    });
+                });
+            }
+        }
+        
+        // 4c. Higher-level Selection Logic (depend on renderSelectionPreviews)
+        function addSelectionPreview(annotation) {
+            selectedWindows.push({
+                id: annotation.id,
+                start: annotation.xMin,
+                end: annotation.xMax,
+                applianceName: applianceNameInput ? applianceNameInput.value.trim() : ''
+            });
+            setManualIntervalInputs(annotation.xMin, annotation.xMax);
+            renderSelectionPreviews(); 
+        }
+
+        function clearAllSelections() {
+            if (powerChart && powerChart.options && powerChart.options.plugins && powerChart.options.plugins.annotation) {
+                powerChart.options.plugins.annotation.annotations = {};
+                powerChart.update();
+            }
+            selectedWindows = [];
+            renderSelectionPreviews();
+            finishIntervalSelectionMode();
+            if (customChartInfo) customChartInfo.classList.add('hidden'); 
+            // Also ensure date range error and display are hidden
+            if (dateRangeError) dateRangeError.classList.add('hidden');
+            // Removed: if (currentDateRangeDisplay) currentDateRangeDisplay.classList.add('hidden');
+        }
+
+        let debounceTimer; // Declared outside, used by updateChartDataAndAxisBasedOnZoom
+        function updateChartDataAndAxisBasedOnZoom() {
+            if (!powerChart || !fullSensorHistoryData || fullSensorHistoryData.length === 0) return;
+
+            const TARGET_POINTS = 1200;         // adjust to control density
+            const SAMPLES_PER_BLOCK = 2;        // min+max per bin
+
+            function decimateForVisibleRange(data, minX, maxX) {
+                let lo = 0, hi = data.length;
+
+                while (lo < hi) { const m = (lo + hi) >> 1; if (data[m].x < minX) lo = m + 1; else hi = m; }
+                const start = lo;
+                lo = 0; hi = data.length;
+                while (lo < hi) { const m = (lo + hi) >> 1; if (data[m].x <= maxX) lo = m + 1; else hi = m; }
+                const end = lo;
+
+                const visLen = Math.max(0, end - start);
+                if (visLen <= 0) return [];
+                if (visLen <= TARGET_POINTS) return data.slice(start, end);
+
+                const blocks = Math.max(1, Math.floor(TARGET_POINTS / SAMPLES_PER_BLOCK));
+                const stride = Math.ceil(visLen / blocks);
+                const out = [data[start]];
+
+                for (let i = start; i < end; i += stride) {
+                    const bEnd = Math.min(i + stride, end);
+                    let minY = Infinity, maxY = -Infinity, minPt = null, maxPt = null;
+                    for (let j = i; j < bEnd; j++) {
+                        const pt = data[j];
+                        if (pt.y < minY) { minY = pt.y; minPt = pt; }
+                        if (pt.y > maxY) { maxY = pt.y; maxPt = pt; }
+                    }
+                    if (minPt && minPt.x !== out[out.length - 1].x) out.push(minPt);
+                    if (maxPt && maxPt !== minPt && maxPt.x !== out[out.length - 1].x) out.push(maxPt);
+                }
+
+                const last = data[end - 1];
+                if (out[out.length - 1].x !== last.x) out.push(last);
+                out.sort((a, b) => a.x - b.x);
+
+                if (out.length > TARGET_POINTS) {
+                    const step = Math.ceil(out.length / TARGET_POINTS);
+                    const thinned = [];
+                    for (let i = 0; i < out.length; i += step) thinned.push(out[i]);
+                    if (thinned[thinned.length - 1].x !== last.x) thinned.push(last);
+                    return thinned;
+                }
+
+                return out;
+            }
+
+            clearTimeout(debounceTimer);
+            debounceTimer = setTimeout(() => {
+                const xScale = powerChart.scales && powerChart.scales.x;
+                if (!xScale || isNaN(xScale.min) || isNaN(xScale.max)) return;
+
+                // ensure time unit exists, then set by range
+                const opts = powerChart.options || (powerChart.options = {});
+                const scales = opts.scales || (opts.scales = {});
+                const x = scales.x || (scales.x = { type: 'time' });
+                if (!x.time) {
+                    x.time = {};
+                }
+                const hr = 3600000, day = 24 * hr;
+                const range = xScale.max - xScale.min;
+                x.time.unit = range <= 2 * hr ? 'minute' : range <= 2 * day ? 'hour' : 'day';
+
+                const minX = xScale.min;
+                const maxX = xScale.max;
+                powerChart.data.datasets[0].data = decimateForVisibleRange(fullSensorHistoryData, minX, maxX);
+                if (powerChart.data.datasets[1]) {
+                    powerChart.data.datasets[1].data = decimateForVisibleRange(applianceSensorHistoryData, minX, maxX);
+                }
+                syncManualInputsToChartView();
+
+                powerChart.update('none');
+            }, 80);
+        }
+        
+        // 6. Core Event Handlers (depend on selection logic, modals, chart data functions)
+        function getCanvasEventPosition(e) {
+            const rect = powerChartCanvas?.getBoundingClientRect();
+            if (!rect) return null;
+
+            const source = (e.touches && e.touches[0]) || (e.changedTouches && e.changedTouches[0]) || e;
+            if (!source || typeof source.clientX !== 'number' || typeof source.clientY !== 'number') {
+                return null;
+            }
+
+            return {
+                x: source.clientX - rect.left,
+                y: source.clientY - rect.top,
+            };
+        }
+
+        function handleChartClick(e) {
+            if (!powerChart || !selectionModeActive || !powerChart.scales || !powerChart.scales.x) {
+                return; 
+            }
+            
+            if (applianceNameError) applianceNameError.classList.add('hidden');
+
+            const pos = getCanvasEventPosition(e);
+            if (!pos) return;
+
+            const clickValue = powerChart.scales.x.getValueForPixel(pos.x); 
+
+            if (!isSettingEndpoint) {
+                isSettingEndpoint = true;
+                if (manualStartInput) manualStartInput.value = formatForDateTimeLocal(clickValue);
+                if (manualEndInput) manualEndInput.value = '';
+                if (selectModeBtnLabel) selectModeBtnLabel.textContent = "Tap End";
+                if (selectModeBtnIcon) {
+                    selectModeBtnIcon.classList.remove('fa-xmark');
+                    selectModeBtnIcon.classList.add('fa-check');
+                }
+                if (selectModeTooltip) selectModeTooltip.textContent = "Tap the chart again to place the interval end.";
+                activeSelectionId = 'selection_' + Date.now(); 
+                powerChart.options.plugins.annotation.annotations[activeSelectionId] = {
+                    id: activeSelectionId,
+                    type: 'box',
+                    xMin: clickValue,
+                    xMax: clickValue, 
+                    backgroundColor: 'rgba(156, 163, 175, 0.3)', 
+                    borderColor: 'rgb(107, 114, 128)', 
+                    borderWidth: 1,
+                    isPending: true, 
+                    applianceName: applianceNameInput ? applianceNameInput.value.trim() : ''
+                };
+            } else {
+                const currentAnnotation = powerChart.options.plugins.annotation.annotations[activeSelectionId];
+                if (!currentAnnotation) return;
+
+                const startPoint = currentAnnotation.xMin;
+                currentAnnotation.xMin = Math.min(startPoint, clickValue);
+                currentAnnotation.xMax = Math.max(startPoint, clickValue);
+                
+                if (currentAnnotation.xMin !== currentAnnotation.xMax) { 
+                    if (hasOverlap(currentAnnotation.xMin, currentAnnotation.xMax, powerChart.options.plugins.annotation.annotations, activeSelectionId)) {
+                        console.error('DEBUG: Overlap detected on second click! This selection intersects with an existing annotation. Deleting pending annotation.');
+                        delete powerChart.options.plugins.annotation.annotations[activeSelectionId];
+                        powerChart.update(); 
+                        showOverlapModal(); 
+                        beginIntervalSelectionMode();
+                    } else {
+                        currentAnnotation.isPending = false; 
+                        setManualIntervalInputs(currentAnnotation.xMin, currentAnnotation.xMax);
+                        addSelectionPreview(currentAnnotation); 
+                        finishIntervalSelectionMode();
+                    }
+                } else {
+                    console.warn('DEBUG: Selection start and end points are identical, deleting pending annotation:', activeSelectionId);
+                    delete powerChart.options.plugins.annotation.annotations[activeSelectionId];
+                    beginIntervalSelectionMode();
+                }
+                isSettingEndpoint = false;
+                activeSelectionId = null;
+                if (customChartInfo) customChartInfo.classList.add('hidden');
+            }
+            powerChart.update();
+        }
+
+        function handleMouseMove(e) {
+            if (!powerChart || !powerChart.chartArea || !powerChart.scales || !powerChart.scales.x || !powerChart.scales.y) {
+                if (customChartInfo) customChartInfo.classList.add('hidden');
+                return;
+            }
+            const pos = getCanvasEventPosition(e);
+            if (!pos) {
+                if (customChartInfo) customChartInfo.classList.add('hidden');
+                return;
+            }
+            const chartArea = powerChart.chartArea;
+            const x = pos.x;
+            const y = pos.y;
+
+            if (x >= chartArea.left && x <= chartArea.right && y >= chartArea.top && y <= chartArea.bottom) {
+                const timeAtMouse = powerChart.scales.x.getValueForPixel(x);
+                const valueAtMouse = powerChart.scales.y.getValueForPixel(y);
+                const formattedTime = formatUiDateTime(timeAtMouse);
+                
+                if (customChartInfo) {
+                    customChartInfo.innerHTML = `Time: ${formattedTime}<br>Power: ${valueAtMouse.toFixed(1)} W`;
+                    customChartInfo.classList.remove('hidden'); 
+                }
+
+                if (selectionModeActive && isSettingEndpoint && activeSelectionId) {
+                    const currentAnnotation = powerChart.options.plugins.annotation.annotations[activeSelectionId];
+                    if (currentAnnotation) {
+                        currentAnnotation.xMax = timeAtMouse; 
+                        const startPoint = currentAnnotation.xMin;
+                        const tempXMin = Math.min(startPoint, timeAtMouse);
+                        const tempXMax = Math.max(startPoint, timeAtMouse);
+                        
+                        if (hasOverlap(tempXMin, tempXMax, powerChart.options.plugins.annotation.annotations, activeSelectionId)) { 
+                            currentAnnotation.backgroundColor = 'rgba(239, 68, 68, 0.3)'; // Red semi-transparent
+                            currentAnnotation.borderColor = 'rgb(220, 38, 38)'; // Red border
+                        } else {
+                            currentAnnotation.backgroundColor = 'rgba(156, 163, 175, 0.3)';
+                            currentAnnotation.borderColor = 'rgb(107, 114, 128)';
+                        }
+                        powerChart.update('none'); 
+                    }
+                }
+            } else {
+                if (customChartInfo) customChartInfo.classList.add('hidden');
+            }
+        }
+
+        function handleMouseLeave() {
+            if (customChartInfo) customChartInfo.classList.add('hidden');
+        }
+
+        function handleResetZoom() {
+            if (powerChart) { 
+                powerChart.zoomScale('x', { min: currentChartMinTime, max: currentChartMaxTime }, 'none');
+                updateChartDataAndAxisBasedOnZoom();
+                if (selectionModeActive && isSettingEndpoint) { 
+                    console.log('DEBUG: Resetting zoom in selection mode, removing pending annotation:', activeSelectionId);
+                    delete powerChart.options.plugins.annotation.annotations[activeSelectionId];
+                    isSettingEndpoint = false;
+                    activeSelectionId = null;
+                    if (customChartInfo) customChartInfo.classList.add('hidden');
+                }
+            }
+        }
+
+        function toggleSelectionMode() {
+            if (!powerChart || !selectModeBtnIcon || !chartContainer || !selectModeTooltip) {
+                console.warn("DEBUG: toggleSelectionMode: Missing required DOM elements or chart not initialized.");
+                return;
+            }
+            if (currentSupervisionMode() !== 'intervals') {
+                return;
+            }
+
+            if (selectionModeActive) {
+                if (isSettingEndpoint && activeSelectionId && powerChart?.options?.plugins?.annotation?.annotations?.[activeSelectionId]) {
+                    delete powerChart.options.plugins.annotation.annotations[activeSelectionId];
+                    powerChart.update('none');
+                }
+                finishIntervalSelectionMode();
+                return;
+            }
+
+            beginIntervalSelectionMode();
+        }
+
+        function handleApplianceNameInput() {
+            if (applianceNameError) applianceNameError.classList.add('hidden'); 
+        }
+
+        async function handleCheckAllData() {
+            if (!trainingServerConnectionReady) {
+                showValidationResultModal("Training Server Not Ready", "Training is not available yet. Please solve the training server connection warning before preparing an appliance model.", true);
+                return;
+            }
+
+            const numSelections = selectedWindows.length;
+            const supervisionMode = currentSupervisionMode();
+
+            if (supervisionMode === 'intervals' && numSelections === 0) {
+                showValidationResultModal("No Selections Made", "Please select time windows before checking data.", true);
+                return;
+            }
+            if (!applianceNameInput || !applianceNameInput.value.trim()) {
+                if (applianceNameError) applianceNameError.classList.remove("hidden");
+                showValidationResultModal("Appliance Name Required", "Please enter an appliance name.", true);
+                return;
+            }
+            if (supervisionMode === 'sensor' && (!applianceSensorSelect || !applianceSensorSelect.value)) {
+                showValidationResultModal("Sensor Required", "Please select the appliance power sensor for ground-truth supervision.", true);
+                return;
+            }
+
+            selectedWindows.forEach(w => {
+                w.applianceName = applianceNameInput.value.trim();
+            });
+
+            trainingJobId = null;
+            hideSendToTrainingServer();
+            startBusyProgress("Preparing training data...");
+
+            try {
+                let applianceSensorHistoryData = [];
+                if (supervisionMode === 'sensor') {
+                    applianceSensorHistoryData = await fetchHistorySeries(
+                        applianceSensorSelect.value,
+                        firstTimestamp,
+                        lastTimestamp
+                    );
+                    if (!Array.isArray(applianceSensorHistoryData) || applianceSensorHistoryData.length === 0) {
+                        throw new Error("No appliance sensor history found in the selected mains range.");
+                    }
+                }
+
+                const payload = {
+                    appliance_name: applianceNameInput.value.trim(),
+                    supervision_mode: supervisionMode,
+                    bundle_id: selectedTrainingBundle()?.bundle_id || null,
+                    bundle_mode: selectedTrainingBundle()?.mode || "online",
+                    appliance_sensor_id: applianceSensorSelect?.value || null,
+                    selectedWindows: selectedWindows,
+                    fullSensorHistoryData: fullSensorHistoryData,
+                    applianceSensorHistoryData: applianceSensorHistoryData
+                };
+
+                const resp = await fetch(`training?action=prepare`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(payload)
+                });
+
+                if (!resp.ok) {
+                    const err = await resp.json().catch(() => ({ message: "Unknown error" }));
+                    throw new Error(err.message || `HTTP ${resp.status}`);
+                }
+
+                const result = await resp.json();
+                trainingJobId = result.job_id || null;
+
+                if (trainingJobId) {
+                    const ev = {
+                        kind: "prepared",
+                        data: {
+                            job_id: trainingJobId,
+                            appliance_name: applianceNameInput.value.trim(),
+                            selected_windows: selectedWindows,
+                            supervision_mode: supervisionMode,
+                            bundle_id: selectedTrainingBundle()?.bundle_id || null,
+                            time_start_ms: firstTimestamp,
+                            time_end_ms: lastTimestamp
+                        }
+                    };
+
+                    if (jobsUI) pendingJobEvents.push(ev), jobsUI.recordPrepared(ev.data);
+                    else pendingJobEvents.push(ev);
+                }
+
+                const preparedSummary = supervisionMode === 'sensor'
+                    ? "Ground-truth power data has been matched with the selected mains range."
+                    : `${selectedWindows.length} ON interval${selectedWindows.length === 1 ? "" : "s"} prepared for training.`;
+
+                const preparationMessage = [
+                    "Everything looks good. Your training package is ready.",
+                    preparedSummary,
+                    "Next step: click 'Send to Training Server' to start training."
+                ].join(" ");
+
+                showValidationResultModal("Training Data Ready", preparationMessage, false);
+
+                if (!trainingJobId) {
+                    await finishBusyProgress(
+                        "Preparing training data...",
+                        "Training data is ready. You can continue with 'Send to Training Server'."
+                    );
+                    showSendToTrainingServerReady();
+                    return;
+                }
+
+                showSendToTrainingServerReady();
+                await finishBusyProgress(
+                    "Preparing training data...",
+                    "Training data is ready. Next: Send to Training Server."
+                );
+            } catch (e) {
+                console.error("prepare error:", e);
+                showValidationResultModal("Preparation Failed", `Failed to prepare training data: ${e.message}`, true);
+                clearBusyProgress();
+                setUiBusy(false);
+            }
+        }
+
+
+
+        async function handleSendToTrainingServer() {
+            if (!trainingServerConnectionReady) {
+                showValidationResultModal("Training Server Not Ready", "Training is not available yet. Please solve the training server connection warning before sending this package.", true);
+                return;
+            }
+
+            if (!trainingJobId) {
+                showValidationResultModal("Nothing to Send", "Please click 'Check All Data' first.", true);
+                return;
+            }
+
+            startBusyProgress("Sending prepared package to the training server...", 90);
+
+            try {
+                const resp = await fetch(`training?action=send&job_id=${encodeURIComponent(trainingJobId)}`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({}) // optional, can be empty
+                });
+
+                if (!resp.ok) {
+                    const err = await resp.json().catch(() => ({ message: "Unknown error" }));
+                    throw new Error(err.message || `HTTP ${resp.status}`);
+                }
+
+                const result = await resp.json();
+                if (trainingJobId) {
+                    const ev = {
+                        kind: "sent",
+                        data: {
+                            job_id: trainingJobId,
+                            training_server_job_id: result.training_server_job_id || result.trainingServerJobId || result.training_server_id || null
+                        }
+                    };
+
+                    if (jobsUI) pendingJobEvents.push(ev), jobsUI.recordSent(ev.data);
+                    else pendingJobEvents.push(ev);
+                }
+
+                hideSendToTrainingServer();
+
+                const trainingServerStartMessage = [
+                    "Your training package was sent successfully.",
+                    "Next step: watch the Training Jobs table below for progress.",
+                    "When the job finishes, the new appliance model will appear in Main Configuration."
+                ].join(" ");
+
+                showValidationResultModal("Training Started", trainingServerStartMessage, false);
+
+                await finishBusyProgress(
+                    "Sending prepared package to the training server...",
+                    "Upload complete. Check the jobs table below."
+                );
+            } catch (e) {
+                console.error("send error:", e);
+                showValidationResultModal("Upload Failed", `Failed to send to the training server: ${e.message}`, true);
+                clearBusyProgress();
+                setUiBusy(false);
+            }
+        }
+
+
+        // 7. Chart Initialization (depends on data processing, event listeners, selection previews)
+        function initializePowerChart(data, minTime, maxTime) {
+            if (powerChart) powerChart.destroy();
+
+            if (typeof Chart === 'undefined') {
+                showValidationResultModal("Chart Loading Error", "Chart.js not loaded.", true);
+                return;
+            }
+
+            const datasets = [{
+                label: 'Mains Power (W)',
+                data: data,
+                parsing: false,
+                normalized: true,
+                borderColor: 'rgb(75, 192, 192)',
+                backgroundColor: 'rgba(75, 192, 192, 0.2)',
+                borderWidth: 1,
+                pointRadius: 0,
+                tension: 0,
+                fill: true,
+                spanGaps: true
+            }];
+
+            if (currentSupervisionMode() === 'sensor' && Array.isArray(applianceSensorHistoryData) && applianceSensorHistoryData.length > 0) {
+                datasets.push({
+                    label: 'Appliance Power (W)',
+                    data: applianceSensorHistoryData,
+                    parsing: false,
+                    normalized: true,
+                    borderColor: 'rgb(14, 116, 144)',
+                    backgroundColor: 'rgba(14, 116, 144, 0.08)',
+                    borderWidth: 1.5,
+                    pointRadius: 0,
+                    tension: 0,
+                    fill: false,
+                    spanGaps: true
+                });
+            }
+
+            powerChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    datasets
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    animation: false,
+                    scales: {
+                        x: {
+                            type: 'time',
+                            time: {
+                                displayFormats: {
+                                    millisecond: 'HH:mm:ss.SSS',
+                                    second: 'HH:mm:ss',
+                                    minute: 'HH:mm',
+                                    hour: 'EEE HH:mm',   // shows Mon, Tue...
+                                    day: 'EEE dd/MM',   // shows Mon, Tue...
+                                    week: 'EEE dd/MM',   // week ticks show DOW of tick date
+                                    month: 'MMM yyyy',
+                                    quarter: 'QQQ yyyy',
+                                    year: 'yyyy'
+                            }
+                        },
+                        ticks: {
+                            callback: (value, index, ticks) => {
+                                    // Use the numeric epoch from ticks[], never parse the label string.
+                                    const raw = (ticks && ticks[index] && typeof ticks[index].value === 'number')
+                                        ? ticks[index].value
+                                        : (typeof value === 'number' ? value : Date.parse(value));
+
+                                    if (!Number.isFinite(raw)) return ''; // avoid "Invalid Date"
+
+                                    const unit = powerChart?.options?.scales?.x?.time?.unit;
+                                    const d = new Date(raw);
+                                    const xScale = powerChart?.scales?.x;
+                                    const visibleRange = (xScale && Number.isFinite(xScale.max) && Number.isFinite(xScale.min))
+                                        ? (xScale.max - xScale.min)
+                                        : NaN;
+                                    const oneDayMs = 24 * 60 * 60 * 1000;
+
+                                    if (Number.isFinite(visibleRange) && visibleRange < oneDayMs) {
+                                        return formatUiTime(d);
+                                    }
+                                    if (unit === 'day' || unit === 'week') {
+                                        return formatUiDateShort(d, true);
+                                    }
+                                    if (unit === 'hour') {
+                                        return formatUiTime(d);
+                                    }
+                                    return formatUiDateShort(d);
+                                }
+                            },
+                            min: minTime,
+                            max: maxTime,
+                            title: { display: true, text: 'Time' }
+                        },
+                        y: {
+                            beginAtZero: true,
+                            title: { display: true, text: 'Power (Watts)' }
+                        }
+                    },
+                    plugins: {
+                        zoom: {
+                            pan: {
+                                enabled: true,          // drag to pan
+                                mode: 'x',
+                                modifierKey: null,      // no key required
+                                threshold: 0,
+                                onPanComplete: () => updateChartDataAndAxisBasedOnZoom()
+                            },
+                            zoom: {
+                                wheel: { enabled: true, speed: 0.1 },
+                                pinch: { enabled: true },
+                                drag: { enabled: false }, // keep box-zoom off
+                                mode: 'x',
+                                onZoomComplete: () => updateChartDataAndAxisBasedOnZoom()
+                            },
+                            limits: { x: { min: minTime, max: maxTime } }
+                        },
+                        legend: { display: datasets.length > 1 },
+                        tooltip: { enabled: false },
+                        //annotation: { annotations: {} }
+                    }
+                }
+            });
+
+            currentChartMinTime = minTime;
+            currentChartMaxTime = maxTime;
+
+            // First render
+            requestAnimationFrame(() => {
+                // ensure scales exist before reading them in the handler
+                powerChart.update('none');
+                updateChartDataAndAxisBasedOnZoom();
+            });
+
+            renderSelectionPreviews(); // safe; no-op if none
+        }
+
+
+        // 8. Data Fetching (depends on loading indicators, chart initialization, modal helpers)
+        async function fetchSensorHistoryData(startMs = null, endMs = null) {
+            showLoadingIndicator(); 
+            try {
+                let url = '';
+                if (startMs !== null && endMs !== null) {
+                    const startDateObj = new Date(startMs);
+                    const endDateObj = new Date(endMs);
+                    const startDateForPath = encodeURIComponent(toIsoUtcNoMs(startDateObj));
+                    const endDateForQuery = encodeURIComponent(toIsoUtcNoMs(endDateObj));
+                    
+                    url = `history/period/${startDateForPath}?end_time=${endDateForQuery}&filter_entity_id=${MAIN_SENSOR_ENTITY_ID}`;
+                } else {
+                    const today = new Date();
+                    const defaultEndDate = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 23, 59, 59, 999);
+                    
+                    const tempStartDate = new Date(defaultEndDate.getTime()); 
+                    tempStartDate.setDate(tempStartDate.getDate() - 6); 
+                    const defaultStartDate = new Date(tempStartDate.getFullYear(), tempStartDate.getMonth(), tempStartDate.getDate(), 0, 0, 0, 0); 
+                    
+                    const startDateForPath = encodeURIComponent(toIsoUtcNoMs(defaultStartDate));
+                    const endDateForQuery = encodeURIComponent(toIsoUtcNoMs(defaultEndDate));
+                    url = `history/period/${startDateForPath}?end_time=${endDateForQuery}&filter_entity_id=${MAIN_SENSOR_ENTITY_ID}`;
+                }
+                
+                console.log(`DEBUG: Fetching data from: ${url}`);
+                const response = await fetch(url); 
+                
+                if (!response.ok) {
+                    const errorData = await response.json().catch(() => ({ message: 'Unknown error' }));
+                    console.error("DEBUG: fetchSensorHistoryData - HTTP error:", response.status, errorData);
+                    showValidationResultModal("Data Fetch Failed", `HTTP error! status: ${response.status}: ${errorData.message}`, true);
+                    return;
+                }
+                const data = await response.json();
+                console.log("DEBUG: Raw data from /history:", data); 
+
+                const sensorDataRaw = data && data.length > 0 && data[0] ? data[0] : [];
+
+                if (sensorDataRaw.length > 0) {
+                    const sensorData = sensorDataRaw.map((d, index) => { 
+                        const timeValue = Date.parse(d.x); 
+                        const stateValue = parseFloat(d.y); 
+                        
+                        if (index < 10 || index > sensorDataRaw.length - 10 || isNaN(timeValue) || isNaN(stateValue)) {
+                            console.log(`DEBUG: Item ${index}: x='${d.x}', y='${d.y}'`);
+                            console.log(`DEBUG: Parsed: timeValue=${timeValue} (isNaN=${isNaN(timeValue)}), stateValue=${stateValue} (isNaN=${isNaN(stateValue)})`);
+                        }
+                        
+                        if (isNaN(timeValue) || isNaN(stateValue)) {
+                            if (index < 10 || index > sensorDataRaw.length - 10) { 
+                                console.warn(`DEBUG: Skipping invalid data point at index ${index}: x='${d.x}', y='${d.y}'`);
+                            }
+                            return null;
+                        }
+                        return { x: timeValue, y: stateValue };
+                    }).filter(d => d !== null);
+
+                    fullSensorHistoryData = sensorData.sort((a, b) => a.x - b.x);
+                    
+                    console.log('DEBUG: Processed fullSensorHistoryData:', fullSensorHistoryData.length, 'points. First:', fullSensorHistoryData[0], 'Last:', fullSensorHistoryData[fullSensorHistoryData.length -1]);
+                    
+                    if (fullSensorHistoryData.length > 0) {
+                        firstTimestamp = fullSensorHistoryData[0].x; 
+                        lastTimestamp = fullSensorHistoryData[fullSensorHistoryData.length - 1].x; 
+                        console.log("DEBUG: fetched firstTimestamp:", new Date(firstTimestamp).toLocaleString(), "fetched lastTimestamp:", new Date(lastTimestamp).toLocaleString());
+                        syncManualInputBounds();
+                        setManualIntervalInputs(firstTimestamp, lastTimestamp);
+                        
+                        initializePowerChart(fullSensorHistoryData, firstTimestamp, lastTimestamp);
+                        if (currentSupervisionMode() === 'sensor' && applianceSensorSelect?.value) {
+                            try {
+                                await refreshApplianceSensorOverlay();
+                            } catch (overlayError) {
+                                console.error('DEBUG: Failed to refresh appliance overlay:', overlayError);
+                            }
+                        }
+                        
+                        // Removed: currentDateRangeDisplay update logic
+                        // if (currentDateRangeDisplay) {
+                        //     const startDisp = new Date(firstTimestamp).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+                        //     const endDisp = new Date(lastTimestamp).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+                        //     currentDateRangeDisplay.textContent = `Showing data from: ${startDisp} to ${endDisp}`;
+                        //     currentDateRangeDisplay.classList.remove('hidden');
+                        // }
+
+                    } else {
+                        console.log("DEBUG: fullSensorHistoryData is empty after filtering/processing, defaulting timestamps.");
+                        applianceSensorHistoryData = [];
+                        initializePowerChart([], 0, 0); 
+                        if (dateRangePicker) dateRangePicker.value = ''; 
+                        if (manualStartInput) manualStartInput.value = '';
+                        if (manualEndInput) manualEndInput.value = '';
+                        // Removed: if (currentDateRangeDisplay) currentDateRangeDisplay.classList.add('hidden'); 
+                        showValidationResultModal("No Data Found", "No historical data found for the selected range. Please try a different date range.", false);
+                    }
+                } else {
+                    console.warn('DEBUG: No historical data received from backend or data is empty/malformed.');
+                    fullSensorHistoryData = []; 
+                    applianceSensorHistoryData = [];
+                    initializePowerChart([], 0, 0); 
+                    if (dateRangePicker) dateRangePicker.value = ''; 
+                    if (manualStartInput) manualStartInput.value = '';
+                    if (manualEndInput) manualEndInput.value = '';
+                    // Removed: if (currentDateRangeDisplay) currentDateRangeDisplay.classList.add('hidden'); 
+                    console.log("DEBUG: fetchSensorHistoryData - No data. Calling showValidationResultModal().");
+                    showValidationResultModal("Data Fetch Failed", "The backend returned no historical data for the main sensor. Please check sensor ID, Home Assistant's history, or mock server status.", true);
+                }
+            } catch (error) {
+                console.error('DEBUG: Error fetching sensor history:', error);
+                fullSensorHistoryData = []; 
+                applianceSensorHistoryData = [];
+                initializePowerChart([], 0, 0);
+                if (dateRangePicker) dateRangePicker.value = ''; 
+                if (manualStartInput) manualStartInput.value = '';
+                if (manualEndInput) manualEndInput.value = '';
+                // Removed: if (currentDateRangeDisplay) currentDateRangeDisplay.classList.add('hidden'); 
+                console.log("DEBUG: fetchSensorHistoryData - Caught exception. Calling showValidationResultModal().");
+                showValidationResultModal("Data Fetch Failed", `Failed to retrieve historical data: ${error.message}. Please check addon logs, Home Assistant's status, or mock server status.`, true);
+            } finally {
+                console.log('DEBUG: Exiting fetchSensorHistoryData. Hiding loading indicator.');
+                hideLoadingIndicator(); 
+            }
+        }
+
+        // 9. Event Listener Attachment (depends on all event handlers and DOM elements)
+        function attachChartEventListeners() {
+            console.log("DEBUG: Attaching event listeners for the training UI...");
+            if (sendToTrainingServerBtn) sendToTrainingServerBtn.addEventListener("click", handleSendToTrainingServer);
+
+                if (powerChartCanvas) {
+                powerChartCanvas.addEventListener('pointerup', handleChartClick);
+                powerChartCanvas.addEventListener('pointermove', handleMouseMove);
+                powerChartCanvas.addEventListener('pointerleave', handleMouseLeave);
+            }
+            if (selectModeBtn) selectModeBtn.addEventListener('click', toggleSelectionMode);
+            if (chartResetZoomBtn) chartResetZoomBtn.addEventListener('click', handleResetZoom);
+            if (document.getElementById('clearAllSelectionsBtn')) document.getElementById('clearAllSelectionsBtn').addEventListener('click', showClearConfirmModal);
+            if (checkAllDataBtn) checkAllDataBtn.addEventListener('click', handleCheckAllData);
+            if (applianceNameInput) applianceNameInput.addEventListener('input', handleApplianceNameInput);
+            if (applianceSensorSelect) {
+                applianceSensorSelect.addEventListener('change', async () => {
+                    try {
+                        await refreshApplianceSensorOverlay();
+                    } catch (error) {
+                        console.error('Error refreshing appliance overlay:', error);
+                        showValidationResultModal("Sensor Overlay Failed", `Failed to load appliance power history: ${error.message}`, true);
+                    }
+                });
+            }
+            addManualIntervalHandler = () => {
+                const rawStart = parseDateTimeLocal(manualStartInput?.value);
+                const rawEnd = parseDateTimeLocal(manualEndInput?.value);
+
+                if (!Number.isFinite(rawStart) || !Number.isFinite(rawEnd)) {
+                    showValidationResultModal("Missing Times", "Enter both a start time and an end time to add the interval.", true);
+                    return;
+                }
+
+                const snappedStart = snapToNearestTimestamp(rawStart);
+                const snappedEnd = snapToNearestTimestamp(rawEnd);
+                if (commitSelectionInterval(snappedStart, snappedEnd)) {
+                    finishIntervalSelectionMode();
+                }
+            };
+            manualIntervalInputHandler = () => applyManualIntervalToChartView();
+            if (manualStartInput) manualStartInput.addEventListener('input', manualIntervalInputHandler);
+            if (manualStartInput) manualStartInput.addEventListener('change', manualIntervalInputHandler);
+            if (manualStartInput) manualStartInput.addEventListener('blur', manualIntervalInputHandler);
+            if (manualEndInput) manualEndInput.addEventListener('input', manualIntervalInputHandler);
+            if (manualEndInput) manualEndInput.addEventListener('change', manualIntervalInputHandler);
+            if (manualEndInput) manualEndInput.addEventListener('blur', manualIntervalInputHandler);
+            if (addManualIntervalBtn) addManualIntervalBtn.addEventListener('click', addManualIntervalHandler);
+
+            if (closeModalBtn) closeModalBtn.addEventListener('click', hideOverlapModal);
+            
+            confirmClearHandler = () => {
+                console.log("DEBUG: confirmClearBtn clicked.");
+                clearAllSelections();
+                hideClearConfirmModal();
+            };
+            cancelClearHandler = () => {
+                console.log("DEBUG: cancelClearBtn clicked.");
+                hideClearConfirmModal();
+            };
+            closeValidationResultHandler = () => {
+                console.log("DEBUG: closeValidationResultModalBtn clicked. Hiding all relevant modals.");
+                if (validationResultModal) { validationResultModal.style.display = 'none'; }
+                if (clearConfirmModal) { clearConfirmModal.style.display = 'none'; }
+                if (overlapModal) { overlapModal.style.display = 'none'; }
+                if (dateRangeError) dateRangeError.classList.add('hidden'); 
+            };
+            infoAccordionToggleHandler = () => {
+                console.log("DEBUG: infoAccordionToggleHandler called."); 
+                const isExpanded = infoAccordionContent.classList.contains('expanded');
+                if (isExpanded) {
+                    infoAccordionContent.classList.remove('expanded');
+                    accordionIcon.classList.remove('rotated');
+                } else {
+                    infoAccordionContent.classList.add('expanded');
+                    accordionIcon.classList.add('rotated');
+                }
+            };
+            
+            if (confirmClearBtn) confirmClearBtn.addEventListener('click', confirmClearHandler);
+            // Corrected: use addEventListener for initial attachment
+            if (cancelClearBtn) cancelClearBtn.addEventListener('click', cancelClearHandler); 
+            if (closeValidationResultModalBtn) closeValidationResultModalBtn.addEventListener('click', closeValidationResultHandler);
+            retryTrainingServerStatusHandler = () => checkTrainingServerConnection(true);
+            if (retryTrainingServerStatusBtn) retryTrainingServerStatusBtn.addEventListener('click', retryTrainingServerStatusHandler);
+
+            if (infoAccordionToggle && infoAccordionContent && accordionIcon) {
+                infoAccordionToggle.addEventListener('click', infoAccordionToggleHandler);
+            }
+            
+            console.log("DEBUG: Event listeners attached for the training UI.");
+        };
+
+        // 10. Cleanup Function
+        window.cleanupTrainingUI = function() {
+            console.log("DEBUG: Cleaning up Training UI component...");
+            if (jobsUI) {
+                jobsUI.cleanup();
+                jobsUI = null;
+            }
+            window.trainingUI = null;
+            if (powerChartCanvas) {
+                powerChartCanvas.removeEventListener('pointerup', handleChartClick);
+                powerChartCanvas.removeEventListener('pointermove', handleMouseMove);
+                powerChartCanvas.removeEventListener('pointerleave', handleMouseLeave);
+            }
+            if (sendToTrainingServerBtn) sendToTrainingServerBtn.removeEventListener("click", handleSendToTrainingServer);
+            if (selectModeBtn) selectModeBtn.removeEventListener('click', toggleSelectionMode);
+            if (chartResetZoomBtn) chartResetZoomBtn.removeEventListener('click', handleResetZoom);
+            if (document.getElementById('clearAllSelectionsBtn')) document.getElementById('clearAllSelectionsBtn').removeEventListener('click', showClearConfirmModal);
+            if (checkAllDataBtn) checkAllDataBtn.removeEventListener('click', handleCheckAllData);
+            if (applianceNameInput) applianceNameInput.removeEventListener('input', handleApplianceNameInput);
+            if (supervisionModeSelect && supervisionModeChangeHandler) supervisionModeSelect.removeEventListener('change', supervisionModeChangeHandler);
+            if (quickRangeSelect && quickRangeChangeHandler) quickRangeSelect.removeEventListener('change', quickRangeChangeHandler);
+            if (manualStartInput && manualIntervalInputHandler) manualStartInput.removeEventListener('input', manualIntervalInputHandler);
+            if (manualStartInput && manualIntervalInputHandler) manualStartInput.removeEventListener('change', manualIntervalInputHandler);
+            if (manualStartInput && manualIntervalInputHandler) manualStartInput.removeEventListener('blur', manualIntervalInputHandler);
+            if (manualEndInput && manualIntervalInputHandler) manualEndInput.removeEventListener('input', manualIntervalInputHandler);
+            if (manualEndInput && manualIntervalInputHandler) manualEndInput.removeEventListener('change', manualIntervalInputHandler);
+            if (manualEndInput && manualIntervalInputHandler) manualEndInput.removeEventListener('blur', manualIntervalInputHandler);
+            if (addManualIntervalBtn && addManualIntervalHandler) addManualIntervalBtn.removeEventListener('click', addManualIntervalHandler);
+            if (closeModalBtn) closeModalBtn.removeEventListener('click', hideOverlapModal);
+            
+            if (confirmClearBtn && confirmClearHandler) confirmClearBtn.removeEventListener('click', confirmClearHandler);
+            if (cancelClearBtn && cancelClearHandler) cancelClearBtn.removeEventListener('click', cancelClearHandler);
+            if (closeValidationResultModalBtn && closeValidationResultHandler) closeValidationResultModalBtn.removeEventListener('click', closeValidationResultHandler);
+            if (retryTrainingServerStatusBtn && retryTrainingServerStatusHandler) retryTrainingServerStatusBtn.removeEventListener('click', retryTrainingServerStatusHandler);
+            if (infoAccordionToggle && infoAccordionToggleHandler) infoAccordionToggle.removeEventListener('click', infoAccordionToggleHandler);
+            
+            if (dateRangePickerInstance) {
+                dateRangePickerInstance.destroy();
+                dateRangePickerInstance = null;
+            }
+            if (manualStartPickerInstance) {
+                manualStartPickerInstance.destroy();
+                manualStartPickerInstance = null;
+            }
+            if (manualEndPickerInstance) {
+                manualEndPickerInstance.destroy();
+                manualEndPickerInstance = null;
+            }
+
+            if (powerChart) {
+                powerChart.destroy();
+                powerChart = null;
+            }
+            fullSensorHistoryData = [];
+            firstTimestamp = 0;
+            lastTimestamp = 0;
+            currentChartMinTime = 0;
+            currentChartMaxTime = 0;
+            selectionModeActive = false;
+            isSettingEndpoint = false;
+            activeSelectionId = null;
+            selectedWindows = [];
+            trainingServerConnectionReady = false;
+
+            console.log("DEBUG: Training UI component cleaned up.");
+        };
+
+        // --- End ALL Function Definitions ---
+
+        // --- Initialize DOM References and State (These must happen after DOM is ready) ---
+        ctx = document.getElementById('powerChart') ? document.getElementById('powerChart').getContext('2d') : null;
+        chartContainer = document.getElementById('chartContainer');
+        customChartInfo = document.getElementById('custom-chart-info');
+        powerChartCanvas = document.getElementById('powerChart'); 
+        localLoadingSpinner = document.getElementById('localLoadingSpinner');
+        
+        overlapModal = document.getElementById('overlapModal');
+        closeModalBtn = document.getElementById('closeModalBtn');
+        clearConfirmModal = document.getElementById('clearConfirmModal');
+        confirmClearBtn = document.getElementById('confirmClearBtn');
+        cancelClearBtn = document.getElementById('cancelClearBtn'); 
+
+        selectModeTooltip = document.getElementById('selectModeTooltip');
+        selectModeBtn = document.getElementById('selectModeBtn');
+        selectModeBtnIcon = selectModeBtn ? selectModeBtn.querySelector('i') : null;
+        selectModeBtnLabel = document.getElementById('selectModeBtnLabel');
+        chartResetZoomBtn = document.getElementById('chartResetZoomBtn');
+
+        applianceNameInput = document.getElementById('applianceNameInput');
+        supervisionModeSelect = document.getElementById('supervisionModeSelect');
+        supervisionModeHint = document.getElementById('supervisionModeHint');
+        trainingBundleSelect = document.getElementById('trainingBundleSelect');
+        trainingBundleHint = document.getElementById('trainingBundleHint');
+        sensorSupervisionSection = document.getElementById('sensorSupervisionSection');
+        applianceSensorSelect = document.getElementById('applianceSensorSelect');
+        applianceNameError = document.getElementById('applianceNameError');
+        applianceInfoStatus = document.getElementById('applianceInfoStatus');
+
+        checkAllDataBtn = document.getElementById('checkAllDataBtn');
+        validationResultModal = document.getElementById('validationResultModal');
+        validationResultTitle = document.getElementById('validationResultTitle');
+        validationResultMessage = document.getElementById('validationResultMessage');
+        closeValidationResultModalBtn = document.getElementById('closeValidationResultModalBtn');
+        deleteJobConfirmModal = document.getElementById('deleteJobConfirmModal');
+        deleteJobConfirmMessage = document.getElementById('deleteJobConfirmMessage');
+        confirmDeleteJobBtn = document.getElementById('confirmDeleteJobBtn');
+        cancelDeleteJobBtn = document.getElementById('cancelDeleteJobBtn');
+
+        infoAccordionToggle = document.getElementById('infoAccordionToggle');
+        infoAccordionContent = document.getElementById('infoAccordionContent');
+        accordionIcon = document.getElementById('accordionIcon');
+
+        sendToTrainingServerBtn = document.getElementById("sendToTrainingServerBtn");
+        trainingPrepStatus = document.getElementById("trainingPrepStatus");
+        trainingServerStatusCard = document.getElementById("trainingServerStatusCard");
+        trainingServerStatusMessage = document.getElementById("trainingServerStatusMessage");
+        trainingServerStatusBadge = document.getElementById("trainingServerStatusBadge");
+        retryTrainingServerStatusBtn = document.getElementById("retryTrainingServerStatusBtn");
+
+        jobsTableBody = document.getElementById("jobsTableBody");
+        noJobsMsg = document.getElementById("noJobsMsg");
+        refreshJobsBtn = document.getElementById("refreshJobsBtn");
+        jobsPagination = document.getElementById("jobsPagination");
+        jobsPaginationInfo = document.getElementById("jobsPaginationInfo");
+        jobsPrevPageBtn = document.getElementById("jobsPrevPageBtn");
+        jobsNextPageBtn = document.getElementById("jobsNextPageBtn");
+
+
+        console.log("DEBUG: infoAccordionToggle element:", infoAccordionToggle); 
+        console.log("DEBUG: infoAccordionContent element:", infoAccordionContent); 
+        console.log("DEBUG: accordionIcon element:", accordionIcon); 
+
+        selectionPreviewContainer = document.getElementById('selectionPreview');
+        noPreviewsMessage = document.getElementById('noPreviews');
+
+        // --- New Date Selector DOM assignments ---
+        dateRangePicker = document.getElementById('dateRangePicker');
+        quickRangeSelect = document.getElementById('quickRangeSelect');
+        dateRangeError = document.getElementById('dateRangeError');
+        manualStartInput = document.getElementById('manualStartInput');
+        manualEndInput = document.getElementById('manualEndInput');
+        addManualIntervalBtn = document.getElementById('addManualIntervalBtn');
+        selectionAssistantSection = document.getElementById('selectionAssistantSection');
+        // Removed: currentDateRangeDisplay = document.getElementById('currentDateRangeDisplay'); 
+
+        if (overlapModal) { overlapModal.style.display = 'none'; }
+        if (clearConfirmModal) { clearConfirmModal.style.display = 'none'; }
+        if (validationResultModal) { validationResultModal.style.display = 'none'; }
+        if (deleteJobConfirmModal) { deleteJobConfirmModal.style.display = 'none'; }
+        if (dateRangeError) dateRangeError.classList.add('hidden'); 
+        // Removed: if (currentDateRangeDisplay) currentDateRangeDisplay.classList.add('hidden'); 
+
+        selectionModeActive = false; 
+        isSettingEndpoint = false;
+        activeSelectionId = null;
+        selectedWindows = [];
+
+        // Attach core UI event listeners immediately after DOM references are assigned
+        attachChartEventListeners();
+        quickRangeChangeHandler = (e) => applyQuickRange(e.target.value);
+        if (quickRangeSelect) quickRangeSelect.addEventListener('change', quickRangeChangeHandler);
+        supervisionModeChangeHandler = () => updateSupervisionModeUI();
+        if (supervisionModeSelect) supervisionModeSelect.addEventListener('change', supervisionModeChangeHandler);
+        setTrainingServerStatusUi({
+            ok: false,
+            state: "checking",
+            message: "Checking training server connection before training..."
+        });
+        updateSupervisionModeUI();
+        fetchTrainingBundles().catch((error) => {
+            console.error("Failed to load training bundles:", error);
+            if (trainingBundleHint) {
+                trainingBundleHint.textContent = error.message || "Failed to load model versions.";
+            }
+        });
+        checkTrainingServerConnection();
+
+        // Define Flatpickr initialization as a separate, retriable function
+        const initFlatpickrWithRetry = (retryCount = 0) => {
+            if (typeof flatpickr !== 'undefined' && dateRangePicker) {
+                const { startDate: defaultStartDate, endDate: defaultEndDate } = getUtcDayRange(7);
+
+                dateRangePickerInstance = flatpickr(dateRangePicker, {
+                    mode: "range",
+                    dateFormat: "Y-m-d",
+                    defaultDate: [defaultStartDate, defaultEndDate],
+                    onChange: function(selectedDates, dateStr, instance) {
+                        if (selectedDates.length === 2) {
+                            const start = selectedDates[0];
+                            const end = selectedDates[1];
+
+                            const startTimeUTC = new Date(start.getFullYear(), start.getMonth(), start.getDate(), 0, 0, 0, 0).getTime();
+                            const endTimeUTC = new Date(end.getFullYear(), end.getMonth(), end.getDate(), 23, 59, 59, 999).getTime();
+                            
+                            const oneDayMs = 24 * 60 * 60 * 1000;
+                            const durationMs = endTimeUTC - startTimeUTC;
+                            const numberOfCalendarDays = Math.ceil(durationMs / oneDayMs);
+
+                            if (startTimeUTC >= endTimeUTC) {
+                                if (dateRangeError) {
+                                    dateRangeError.textContent = "End date must be after the start date.";
+                                    dateRangeError.classList.remove('hidden');
+                                }
+                                // Removed: if (currentDateRangeDisplay) currentDateRangeDisplay.classList.add('hidden');
+                                return;
+                            }
+
+                            if (numberOfCalendarDays > 7) {
+                                if (dateRangeError) {
+                                    dateRangeError.textContent = "The selected date range cannot exceed 7 days.";
+                                    dateRangeError.classList.remove('hidden');
+                                }
+                                // Removed: if (currentDateRangeDisplay) currentDateRangeDisplay.classList.add('hidden');
+                                return;
+                            }
+
+                            if (dateRangeError) dateRangeError.classList.add('hidden');
+                            syncQuickRangeWithDates(startTimeUTC, endTimeUTC);
+                            fetchSensorHistoryData(startTimeUTC, endTimeUTC);
+                        } else {
+                            if (powerChart) {
+                                powerChart.destroy();
+                                powerChart = null;
+                                fullSensorHistoryData = [];
+                                selectedWindows = [];
+                                renderSelectionPreviews();
+                            }
+                            // Removed: if (currentDateRangeDisplay) currentDateRangeDisplay.classList.add('hidden');
+                            if (dateRangeError) {
+                                dateRangeError.textContent = "Please select a start and an end date for the range.";
+                                dateRangeError.classList.remove('hidden');
+                            }
+                        }
+                    }
+                });
+                console.log("DEBUG: Flatpickr initialized successfully.");
+
+                const manualPickerOptions = {
+                    enableTime: true,
+                    time_24hr: true,
+                    allowInput: true,
+                    disableMobile: true,
+                    dateFormat: "Y-m-d H:i",
+                    altInput: true,
+                    altFormat: "d/m/Y H:i",
+                    clickOpens: true,
+                };
+
+                if (manualStartInput) {
+                    if (manualStartPickerInstance) manualStartPickerInstance.destroy();
+                    manualStartPickerInstance = flatpickr(manualStartInput, {
+                        ...manualPickerOptions,
+                        onChange: () => applyManualIntervalToChartView(),
+                        onClose: () => applyManualIntervalToChartView(),
+                    });
+                }
+
+                if (manualEndInput) {
+                    if (manualEndPickerInstance) manualEndPickerInstance.destroy();
+                    manualEndPickerInstance = flatpickr(manualEndInput, {
+                        ...manualPickerOptions,
+                        onChange: () => applyManualIntervalToChartView(),
+                        onClose: () => applyManualIntervalToChartView(),
+                    });
+                }
+
+                // Initiate initial data fetch after Flatpickr is set up with default dates
+                if (quickRangeSelect) quickRangeSelect.value = '7';
+                fetchSensorHistoryData(defaultStartDate.getTime(), defaultEndDate.getTime());
+
+            } else if (retryCount < 10) { // Retry up to 10 times with increasing delay
+                const delay = 100 * Math.pow(2, retryCount); // Exponential backoff
+                console.warn(`DEBUG: Flatpickr not defined or dateRangePicker not found. Retrying in ${delay}ms... (Attempt ${retryCount + 1})`);
+                setTimeout(() => initFlatpickrWithRetry(retryCount + 1), delay);
+            } else {
+                console.error("ERROR: Flatpickr could not be initialized after multiple retries. The Flatpickr script might not be loaded or 'dateRangePicker' element is missing.");
+                showValidationResultModal("Initialization Error", "The date picker could not be loaded. Please try refreshing the page.", true);
+            }
+        };
+
+        /**
+         * Fetches the current NILM configuration from the backend, this is to populate the main sensor.
+         */
+        async function fetchConfig() {
+            try {
+                // Using direct path as component is loaded relative to root
+                const response = await fetch('config');
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                const config = await response.json();
+                
+                return config;
+            } catch (error) {
+                console.error('Error fetching configuration:', error);
+                showValidationResultModal(`Failed to load configuration: ${error.message}`,true);
+            }
+        }
+
+        fetchConfig().then(async cfg => {
+            if (cfg?.main_sensor_id) MAIN_SENSOR_ENTITY_ID = cfg.main_sensor_id;
+            try {
+                const sensors = await fetchAvailablePowerSensors();
+                populateApplianceSensorSelect(sensors, MAIN_SENSOR_ENTITY_ID);
+            } catch (error) {
+                console.error('Error fetching appliance sensors:', error);
+            }
+            // Start Flatpickr initialization
+            initFlatpickrWithRetry();
+        });
+
+        // Load jobs module and start jobs table/polling (robust for HA ingress + async)
+        jobsUIReadyPromise = (async () => {
+            try {
+                // If the UI is served from .../components/..., go one level up so we reach .../js/...
+                const jobsUrl = new URL("js/training/jobs_ui.js", window.location.href);
+                jobsUrl.searchParams.set("v", "20260324a");
+
+                const mod = await import(jobsUrl.toString());
+
+                jobsUI = mod.createJobsUI({
+                    tableBodyEl: jobsTableBody,
+                    noJobsEl: noJobsMsg,
+                    refreshBtnEl: refreshJobsBtn,
+                    paginationEl: jobsPagination,
+                    paginationInfoEl: jobsPaginationInfo,
+                    prevPageBtnEl: jobsPrevPageBtn,
+                    nextPageBtnEl: jobsNextPageBtn,
+                    deleteModalEl: deleteJobConfirmModal,
+                    deleteModalMessageEl: deleteJobConfirmMessage,
+                    confirmDeleteBtnEl: confirmDeleteJobBtn,
+                    cancelDeleteBtnEl: cancelDeleteJobBtn,
+                    pollEveryMs: 5000
+                });
+
+                jobsUI.init();
+                window.trainingUI = jobsUI;
+
+                // Flush anything that happened before jobsUI was ready
+                for (const ev of pendingJobEvents) {
+                    if (ev.kind === "prepared") jobsUI.recordPrepared(ev.data);
+                    if (ev.kind === "sent") jobsUI.recordSent(ev.data);
+                }
+                pendingJobEvents = [];
+
+                console.log("[jobs] Jobs UI initialized");
+                return jobsUI;
+            } catch (e) {
+                console.warn("[jobs] Jobs UI failed to load:", e);
+                window.trainingUI = null;
+                return null;
+            }
+        })();
+
+
+    };
+</script>

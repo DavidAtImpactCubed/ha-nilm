@@ -1,0 +1,61 @@
+version: "3.8"
+
+services:
+  app-dev:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      - SUPERVISOR_TOKEN=dev_token
+      - HA_WS_URL=ws://mock-ha:8123/api/websocket
+      - HA_REST_API_URL=http://mock-ha:8124/api
+      - MAIN_SENSOR=sensor.mock_mains
+      - 'NILM_MODELS=[{"appliance_name": "mock_fridge", "states": [0, 90]}, {"appliance_name": "mock_dishwasher", "states": [0, 1000, 1800]}]'
+      - 'NILM_PARAMS={"smoothing_window": 5}'
+      # Wait script settings
+      - MOCK_HA_HOST=mock-ha
+      - MOCK_WS_PORT=8123
+      - MOCK_REST_API_PORT=8124
+      - MAIN_APP_COMMAND=python /app/src/main.py
+      - TRAINING_SERVER_URL=http://host.docker.internal:8080/train
+      - TRAINING_SERVER_API_KEY=dev_key_optional
+    volumes:
+      # Mount whole folders for live dev (no per-file mounts)
+      - ./src:/app/src
+      - ./www:/app/www
+      - ./tests:/app/tests
+      - ./inference:/app/inference
+
+      # Persist HA add-on data (config, checkpoint, embeddings)
+      - app_data:/data
+    depends_on:
+      mock-ha:
+        condition: service_healthy
+    ports:
+      - "8099:8099"
+    command: ["python", "/app/tests/wait_for_ha.py"]
+
+  mock-ha:
+    build:
+      context: .
+      dockerfile: Dockerfile.mock
+    environment:
+      - SUPERVISOR_TOKEN=dev_token
+      - MAIN_SENSOR=sensor.mock_mains
+      - MOCK_H5_PATH=/app/tests/ukdale_5_1_week.h5
+    volumes:
+      # Only tests needed for mock server
+      - ./tests:/app/tests
+    ports:
+      - "8823:8123"
+      - "8824:8124"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import socket; s=socket.create_connection(('127.0.0.1', 8124), 2); s.close()"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 5s
+    command: ["python", "/app/tests/mock_ha.py"]
+
+volumes:
+  app_data:

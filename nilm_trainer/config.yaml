@@ -1,0 +1,29 @@
+name: "NILM Training Server"
+slug: nilm_training_server
+description: "Training server for NILM"
+version: "1.0.0"
+
+arch:
+  - amd64
+  - aarch64
+
+startup: services
+init: false
+ingress: false
+
+panel_icon: mdi:api
+
+ports:
+  8080/tcp: 8080
+ports_description:
+  8080/tcp: "HTTP API"
+
+# Nice clickable link in the add-on page (Swagger UI)
+webui: "http://[HOST]:[PORT:8080]/docs"
+
+options: {}
+schema: {}
+
+environment:
+  PYTHONDONTWRITEBYTECODE: "1"
+  PYTHONUNBUFFERED: "1"
