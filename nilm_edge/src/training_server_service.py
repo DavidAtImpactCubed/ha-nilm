@@ -16,7 +16,7 @@ from training_server_client import (
     fetch_training_status,
 )
 from embedding_store import bundle_models_dir, load_embedding_metadata
-from training_payload import training_server_payload_from_prepared
+from training_payload import training_server_payload_from_prepared, summarize_training_server_payload
 from embedding_store import save_embedding_metadata
 
 
@@ -156,6 +156,11 @@ class TrainingServerServiceManager:
     async def start_send(self, job_id: str) -> Dict[str, Any]:
         prepared = await self._read(job_id)
         training_server_payload = training_server_payload_from_prepared(prepared)
+        payload_summary = summarize_training_server_payload(training_server_payload)
+        print(
+            f"Starting training server send for local_job_id={job_id}: {json.dumps(payload_summary, sort_keys=True)}",
+            flush=True,
+        )
 
         start = await start_training_job(
             training_server_url=self.training_server_url,

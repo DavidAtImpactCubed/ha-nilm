@@ -41,3 +41,21 @@ def training_server_payload_from_prepared(prepared: Dict[str, Any]) -> Dict[str,
         "t_label": t_label,
         "t_end": t_end,
     }
+
+
+def summarize_training_server_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
+    embeddings = payload.get("embeddings") if isinstance(payload.get("embeddings"), list) else []
+    targets_on = payload.get("targets_on") if isinstance(payload.get("targets_on"), list) else []
+    targets_power = payload.get("targets_power") if isinstance(payload.get("targets_power"), list) else []
+    first_embedding = embeddings[0] if embeddings and isinstance(embeddings[0], list) else []
+
+    return {
+        "appliance_name": payload.get("appliance_name"),
+        "bundle_id": payload.get("bundle_id"),
+        "bundle_mode": payload.get("bundle_mode"),
+        "supervision_mode": payload.get("supervision_mode"),
+        "n_embeddings": len(embeddings),
+        "embedding_dim": len(first_embedding),
+        "n_targets_on": len(targets_on),
+        "n_targets_power": len(targets_power),
+    }

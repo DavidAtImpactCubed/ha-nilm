@@ -33,10 +33,24 @@ async def start_training_job(
     timeout_s: float = 30.0,
 ) -> Dict[str, Any]:
     timeout = aiohttp.ClientTimeout(total=timeout_s, connect=10, sock_read=timeout_s)
+    payload_text = json.dumps(payload, separators=(",", ":"))
+    payload_size_bytes = len(payload_text.encode("utf-8"))
+    n_embeddings = len(payload.get("embeddings") or []) if isinstance(payload, dict) else 0
+    embedding_dim = 0
+    if isinstance(payload, dict) and isinstance(payload.get("embeddings"), list) and payload["embeddings"]:
+        first_embedding = payload["embeddings"][0]
+        if isinstance(first_embedding, list):
+            embedding_dim = len(first_embedding)
+
+    print(
+        f"Training server POST starting url={training_server_url} "
+        f"payload_bytes={payload_size_bytes} n_embeddings={n_embeddings} embedding_dim={embedding_dim}",
+        flush=True,
+    )
 
     try:
         async with aiohttp.ClientSession(timeout=timeout) as session:
-            async with session.post(training_server_url, headers=_headers(api_key), json=payload) as resp:
+            async with session.post(training_server_url, headers=_headers(api_key), data=payload_text) as resp:
                 text = await resp.text()
                 if resp.status not in (200, 202):
                     raise TrainingServerError(f"Training server start failed HTTP {resp.status}: {text[:800]}")
@@ -49,12 +63,23 @@ async def start_training_job(
                 if not isinstance(data, dict) or not data.get("job_id"):
                     raise TrainingServerError(f"Training server start missing job_id. Response: {data!r}")
 
+                print(
+                    f"Training server POST accepted url={training_server_url} "
+                    f"payload_bytes={payload_size_bytes} job_id={data.get('job_id')}",
+                    flush=True,
+                )
                 return data
 
     except asyncio.TimeoutError as e:
-        raise TrainingServerError("Training server start timed out") from e
+        raise TrainingServerError(
+            f"Training server start timed out after sending payload_bytes={payload_size_bytes}"
+        ) from e
     except aiohttp.ClientError as e:
-        raise TrainingServerError(f"Training server start request error: {e}") from e
+        raise TrainingServerError(
+            f"Training server start request error: {e} "
+            f"(url={training_server_url}, payload_bytes={payload_size_bytes}, "
+            f"n_embeddings={n_embeddings}, embedding_dim={embedding_dim})"
+        ) from e
 
 
 async def probe_training_server_connection(
