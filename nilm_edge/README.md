@@ -18,9 +18,10 @@ It listens to one aggregate mains power sensor, applies the available appliance 
 
 1. Add your add-on repository to Home Assistant.
 2. Install the `NILM` add-on.
-3. In the add-on Configuration tab, set `training_server_url` if you want to override the default training server endpoint.
-4. Start the add-on.
-5. Open the web UI from the add-on page.
+3. If training uploads fail through the default endpoint, open the `NILM Training Server` add-on logs and copy the `training_server_url` printed at startup.
+4. In the `NILM` add-on Configuration tab, set `training_server_url` to that printed value.
+5. Start the add-on.
+6. Open the web UI from the add-on page.
 
 ## Web UI
 

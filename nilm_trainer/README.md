@@ -9,6 +9,12 @@ This service receives prepared NILM training data, runs appliance-model training
 - Tracks job progress and exposes job status through a simple HTTP API.
 - Returns the trained embedding, learned thresholds, and training metadata when a job finishes.
 
+## Home Assistant Setup
+
+When this add-on starts inside Home Assistant, its logs print the exact `training_server_url` that the `NILM` add-on should use.
+
+Use that printed URL in the `NILM` add-on Configuration tab if the default `homeassistant.local` endpoint does not work for training uploads.
+
 ## Bundle Requirements
 
 The service expects a training bundle that contains the Keras head model and its manifest.

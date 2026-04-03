@@ -62,6 +62,19 @@ SERVER_TRAINING = {
 }
 
 
+@app.on_event("startup")
+async def log_startup_info():
+    addon_hostname = (os.getenv("HOSTNAME") or "").strip()
+    if addon_hostname:
+        print(f"NILM Training Server hostname: {addon_hostname}", flush=True)
+        print(
+            f"NILM add-on should use this training_server_url: http://{addon_hostname}:8080/train",
+            flush=True,
+        )
+    else:
+        print("NILM Training Server hostname is not available in HOSTNAME.", flush=True)
+
+
 class TrainPayload(BaseModel):
     appliance_name: str
     appliance_type: str = ""
