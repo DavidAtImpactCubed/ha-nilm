@@ -2239,6 +2239,11 @@
         }
 
         mainSensorSelect.disabled = false;
+        const placeholderOption = document.createElement("option");
+        placeholderOption.value = "";
+        placeholderOption.textContent = "Select a mains sensor";
+        mainSensorSelect.appendChild(placeholderOption);
+
         sensors.forEach((sensor) => {
             const option = document.createElement("option");
             option.value = sensor.entity_id;
@@ -2249,7 +2254,7 @@
         if (selectedSensorId && sensors.some(sensor => sensor.entity_id === selectedSensorId)) {
             mainSensorSelect.value = selectedSensorId;
         } else {
-            mainSensorSelect.value = sensors[0].entity_id;
+            mainSensorSelect.value = "";
         }
 
         updateLatestPowerFromSensors();

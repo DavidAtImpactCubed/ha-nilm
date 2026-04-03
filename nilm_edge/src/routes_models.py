@@ -31,7 +31,9 @@ async def _get_preview_job(app, job_id):
 
 
 async def _fetch_preview_history_points(fetch_start_dt, end_dt):
-    entity_id = app_state.current_config.get("main_sensor_id", "sensor.mock_mains")
+    entity_id = (app_state.current_config.get("main_sensor_id") or "").strip()
+    if not entity_id:
+        raise ValueError("No mains sensor configured. Please select and save a mains sensor first.")
     chunk_delta = timedelta(hours=PREVIEW_HISTORY_CHUNK_HOURS)
     chunk_bounds = []
     cursor = fetch_start_dt

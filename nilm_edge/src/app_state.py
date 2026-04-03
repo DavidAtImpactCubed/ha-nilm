@@ -30,7 +30,7 @@ if not INGRESS_URL_BASE.endswith("/"):
     INGRESS_URL_BASE += "/"
 
 current_config = {
-    "main_sensor_id": os.getenv("MAIN_SENSOR", "sensor.mains"),
+    "main_sensor_id": (os.getenv("MAIN_SENSOR", "").strip() or None),
 }
 
 refquery_instance = None
@@ -42,8 +42,12 @@ async def maybe_await(value):
 
 
 async def history_fetcher(start_dt, end_dt):
+    sensor_id = current_config.get("main_sensor_id")
+    if not sensor_id:
+        return []
+
     query = HistoryQuery(
-        entity_id=current_config["main_sensor_id"],
+        entity_id=sensor_id,
         start_dt=start_dt,
         end_dt=end_dt,
         minimal_response=True,
@@ -60,10 +64,8 @@ def load_config():
     try:
         with open(CONFIG_FILE_PATH, "r", encoding="utf-8") as file_handle:
             loaded_config = json.load(file_handle)
-        current_config["main_sensor_id"] = loaded_config.get(
-            "main_sensor_id",
-            current_config["main_sensor_id"],
-        )
+        loaded_sensor_id = loaded_config.get("main_sensor_id", current_config["main_sensor_id"])
+        current_config["main_sensor_id"] = (str(loaded_sensor_id).strip() if loaded_sensor_id is not None else None) or None
         print(f"Configuration loaded from {CONFIG_FILE_PATH}")
     except json.JSONDecodeError as exc:
         print(f"Error decoding config.json: {exc}. Using current in-memory values.")
@@ -72,7 +74,7 @@ def load_config():
 
 
 def save_config(main_sensor_id):
-    current_config["main_sensor_id"] = main_sensor_id
+    current_config["main_sensor_id"] = (str(main_sensor_id).strip() if main_sensor_id is not None else None) or None
     try:
         os.makedirs(os.path.dirname(CONFIG_FILE_PATH), exist_ok=True)
         with open(CONFIG_FILE_PATH, "w", encoding="utf-8") as file_handle:
