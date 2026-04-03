@@ -92,7 +92,12 @@ async def get_history_handler(request):
             status=400,
         )
 
-    sensor_to_fetch = filter_entity_id or app_state.current_config.get("main_sensor_id", "sensor.mock_mains")
+    sensor_to_fetch = (filter_entity_id or app_state.current_config.get("main_sensor_id") or "").strip()
+    if not sensor_to_fetch:
+        return web.json_response(
+            {"status": "error", "message": "No mains sensor configured. Please select and save a mains sensor first."},
+            status=400,
+        )
 
     try:
         query = HistoryQuery(

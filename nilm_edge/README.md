@@ -57,7 +57,7 @@ The training page:
 
 Training is not performed inside this add-on itself.
 
-This add-on prepares the training payload and sends it to the configured `TRAINING_SERVER_URL`. By default that URL points to a Home Assistant-hosted training server endpoint, but it can also point to an external compatible server.
+This add-on prepares the training payload and sends it to the configured `TRAINING_SERVER_URL`. In Home Assistant, the default URL should target the training add-on by its internal hostname, `http://nilm_training_server:8080/train`. It can also point to an external compatible server.
 
 ## Published Home Assistant Entities
 

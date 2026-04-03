@@ -228,7 +228,7 @@ async def run_live_loop(session: aiohttp.ClientSession):
 
     while running:
         try:
-            sensor_to_monitor = app_state.current_config["main_sensor_id"]
+            sensor_to_monitor = app_state.current_config.get("main_sensor_id")
             websocket = await retry_websocket_connection(app_state.HA_WS_URL)
 
             initial_auth_reply = json.loads(await websocket.recv())
@@ -252,7 +252,10 @@ async def run_live_loop(session: aiohttp.ClientSession):
                 )
 
             await websocket.send(json.dumps({"id": 1, "type": "subscribe_events", "event_type": "state_changed"}))
-            print(f"Listening to {sensor_to_monitor} via HA WebSocket...")
+            if sensor_to_monitor:
+                print(f"Listening to {sensor_to_monitor} via HA WebSocket...")
+            else:
+                print("No mains sensor configured yet. Waiting for the user to select one before running NILM.")
             subscribed_sensor = sensor_to_monitor
             backoff = 1
 
@@ -261,7 +264,7 @@ async def run_live_loop(session: aiohttp.ClientSession):
                     msg = await asyncio.wait_for(websocket.recv(), timeout=60)
                 except asyncio.TimeoutError:
                     print("No data received in 60s.")
-                    if app_state.refquery_instance:
+                    if app_state.refquery_instance and app_state.current_config.get("main_sensor_id"):
                         now = datetime.now(timezone.utc)
                         start_time = time.perf_counter()
                         dl_disagg = await app_state.refquery_instance.disaggregate_next(0.0, now)
@@ -278,12 +281,17 @@ async def run_live_loop(session: aiohttp.ClientSession):
                     break
 
                 try:
-                    sensor_to_monitor = app_state.current_config["main_sensor_id"]
+                    sensor_to_monitor = app_state.current_config.get("main_sensor_id")
                     if subscribed_sensor != sensor_to_monitor:
-                        print(f"Detected mains sensor change. Now filtering events for {sensor_to_monitor}.")
+                        if sensor_to_monitor:
+                            print(f"Detected mains sensor change. Now filtering events for {sensor_to_monitor}.")
+                        else:
+                            print("Main sensor selection cleared. NILM will stay idle until a mains sensor is saved.")
                         subscribed_sensor = sensor_to_monitor
 
                     event = json.loads(msg)
+                    if not sensor_to_monitor:
+                        continue
                     new_state = event.get("event", {}).get("data", {}).get("new_state")
                     if not new_state or new_state.get("entity_id") != sensor_to_monitor:
                         continue
