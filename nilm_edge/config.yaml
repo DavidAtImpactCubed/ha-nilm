@@ -1,5 +1,5 @@
 name: "NILM"
-version: "1.0.10"
+version: "1.0.11"
 slug: "nilm"
 description: "Real-time load disaggregation for Home Assistant"
 homeassistant_api: true
@@ -10,6 +10,14 @@ ports:
   "8099/tcp": 8099
 
 ingress: true
+
+options:
+  training_server_url: "http://homeassistant.local:8080/train"
+  training_server_api_key: ""
+
+schema:
+  training_server_url: "str"
+  training_server_api_key: "str"
 
 environment:
   TRAINING_SERVER_URL: "http://homeassistant.local:8080/train"

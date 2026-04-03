@@ -329,6 +329,7 @@ async def run_live_loop(session: aiohttp.ClientSession):
 async def main():
     print("Main application starting...")
     print(f"DEBUG: SUPERVISOR_TOKEN length: {len(app_state.TOKEN) if app_state.TOKEN else 'None'}")
+    print(f"Configured training server URL: {app_state.get_training_server_url()}", flush=True)
     if not app_state.TOKEN:
         print("ERROR: SUPERVISOR_TOKEN environment variable is not set!")
         return

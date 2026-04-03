@@ -150,13 +150,16 @@ class TrainingServerServiceManager:
         }
 
     async def get_training_server_connection_status(self) -> Dict[str, Any]:
+        training_server_url = app_state.get_training_server_url()
+        training_server_api_key = app_state.get_training_server_api_key()
         result = await probe_training_server_connection(
-            training_server_url=self.training_server_url,
-            api_key=self.training_server_api_key,
+            training_server_url=training_server_url,
+            api_key=training_server_api_key,
             timeout_s=8.0,
         )
         return {
             "status": "success",
+            "training_server_url": training_server_url,
             **result,
         }
 
@@ -164,15 +167,17 @@ class TrainingServerServiceManager:
         prepared = await self._read(job_id)
         training_server_payload = training_server_payload_from_prepared(prepared)
         payload_summary = summarize_training_server_payload(training_server_payload)
+        training_server_url = app_state.get_training_server_url()
+        training_server_api_key = app_state.get_training_server_api_key()
         print(
             f"Starting training server send for local_job_id={job_id} "
-            f"url={self.training_server_url}: {json.dumps(payload_summary, sort_keys=True)}",
+            f"url={training_server_url}: {json.dumps(payload_summary, sort_keys=True)}",
             flush=True,
         )
 
         start = await start_training_job(
-            training_server_url=self.training_server_url,
-            api_key=self.training_server_api_key,
+            training_server_url=training_server_url,
+            api_key=training_server_api_key,
             payload=training_server_payload,
             timeout_s=1120.0,
         )
@@ -185,7 +190,7 @@ class TrainingServerServiceManager:
 
         await self._patch_job(job_id, {
             "training_server_job_id": training_server_job_id,
-            "training_server_url": self.training_server_url,
+            "training_server_url": training_server_url,
             "state": "training_server_queued",
             "updated_at": _utc_now_iso(),
             "error": None,
@@ -200,7 +205,7 @@ class TrainingServerServiceManager:
         })
 
         # background poller updates progress + finalizes
-        asyncio.create_task(self._poll_and_finalize(job_id, training_server_job_id))
+        asyncio.create_task(self._poll_and_finalize(job_id, training_server_job_id, training_server_url, training_server_api_key))
 
         return {"status": "success", "job_id": job_id, "training_server_job_id": training_server_job_id}
 
@@ -238,15 +243,21 @@ class TrainingServerServiceManager:
 
         await self._patch_job(job_id, patch)
 
-    async def _poll_and_finalize(self, job_id: str, training_server_job_id: str) -> None:
+    async def _poll_and_finalize(
+        self,
+        job_id: str,
+        training_server_job_id: str,
+        training_server_url: str,
+        training_server_api_key: Optional[str],
+    ) -> None:
         try:
             # 1) Kick off a lightweight status loop to keep progress fresh
             #    (even if poll_training_result sleeps / waits long)
             async def progress_loop():
                 while True:
                     st = await fetch_training_status(
-                        training_server_url=self.training_server_url,
-                        api_key=self.training_server_api_key,
+                        training_server_url=training_server_url,
+                        api_key=training_server_api_key,
                         job_id=training_server_job_id,
                         timeout_s=240.0,
                     )
@@ -266,8 +277,8 @@ class TrainingServerServiceManager:
 
             # 2) Wait for final result (this returns only when DONE)
             result = await poll_training_result(
-                training_server_url=self.training_server_url,
-                api_key=self.training_server_api_key,
+                training_server_url=training_server_url,
+                api_key=training_server_api_key,
                 job_id=training_server_job_id,
                 poll_every_s=2.0,
                 max_wait_s=1800.0,

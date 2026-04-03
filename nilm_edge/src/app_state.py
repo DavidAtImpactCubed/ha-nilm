@@ -1,6 +1,7 @@
 import inspect
 import json
 import os
+from typing import Any, Dict, Optional
 
 from embedding_store import migrate_legacy_models, rename_bundle_models_dir
 from ha_client import HistoryQuery, fetch_history_points
@@ -20,6 +21,7 @@ MODELS_ROOT = "/data/models"
 LEGACY_EMBEDDINGS_DIR = "/data/embeddings"
 INFERENCE_ROOT = "/app/inference"
 CONFIG_FILE_PATH = "/data/config.json"
+ADDON_OPTIONS_PATH = "/data/options.json"
 
 HA_WS_URL = os.getenv("HA_WS_URL", "ws://supervisor/core/websocket")
 HA_REST_API_URL = os.getenv("HA_REST_API_URL", "http://supervisor/core/api")
@@ -39,6 +41,35 @@ model_bundles = []
 
 async def maybe_await(value):
     return await value if inspect.isawaitable(value) else value
+
+
+def _load_addon_options() -> Dict[str, Any]:
+    if not os.path.exists(ADDON_OPTIONS_PATH):
+        return {}
+
+    try:
+        with open(ADDON_OPTIONS_PATH, "r", encoding="utf-8") as file_handle:
+            payload = json.load(file_handle)
+        return payload if isinstance(payload, dict) else {}
+    except Exception as exc:
+        print(f"Error reading add-on options from {ADDON_OPTIONS_PATH}: {exc}")
+        return {}
+
+
+def get_training_server_url() -> str:
+    options = _load_addon_options()
+    option_url = str(options.get("training_server_url") or "").strip()
+    if option_url:
+        return option_url
+    return TRAINING_SERVER_URL
+
+
+def get_training_server_api_key() -> Optional[str]:
+    options = _load_addon_options()
+    option_api_key = str(options.get("training_server_api_key") or "").strip()
+    if option_api_key:
+        return option_api_key
+    return TRAINING_SERVER_API_KEY
 
 
 async def history_fetcher(start_dt, end_dt):
