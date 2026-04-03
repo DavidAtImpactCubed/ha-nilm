@@ -196,7 +196,6 @@ def build_web_app():
         models_root=app_state.MODELS_ROOT,
         training_server_url=app_state.TRAINING_SERVER_URL,
         training_server_api_key=app_state.TRAINING_SERVER_API_KEY,
-        supervisor_token=app_state.TOKEN,
         save_embedding_npy_fn=save_embedding_npy,
         reload_algorithm_fn=app_state.reload_algorithm_config,
     )

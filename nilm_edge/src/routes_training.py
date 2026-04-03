@@ -1,4 +1,5 @@
 import json
+import traceback
 
 from aiohttp import web
 
@@ -15,6 +16,7 @@ async def receive_training_data_handler(request: web.Request) -> web.Response:
             return web.json_response({"status": "error", "message": "training_server_manager not configured"}, status=500)
 
         action = (request.query.get("action") or "").strip().lower()
+        print(f"Training route called method={request.method} action={action}", flush=True)
         if action not in ("prepare", "send", "status", "training_server_status"):
             return web.json_response(
                 {"status": "error", "message": "Missing/invalid action. Use ?action=prepare|send|status|training_server_status"},
@@ -34,6 +36,15 @@ async def receive_training_data_handler(request: web.Request) -> web.Response:
             selected_windows = data.get("selectedWindows")
             full_history = data.get("fullSensorHistoryData")
             appliance_sensor_history = data.get("applianceSensorHistoryData")
+            print(
+                "Training prepare request "
+                f"appliance={appliance_name} supervision_mode={supervision_mode} "
+                f"bundle_id={bundle_id} bundle_mode={bundle_mode} "
+                f"full_history_points={len(full_history) if isinstance(full_history, list) else 'invalid'} "
+                f"selected_windows={len(selected_windows) if isinstance(selected_windows, list) else 'invalid'} "
+                f"appliance_history_points={len(appliance_sensor_history) if isinstance(appliance_sensor_history, list) else 'invalid'}",
+                flush=True,
+            )
 
             if not appliance_name:
                 return web.json_response({"status": "error", "message": "appliance_name is required"}, status=400)
@@ -79,12 +90,25 @@ async def receive_training_data_handler(request: web.Request) -> web.Response:
                 prepared["bundle_id"] = selected_bundle.bundle_id
                 prepared["bundle_mode"] = selected_bundle.mode
                 prepared["bundle_version"] = selected_bundle.model_version
+                print(
+                    "Training prepare completed "
+                    f"appliance={appliance_name} bundle={selected_bundle.bundle_id} "
+                    f"n_embeddings_ok={prepared.get('stats', {}).get('n_embeddings_ok')} "
+                    f"n_windows_total={prepared.get('stats', {}).get('n_windows_total')} "
+                    f"n_windows_after_gap_filter={prepared.get('stats', {}).get('n_windows_after_gap_filter')}",
+                    flush=True,
+                )
             except Exception as exc:
+                print(f"Training prepare failed: {exc}", flush=True)
+                print(traceback.format_exc(), flush=True)
                 return web.json_response({"status": "error", "message": f"Failed to prepare training data: {exc}"}, status=500)
 
             try:
                 job_id = await maybe_await(svc.create_job(prepared))
+                print(f"Training job persisted local_job_id={job_id}", flush=True)
             except Exception as exc:
+                print(f"Training job persist failed: {exc}", flush=True)
+                print(traceback.format_exc(), flush=True)
                 return web.json_response({"status": "error", "message": f"Failed to persist job: {exc}"}, status=500)
 
             stats = prepared.get("stats", {})
@@ -115,6 +139,7 @@ async def receive_training_data_handler(request: web.Request) -> web.Response:
             job_id = (request.query.get("job_id") or "").strip()
             if not job_id:
                 return web.json_response({"status": "error", "message": "Missing job_id in query"}, status=400)
+            print(f"Training status requested local_job_id={job_id}", flush=True)
 
             try:
                 status_payload = await maybe_await(svc.get_status(job_id))
@@ -127,20 +152,26 @@ async def receive_training_data_handler(request: web.Request) -> web.Response:
 
         if action == "training_server_status":
             try:
+                print("Training server connection status requested", flush=True)
                 status_payload = await maybe_await(svc.get_training_server_connection_status())
             except Exception as exc:
+                print(f"Training server connection status failed: {exc}", flush=True)
+                print(traceback.format_exc(), flush=True)
                 return web.json_response({"status": "error", "message": f"Failed to check training server connection: {exc}"}, status=500)
             return web.json_response(status_payload, status=200)
 
         job_id = (request.query.get("job_id") or "").strip()
         if not job_id:
             return web.json_response({"status": "error", "message": "Missing job_id in query"}, status=400)
+        print(f"Training send requested local_job_id={job_id}", flush=True)
 
         try:
             info = await svc.start_send(job_id)
         except FileNotFoundError:
             return web.json_response({"status": "error", "message": f"job_id not found: {job_id}"}, status=404)
         except Exception as exc:
+            print(f"Training send failed local_job_id={job_id}: {exc}", flush=True)
+            print(traceback.format_exc(), flush=True)
             return web.json_response({"status": "error", "message": f"Failed to start training server job: {exc}"}, status=502)
 
         return web.json_response(
@@ -155,6 +186,8 @@ async def receive_training_data_handler(request: web.Request) -> web.Response:
     except json.JSONDecodeError:
         return web.json_response({"status": "error", "message": "Invalid JSON body"}, status=400)
     except Exception as exc:
+        print(f"Training route internal error: {exc}", flush=True)
+        print(traceback.format_exc(), flush=True)
         return web.json_response({"status": "error", "message": f"Internal server error: {exc}"}, status=500)
 
 

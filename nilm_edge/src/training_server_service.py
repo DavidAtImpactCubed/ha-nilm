@@ -4,6 +4,7 @@ import os
 import json
 import uuid
 import asyncio
+import traceback
 from datetime import datetime, timezone
 from typing import Any, Dict, Optional
 import inspect
@@ -14,7 +15,6 @@ from training_server_client import (
     start_training_job,
     poll_training_result,
     fetch_training_status,
-    resolve_training_server_url,
 )
 from embedding_store import bundle_models_dir, load_embedding_metadata
 from training_payload import training_server_payload_from_prepared, summarize_training_server_payload
@@ -55,7 +55,6 @@ class TrainingServerServiceManager:
         models_root: str,
         training_server_url: str,
         training_server_api_key: Optional[str],
-        supervisor_token: Optional[str],
         save_embedding_npy_fn,
         reload_algorithm_fn=None,
     ):
@@ -63,7 +62,6 @@ class TrainingServerServiceManager:
         self.models_root = models_root
         self.training_server_url = training_server_url
         self.training_server_api_key = training_server_api_key
-        self.supervisor_token = supervisor_token
         self.save_embedding_npy = save_embedding_npy_fn
         self.reload_algorithm = reload_algorithm_fn
 
@@ -126,6 +124,12 @@ class TrainingServerServiceManager:
             "percent": None,
         }
         await self._write(job_id, prepared)
+        print(
+            f"Created local training job local_job_id={job_id} "
+            f"appliance={prepared.get('appliance_name')} bundle_id={prepared.get('bundle_id')} "
+            f"n_embeddings={len(prepared.get('embeddings') or [])}",
+            flush=True,
+        )
         return job_id
 
     async def get_status(self, job_id: str) -> Dict[str, Any]:
@@ -146,19 +150,13 @@ class TrainingServerServiceManager:
         }
 
     async def get_training_server_connection_status(self) -> Dict[str, Any]:
-        resolved_url = await resolve_training_server_url(
-            training_server_url=self.training_server_url,
-            supervisor_token=self.supervisor_token,
-            timeout_s=8.0,
-        )
         result = await probe_training_server_connection(
-            training_server_url=resolved_url,
+            training_server_url=self.training_server_url,
             api_key=self.training_server_api_key,
             timeout_s=8.0,
         )
         return {
             "status": "success",
-            "resolved_training_server_url": resolved_url,
             **result,
         }
 
@@ -166,29 +164,28 @@ class TrainingServerServiceManager:
         prepared = await self._read(job_id)
         training_server_payload = training_server_payload_from_prepared(prepared)
         payload_summary = summarize_training_server_payload(training_server_payload)
-        resolved_url = await resolve_training_server_url(
-            training_server_url=self.training_server_url,
-            supervisor_token=self.supervisor_token,
-            timeout_s=8.0,
-        )
         print(
             f"Starting training server send for local_job_id={job_id} "
-            f"resolved_url={resolved_url}: {json.dumps(payload_summary, sort_keys=True)}",
+            f"url={self.training_server_url}: {json.dumps(payload_summary, sort_keys=True)}",
             flush=True,
         )
 
         start = await start_training_job(
-            training_server_url=resolved_url,
+            training_server_url=self.training_server_url,
             api_key=self.training_server_api_key,
             payload=training_server_payload,
             timeout_s=1120.0,
         )
 
         training_server_job_id = start["job_id"]
+        print(
+            f"Training server accepted local_job_id={job_id} training_server_job_id={training_server_job_id}",
+            flush=True,
+        )
 
         await self._patch_job(job_id, {
             "training_server_job_id": training_server_job_id,
-            "training_server_url": resolved_url,
+            "training_server_url": self.training_server_url,
             "state": "training_server_queued",
             "updated_at": _utc_now_iso(),
             "error": None,
@@ -203,7 +200,7 @@ class TrainingServerServiceManager:
         })
 
         # background poller updates progress + finalizes
-        asyncio.create_task(self._poll_and_finalize(job_id, training_server_job_id, resolved_url))
+        asyncio.create_task(self._poll_and_finalize(job_id, training_server_job_id))
 
         return {"status": "success", "job_id": job_id, "training_server_job_id": training_server_job_id}
 
@@ -241,19 +238,24 @@ class TrainingServerServiceManager:
 
         await self._patch_job(job_id, patch)
 
-    async def _poll_and_finalize(self, job_id: str, training_server_job_id: str, training_server_url: str) -> None:
+    async def _poll_and_finalize(self, job_id: str, training_server_job_id: str) -> None:
         try:
             # 1) Kick off a lightweight status loop to keep progress fresh
             #    (even if poll_training_result sleeps / waits long)
             async def progress_loop():
                 while True:
                     st = await fetch_training_status(
-                        training_server_url=training_server_url,
+                        training_server_url=self.training_server_url,
                         api_key=self.training_server_api_key,
                         job_id=training_server_job_id,
                         timeout_s=240.0,
                     )
                     await self._merge_training_server_status(job_id, st)
+                    print(
+                        f"Training poll update local_job_id={job_id} training_server_job_id={training_server_job_id} "
+                        f"status={st.get('status')} progress={json.dumps(st.get('progress') or {}, sort_keys=True)}",
+                        flush=True,
+                    )
 
                     s = (st.get("status") or "").lower()
                     if s in ("done", "error"):
@@ -264,7 +266,7 @@ class TrainingServerServiceManager:
 
             # 2) Wait for final result (this returns only when DONE)
             result = await poll_training_result(
-                training_server_url=training_server_url,
+                training_server_url=self.training_server_url,
                 api_key=self.training_server_api_key,
                 job_id=training_server_job_id,
                 poll_every_s=2.0,
@@ -347,8 +349,18 @@ class TrainingServerServiceManager:
                 },
                 "percent": 100,
             })
+            print(
+                f"Training finalize done local_job_id={job_id} training_server_job_id={training_server_job_id} "
+                f"saved_path={saved_path}",
+                flush=True,
+            )
 
         except Exception as e:
+            print(
+                f"Training finalize failed local_job_id={job_id} training_server_job_id={training_server_job_id}: {e}",
+                flush=True,
+            )
+            print(traceback.format_exc(), flush=True)
             await self._patch_job(job_id, {
                 "state": "error",
                 "updated_at": _utc_now_iso(),

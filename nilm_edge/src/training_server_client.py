@@ -12,10 +12,6 @@ class TrainingServerError(RuntimeError):
     pass
 
 
-TRAINING_SERVER_ADDON_SLUG = "nilm_training_server"
-TRAINING_SERVER_ADDON_NAME = "NILM Training Server"
-
-
 def _training_server_base_from_url(training_server_url: str) -> str:
     u = urlparse(training_server_url)
     if not u.scheme or not u.netloc:
@@ -28,85 +24,6 @@ def _headers(api_key: Optional[str]) -> Dict[str, str]:
     if api_key:
         h["Authorization"] = f"Bearer {api_key}"
     return h
-
-
-def _supervisor_headers(supervisor_token: Optional[str]) -> Dict[str, str]:
-    if not supervisor_token:
-        raise TrainingServerError("SUPERVISOR_TOKEN is not available for training server discovery.")
-    return {
-        "Authorization": f"Bearer {supervisor_token}",
-        "Content-Type": "application/json",
-    }
-
-
-async def _supervisor_get_json(
-    session: aiohttp.ClientSession,
-    path: str,
-    supervisor_token: Optional[str],
-) -> Dict[str, Any]:
-    async with session.get(f"http://supervisor{path}", headers=_supervisor_headers(supervisor_token)) as resp:
-        text = await resp.text()
-        if resp.status >= 400:
-            raise TrainingServerError(f"Supervisor API {path} failed HTTP {resp.status}: {text[:400]}")
-        try:
-            payload = json.loads(text) if text else {}
-        except Exception as exc:
-            raise TrainingServerError(f"Supervisor API {path} returned non-JSON: {text[:200]}") from exc
-    if isinstance(payload, dict) and isinstance(payload.get("data"), dict):
-        return payload["data"]
-    if isinstance(payload, dict):
-        return payload
-    raise TrainingServerError(f"Supervisor API {path} returned unexpected payload shape.")
-
-
-async def resolve_training_server_url(
-    training_server_url: str,
-    supervisor_token: Optional[str],
-    timeout_s: float = 8.0,
-) -> str:
-    configured_url = (training_server_url or "").strip()
-    if not configured_url:
-        raise TrainingServerError("TRAINING_SERVER_URL is not configured.")
-
-    parsed = urlparse(configured_url)
-    host = (parsed.hostname or "").strip().lower()
-    if host != "homeassistant.local":
-        return configured_url
-
-    timeout = aiohttp.ClientTimeout(total=timeout_s, connect=5, sock_read=5)
-    try:
-        async with aiohttp.ClientSession(timeout=timeout) as session:
-            addons_payload = await _supervisor_get_json(session, "/addons", supervisor_token)
-            addons = addons_payload.get("addons") if isinstance(addons_payload, dict) else None
-            if not isinstance(addons, list):
-                raise TrainingServerError("Supervisor add-on list is missing.")
-
-            addon_slug = None
-            for addon in addons:
-                if not isinstance(addon, dict):
-                    continue
-                slug = str(addon.get("slug") or "").strip()
-                name = str(addon.get("name") or "").strip()
-                if not slug:
-                    continue
-                if slug == TRAINING_SERVER_ADDON_SLUG or slug.endswith(f"_{TRAINING_SERVER_ADDON_SLUG}") or name == TRAINING_SERVER_ADDON_NAME:
-                    addon_slug = slug
-                    break
-
-            if not addon_slug:
-                raise TrainingServerError("Could not find the NILM Training Server add-on in Supervisor.")
-
-            info = await _supervisor_get_json(session, f"/addons/{addon_slug}/info", supervisor_token)
-            hostname = str(info.get("hostname") or "").strip()
-            if not hostname:
-                raise TrainingServerError(f"Supervisor did not return a hostname for add-on {addon_slug}.")
-
-            resolved = parsed._replace(netloc=f"{hostname}:{parsed.port or 80}")
-            return resolved.geturl()
-    except asyncio.TimeoutError as exc:
-        raise TrainingServerError("Training server hostname discovery timed out.") from exc
-    except aiohttp.ClientError as exc:
-        raise TrainingServerError(f"Training server hostname discovery request error: {exc}") from exc
 
 
 async def start_training_job(
@@ -158,10 +75,13 @@ async def start_training_job(
             f"Training server start timed out after sending payload_bytes={payload_size_bytes}"
         ) from e
     except aiohttp.ClientError as e:
+        os_error = getattr(e, "os_error", None)
+        os_error_text = f"{type(os_error).__name__}: {os_error}" if os_error is not None else "None"
         raise TrainingServerError(
             f"Training server start request error: {e} "
             f"(url={training_server_url}, payload_bytes={payload_size_bytes}, "
-            f"n_embeddings={n_embeddings}, embedding_dim={embedding_dim})"
+            f"n_embeddings={n_embeddings}, embedding_dim={embedding_dim}, "
+            f"client_error_type={type(e).__name__}, os_error={os_error_text})"
         ) from e
 
 
