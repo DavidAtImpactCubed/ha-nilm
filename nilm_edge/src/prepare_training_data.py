@@ -501,6 +501,7 @@ def build_embeddings_training_payload(
     grid_t_end = grid_t[(T - 1):]
     offset = (T - 1 - pred_idx) * dt
     grid_t_label = grid_t_end - offset
+    mains_at_label = y_grid[pred_idx:(pred_idx + N)].astype(np.float32)
 
     # Create labels
     y_power: Optional[np.ndarray] = None
@@ -531,6 +532,7 @@ def build_embeddings_training_payload(
     y_on = y_on[valid_windows_mask]
     grid_t_label = grid_t_label[valid_windows_mask]
     grid_t_end = grid_t_end[valid_windows_mask]
+    mains_at_label = mains_at_label[valid_windows_mask]
     if y_power is not None:
         y_power = y_power[valid_windows_mask]
 
@@ -550,6 +552,7 @@ def build_embeddings_training_payload(
     y_on_f = y_on[mask].astype(np.uint8)
     t_label_f = grid_t_label[mask].astype(np.float64)
     t_end_f = grid_t_end[mask].astype(np.float64)
+    mains_at_label_f = mains_at_label[mask].astype(np.float32)
 
     payload: Dict[str, Any] = {
         "appliance_name": appliance_name,
@@ -608,7 +611,11 @@ def build_embeddings_training_payload(
         payload["stats"]["appliance_energy_wh"] = appliance_energy_wh
         payload["stats"]["mains_share_pct"] = float((appliance_energy_wh / mains_energy_wh) * 100.0) if mains_energy_wh > 1e-9 else 0.0
     else:
-        selected_mains_energy_wh = float(y_grid[pred_idx:(pred_idx + N)][y_on == 1].sum() * dt / 3600.0) if y_on.size else 0.0
+        selected_mains_energy_wh = (
+            float(mains_at_label_f[y_on_f == 1].sum() * dt / 3600.0)
+            if y_on_f.size
+            else 0.0
+        )
         payload["stats"]["selected_mains_energy_wh"] = selected_mains_energy_wh
         payload["stats"]["mains_share_pct"] = float((selected_mains_energy_wh / mains_energy_wh) * 100.0) if mains_energy_wh > 1e-9 else 0.0
 
