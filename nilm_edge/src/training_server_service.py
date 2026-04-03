@@ -9,6 +9,7 @@ from datetime import datetime, timezone
 from typing import Any, Dict, Optional
 import inspect
 
+import app_state
 from training_server_client import (
     TrainingServerError,
     probe_training_server_connection,
