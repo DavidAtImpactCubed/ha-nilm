@@ -14,6 +14,33 @@ from app.trainer import train_ref_embedding
 
 app = FastAPI()
 
+
+@app.middleware("http")
+async def log_requests(request: Request, call_next):
+    content_length = request.headers.get("content-length", "unknown")
+    client_host = request.client.host if request.client else "unknown"
+    print(
+        f"HTTP request started method={request.method} path={request.url.path} "
+        f"client={client_host} content_length={content_length}",
+        flush=True,
+    )
+    try:
+        response = await call_next(request)
+    except Exception as exc:
+        print(
+            f"HTTP request failed method={request.method} path={request.url.path} "
+            f"client={client_host} content_length={content_length} error={exc}",
+            flush=True,
+        )
+        raise
+
+    print(
+        f"HTTP request completed method={request.method} path={request.url.path} "
+        f"status={response.status_code} client={client_host} content_length={content_length}",
+        flush=True,
+    )
+    return response
+
 # NOTE: single-worker only. For multi-worker, use Redis/DB.
 JOBS: Dict[str, Dict[str, Any]] = {}
 JOBS_LOCK = asyncio.Lock()
