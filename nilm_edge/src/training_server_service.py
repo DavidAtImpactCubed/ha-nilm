@@ -79,11 +79,14 @@ class TrainingServerServiceManager:
     def _job_path(self, job_id: str) -> str:
         return os.path.join(self.jobs_dir, f"{job_id}.json")
 
+    def _read_unlocked(self, path: str) -> Dict[str, Any]:
+        with open(path, "r", encoding="utf-8") as f:
+            return json.load(f)
+
     async def _read(self, job_id: str) -> Dict[str, Any]:
         path = self._job_path(job_id)
         async with self._io_lock:
-            with open(path, "r", encoding="utf-8") as f:
-                return json.load(f)
+            return self._read_unlocked(path)
 
     async def _write(self, job_id: str, data: Dict[str, Any]) -> None:
         path = self._job_path(job_id)
@@ -91,10 +94,12 @@ class TrainingServerServiceManager:
             _atomic_write_json(path, data)
 
     async def _patch_job(self, job_id: str, patch: Dict[str, Any]) -> None:
-        data = await self._read(job_id)
-        data.setdefault("_job", {})
-        data["_job"] = {**data["_job"], **patch}
-        await self._write(job_id, data)
+        path = self._job_path(job_id)
+        async with self._io_lock:
+            data = self._read_unlocked(path)
+            data.setdefault("_job", {})
+            data["_job"] = {**data["_job"], **patch}
+            _atomic_write_json(path, data)
 
     async def create_job(self, prepared: Dict[str, Any]) -> str:
         job_id = uuid.uuid4().hex

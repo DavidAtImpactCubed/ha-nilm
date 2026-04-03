@@ -22,6 +22,5 @@ RUN pip install --no-cache-dir -r /app/requirements.txt
 COPY src/ /app/src/
 COPY www/ /app/www/
 COPY inference/ /app/inference/
-COPY tests/ /app/tests/
 
 CMD ["python", "/app/src/main.py"]
