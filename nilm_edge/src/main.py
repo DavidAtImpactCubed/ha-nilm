@@ -39,6 +39,7 @@ async def publish_disaggregation_dl(
     total_power: float,
     dl_result,
     timestamp: datetime,
+    session: aiohttp.ClientSession,
     duration=None,
 ):
     if not dl_result or not isinstance(dl_result, dict):
@@ -68,111 +69,110 @@ async def publish_disaggregation_dl(
         "Content-Type": "application/json",
     }
 
-    async with aiohttp.ClientSession() as session:
-        for appliance_name, values in appliances.items():
-            try:
-                power = float(values.get("power"))
-                onoff = float(values.get("onoff"))
-            except Exception:
-                continue
+    async def post_state(entity_id: str, payload: dict) -> None:
+        try:
+            async with session.post(
+                f"{app_state.HA_REST_API_URL}/states/{entity_id}",
+                headers=headers,
+                json=payload,
+            ) as response:
+                if response.status not in [200, 201]:
+                    response_text = await response.text()
+                    print(f"Error updating {entity_id} via REST API: {response.status} - {response_text}")
+        except Exception as exc:
+            print(f"Exception during REST API call for {entity_id}: {exc}")
 
-            display_name = str(values.get("appliance_name") or appliance_name)
-            bundle_id = str(values.get("bundle_id") or "").strip()
-            bundle_label = f" [{bundle_id}]" if bundle_id else ""
-            slug = _slug(f"{display_name}_{bundle_id}" if bundle_id else display_name)
-            appliance_prediction_target_dt = datetime.fromtimestamp(
-                float(values.get("timestamp", prediction_target_dt.timestamp())),
-                tz=timezone.utc,
-            )
-            appliance_window_end_dt = datetime.fromtimestamp(
-                float(values.get("window_end_timestamp", window_end_dt.timestamp())),
-                tz=timezone.utc,
-            )
-            appliance_raw_sample_dt = datetime.fromtimestamp(
-                float(values.get("raw_timestamp", raw_sample_dt.timestamp())),
-                tz=timezone.utc,
-            )
-            appliance_prediction_delay_s = float(values.get("prediction_delay_s", prediction_delay_s) or 0.0)
-            appliance_pred_idx = values.get("pred_idx", pred_idx)
-            power_entity_id = f"sensor.nilm_{slug}_power"
-            power_data = {
-                "state": round(power, 1),
-                "attributes": {
-                    "unit_of_measurement": "W",
-                    "device_class": "power",
-                    "state_class": "measurement",
-                    "friendly_name": f"NILM {display_name.replace('_', ' ').title()} Power{bundle_label}",
-                    "last_updated": timestamp.isoformat(),
-                    "prediction_target_time": appliance_prediction_target_dt.isoformat(),
-                    "window_end_time": appliance_window_end_dt.isoformat(),
-                    "raw_sample_time": appliance_raw_sample_dt.isoformat(),
-                    "prediction_delay_s": round(appliance_prediction_delay_s, 3),
-                    "pred_idx": appliance_pred_idx,
-                    "bundle_id": bundle_id or None,
-                    "icon": "mdi:power-socket-eu",
-                    "source": "dl",
-                },
-            }
-            try:
-                async with session.post(f"{app_state.HA_REST_API_URL}/states/{power_entity_id}", headers=headers, json=power_data) as response:
-                    if response.status not in [200, 201]:
-                        response_text = await response.text()
-                        print(f"Error updating {power_entity_id} via REST API: {response.status} - {response_text}")
-            except Exception as exc:
-                print(f"Exception during REST API call for {power_entity_id}: {exc}")
+    publish_tasks = []
 
-            is_on = onoff >= 0.5
-            on_entity_id = f"binary_sensor.nilm_{slug}_on"
-            on_data = {
-                "state": "on" if is_on else "off",
-                "attributes": {
-                    "friendly_name": f"NILM {display_name.replace('_', ' ').title()} On/Off{bundle_label}",
-                    "last_updated": timestamp.isoformat(),
-                    "prediction_target_time": appliance_prediction_target_dt.isoformat(),
-                    "window_end_time": appliance_window_end_dt.isoformat(),
-                    "raw_sample_time": appliance_raw_sample_dt.isoformat(),
-                    "prediction_delay_s": round(appliance_prediction_delay_s, 3),
-                    "pred_idx": appliance_pred_idx,
-                    "bundle_id": bundle_id or None,
-                    "icon": "mdi:toggle-switch" if is_on else "mdi:toggle-switch-off",
-                    "source": "dl",
-                    "onoff_score": round(onoff, 4),
-                },
-            }
-            try:
-                async with session.post(f"{app_state.HA_REST_API_URL}/states/{on_entity_id}", headers=headers, json=on_data) as response:
-                    if response.status not in [200, 201]:
-                        response_text = await response.text()
-                        print(f"Error updating {on_entity_id} via REST API: {response.status} - {response_text}")
-            except Exception as exc:
-                print(f"Exception during REST API call for {on_entity_id}: {exc}")
+    for appliance_name, values in appliances.items():
+        try:
+            power = float(values.get("power"))
+            onoff = float(values.get("onoff"))
+        except Exception:
+            continue
 
-        if duration is not None:
-            duration_entity_id = "sensor.nilm_disaggregation_duration"
-            duration_data = {
-                "state": round(float(duration), 3),
-                "attributes": {
-                    "unit_of_measurement": "s",
-                    "device_class": "duration",
-                    "state_class": "measurement",
-                    "friendly_name": "NILM Disaggregation Duration",
-                    "last_updated": timestamp.isoformat(),
-                    "prediction_target_time": prediction_target_dt.isoformat(),
-                    "window_end_time": window_end_dt.isoformat(),
-                    "raw_sample_time": raw_sample_dt.isoformat(),
-                    "prediction_delay_s": round(prediction_delay_s, 3),
-                    "pred_idx": pred_idx,
-                    "icon": "mdi:timer-outline",
-                    "source": "dl",
-                },
-            }
-            try:
-                async with session.post(f"{app_state.HA_REST_API_URL}/states/{duration_entity_id}", headers=headers, json=duration_data) as response:
-                    if response.status not in [200, 201]:
-                        response_text = await response.text()
-                        print(f"Error updating {duration_entity_id} via REST API: {response.status} - {response_text}")
-            except Exception as exc:
-                print(f"Exception during REST API call for {duration_entity_id}: {exc}")
+        display_name = str(values.get("appliance_name") or appliance_name)
+        bundle_id = str(values.get("bundle_id") or "").strip()
+        bundle_label = f" [{bundle_id}]" if bundle_id else ""
+        slug = _slug(f"{display_name}_{bundle_id}" if bundle_id else display_name)
+        appliance_prediction_target_dt = datetime.fromtimestamp(
+            float(values.get("timestamp", prediction_target_dt.timestamp())),
+            tz=timezone.utc,
+        )
+        appliance_window_end_dt = datetime.fromtimestamp(
+            float(values.get("window_end_timestamp", window_end_dt.timestamp())),
+            tz=timezone.utc,
+        )
+        appliance_raw_sample_dt = datetime.fromtimestamp(
+            float(values.get("raw_timestamp", raw_sample_dt.timestamp())),
+            tz=timezone.utc,
+        )
+        appliance_prediction_delay_s = float(values.get("prediction_delay_s", prediction_delay_s) or 0.0)
+        appliance_pred_idx = values.get("pred_idx", pred_idx)
+        power_entity_id = f"sensor.nilm_{slug}_power"
+        power_data = {
+            "state": round(power, 1),
+            "attributes": {
+                "unit_of_measurement": "W",
+                "device_class": "power",
+                "state_class": "measurement",
+                "friendly_name": f"NILM {display_name.replace('_', ' ').title()} Power{bundle_label}",
+                "last_updated": timestamp.isoformat(),
+                "prediction_target_time": appliance_prediction_target_dt.isoformat(),
+                "window_end_time": appliance_window_end_dt.isoformat(),
+                "raw_sample_time": appliance_raw_sample_dt.isoformat(),
+                "prediction_delay_s": round(appliance_prediction_delay_s, 3),
+                "pred_idx": appliance_pred_idx,
+                "bundle_id": bundle_id or None,
+                "icon": "mdi:power-socket-eu",
+                "source": "dl",
+            },
+        }
+        publish_tasks.append(post_state(power_entity_id, power_data))
+
+        is_on = onoff >= 0.5
+        on_entity_id = f"binary_sensor.nilm_{slug}_on"
+        on_data = {
+            "state": "on" if is_on else "off",
+            "attributes": {
+                "friendly_name": f"NILM {display_name.replace('_', ' ').title()} On/Off{bundle_label}",
+                "last_updated": timestamp.isoformat(),
+                "prediction_target_time": appliance_prediction_target_dt.isoformat(),
+                "window_end_time": appliance_window_end_dt.isoformat(),
+                "raw_sample_time": appliance_raw_sample_dt.isoformat(),
+                "prediction_delay_s": round(appliance_prediction_delay_s, 3),
+                "pred_idx": appliance_pred_idx,
+                "bundle_id": bundle_id or None,
+                "icon": "mdi:toggle-switch" if is_on else "mdi:toggle-switch-off",
+                "source": "dl",
+                "onoff_score": round(onoff, 4),
+            },
+        }
+        publish_tasks.append(post_state(on_entity_id, on_data))
+
+    if duration is not None:
+        duration_entity_id = "sensor.nilm_disaggregation_duration"
+        duration_data = {
+            "state": round(float(duration), 3),
+            "attributes": {
+                "unit_of_measurement": "s",
+                "device_class": "duration",
+                "state_class": "measurement",
+                "friendly_name": "NILM Disaggregation Duration",
+                "last_updated": timestamp.isoformat(),
+                "prediction_target_time": prediction_target_dt.isoformat(),
+                "window_end_time": window_end_dt.isoformat(),
+                "raw_sample_time": raw_sample_dt.isoformat(),
+                "prediction_delay_s": round(prediction_delay_s, 3),
+                "pred_idx": pred_idx,
+                "icon": "mdi:timer-outline",
+                "source": "dl",
+            },
+        }
+        publish_tasks.append(post_state(duration_entity_id, duration_data))
+
+    if publish_tasks:
+        await asyncio.gather(*publish_tasks, return_exceptions=True)
 
 
 async def retry_websocket_connection(url, max_retries=10, initial_delay=1):
@@ -221,13 +221,14 @@ def build_web_app():
     return app
 
 
-async def run_live_loop():
-    sensor_to_monitor = app_state.current_config["main_sensor_id"]
+async def run_live_loop(session: aiohttp.ClientSession):
     websocket = None
     backoff = 1
+    subscribed_sensor = None
 
     while running:
         try:
+            sensor_to_monitor = app_state.current_config["main_sensor_id"]
             websocket = await retry_websocket_connection(app_state.HA_WS_URL)
 
             initial_auth_reply = json.loads(await websocket.recv())
@@ -252,6 +253,7 @@ async def run_live_loop():
 
             await websocket.send(json.dumps({"id": 1, "type": "subscribe_events", "event_type": "state_changed"}))
             print(f"Listening to {sensor_to_monitor} via HA WebSocket...")
+            subscribed_sensor = sensor_to_monitor
             backoff = 1
 
             while running:
@@ -265,7 +267,7 @@ async def run_live_loop():
                         dl_disagg = await app_state.refquery_instance.disaggregate_next(0.0, now)
                         dl_dur = time.perf_counter() - start_time
                         try:
-                            await publish_disaggregation_dl(0.0, dl_disagg, now, dl_dur)
+                            await publish_disaggregation_dl(0.0, dl_disagg, now, session, dl_dur)
                         except Exception as pub_err:
                             print(f"Publish error during idle tick: {pub_err}")
                     else:
@@ -276,6 +278,11 @@ async def run_live_loop():
                     break
 
                 try:
+                    sensor_to_monitor = app_state.current_config["main_sensor_id"]
+                    if subscribed_sensor != sensor_to_monitor:
+                        print(f"Detected mains sensor change. Now filtering events for {sensor_to_monitor}.")
+                        subscribed_sensor = sensor_to_monitor
+
                     event = json.loads(msg)
                     new_state = event.get("event", {}).get("data", {}).get("new_state")
                     if not new_state or new_state.get("entity_id") != sensor_to_monitor:
@@ -288,7 +295,7 @@ async def run_live_loop():
                         start_time = time.perf_counter()
                         dl_disagg = await app_state.refquery_instance.disaggregate_next(total_power, now)
                         dl_dur = time.perf_counter() - start_time
-                        await publish_disaggregation_dl(total_power, dl_disagg, now, dl_dur)
+                        await publish_disaggregation_dl(total_power, dl_disagg, now, session, dl_dur)
                         print("NILM duration:", dl_dur)
                     else:
                         print("NILM instance not available, skipping disaggregation.")
@@ -328,12 +335,14 @@ async def main():
     await site.start()
     print("Web server started on port 8099 for Ingress.")
 
-    try:
-        await run_live_loop()
-    finally:
-        print("Shutting down NILM service.")
-        await runner.cleanup()
-        print("Web server stopped.")
+    timeout = aiohttp.ClientTimeout(total=15, connect=5, sock_read=15)
+    async with aiohttp.ClientSession(timeout=timeout) as session:
+        try:
+            await run_live_loop(session)
+        finally:
+            print("Shutting down NILM service.")
+            await runner.cleanup()
+            print("Web server stopped.")
 
 
 if __name__ == "__main__":

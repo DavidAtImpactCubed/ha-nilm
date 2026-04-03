@@ -54,9 +54,7 @@ docker run -p 8080:8080 training-server:latest
 If you want to replace an existing local container first:
 
 ```bash
-docker rm -f training-server 2>NUL
-docker build -t training-server:latest .
-docker run -d --name training-server -p 8080:8080 training-server:latest
+docker rm -f training-server 2>NUL && docker build -t training-server:latest . && docker run -d --name training-server -p 8080:8080 training-server:latest
 ```
 
 ## Persistence
