@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import asyncio
+import gzip
+import json
 import time
 import uuid
 from typing import Any, Dict, List, Optional
@@ -78,7 +80,25 @@ def version():
     return VERSION
 
 @app.post("/train", status_code=202)
-async def start_train(payload: TrainPayload, request: Request):
+async def start_train(request: Request):
+    content_encoding = (request.headers.get("content-encoding") or "").strip().lower()
+    raw_body = await request.body()
+    print(
+        f"/train body received bytes={len(raw_body)} content_encoding={content_encoding or 'identity'}",
+        flush=True,
+    )
+
+    try:
+        if content_encoding == "gzip":
+            decoded_body = gzip.decompress(raw_body)
+        else:
+            decoded_body = raw_body
+
+        payload_obj = json.loads(decoded_body.decode("utf-8")) if decoded_body else {}
+        payload = TrainPayload.parse_obj(payload_obj)
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=f"Invalid training payload: {exc}")
+
     request_id = uuid.uuid4().hex[:8]
     job_id = uuid.uuid4().hex
 

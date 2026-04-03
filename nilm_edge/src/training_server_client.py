@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import gzip
 import json
 from typing import Any, Dict, Optional, Callable
 from urllib.parse import urlparse
@@ -35,6 +36,9 @@ async def start_training_job(
     timeout = aiohttp.ClientTimeout(total=timeout_s, connect=10, sock_read=timeout_s)
     payload_text = json.dumps(payload, separators=(",", ":"))
     payload_size_bytes = len(payload_text.encode("utf-8"))
+    payload_bytes = payload_text.encode("utf-8")
+    compressed_payload = gzip.compress(payload_bytes, compresslevel=6)
+    compressed_size_bytes = len(compressed_payload)
     n_embeddings = len(payload.get("embeddings") or []) if isinstance(payload, dict) else 0
     embedding_dim = 0
     if isinstance(payload, dict) and isinstance(payload.get("embeddings"), list) and payload["embeddings"]:
@@ -44,13 +48,16 @@ async def start_training_job(
 
     print(
         f"Training server POST starting url={training_server_url} "
-        f"payload_bytes={payload_size_bytes} n_embeddings={n_embeddings} embedding_dim={embedding_dim}",
+        f"payload_bytes={payload_size_bytes} compressed_bytes={compressed_size_bytes} "
+        f"n_embeddings={n_embeddings} embedding_dim={embedding_dim}",
         flush=True,
     )
 
     try:
         async with aiohttp.ClientSession(timeout=timeout) as session:
-            async with session.post(training_server_url, headers=_headers(api_key), data=payload_text) as resp:
+            headers = _headers(api_key)
+            headers["Content-Encoding"] = "gzip"
+            async with session.post(training_server_url, headers=headers, data=compressed_payload) as resp:
                 text = await resp.text()
                 if resp.status not in (200, 202):
                     raise TrainingServerError(f"Training server start failed HTTP {resp.status}: {text[:800]}")
@@ -65,14 +72,16 @@ async def start_training_job(
 
                 print(
                     f"Training server POST accepted url={training_server_url} "
-                    f"payload_bytes={payload_size_bytes} job_id={data.get('job_id')}",
+                    f"payload_bytes={payload_size_bytes} compressed_bytes={compressed_size_bytes} "
+                    f"job_id={data.get('job_id')}",
                     flush=True,
                 )
                 return data
 
     except asyncio.TimeoutError as e:
         raise TrainingServerError(
-            f"Training server start timed out after sending payload_bytes={payload_size_bytes}"
+            f"Training server start timed out after sending payload_bytes={payload_size_bytes} "
+            f"compressed_bytes={compressed_size_bytes}"
         ) from e
     except aiohttp.ClientError as e:
         os_error = getattr(e, "os_error", None)
@@ -80,6 +89,7 @@ async def start_training_job(
         raise TrainingServerError(
             f"Training server start request error: {e} "
             f"(url={training_server_url}, payload_bytes={payload_size_bytes}, "
+            f"compressed_bytes={compressed_size_bytes}, "
             f"n_embeddings={n_embeddings}, embedding_dim={embedding_dim}, "
             f"client_error_type={type(e).__name__}, os_error={os_error_text})"
         ) from e
