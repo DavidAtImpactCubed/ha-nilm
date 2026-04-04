@@ -304,7 +304,6 @@ async def run_live_loop(session: aiohttp.ClientSession):
                         dl_disagg = await app_state.refquery_instance.disaggregate_next(total_power, now)
                         dl_dur = time.perf_counter() - start_time
                         await publish_disaggregation_dl(total_power, dl_disagg, now, session, dl_dur)
-                        print("NILM duration:", dl_dur)
                     else:
                         print("NILM instance not available, skipping disaggregation.")
                 except Exception as exc:

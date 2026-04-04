@@ -219,6 +219,7 @@ async def train_result(job_id: str):
 
 
 async def _run_training_job(job_id: str, payload: TrainPayload, selected_bundle, request_id: str, loop: asyncio.AbstractEventLoop):
+    training_started_mono = time.perf_counter()
     async with JOBS_LOCK:
         j = JOBS.get(job_id)
         if not j:
@@ -285,7 +286,12 @@ async def _run_training_job(job_id: str, payload: TrainPayload, selected_bundle,
                 "stats": stats,
             }
 
-        print(f"[{request_id}] job_id={job_id} DONE embedding_dim={len(embedding)}", flush=True)
+        training_duration_s = time.perf_counter() - training_started_mono
+        print(
+            f"[{request_id}] job_id={job_id} DONE "
+            f"embedding_dim={len(embedding)} training_duration_s={training_duration_s:.3f}",
+            flush=True,
+        )
 
     except Exception as e:
         async with JOBS_LOCK:
