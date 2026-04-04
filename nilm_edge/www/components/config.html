@@ -1511,12 +1511,7 @@
             .filter((sensor) => {
                 if (!sensor?.entity_id) return false;
                 const unit = String(sensor.unit_of_measurement || "").trim();
-                const deviceClass = String(sensor.device_class || "").trim().toLowerCase();
-                const stateClass = String(sensor.state_class || "").trim().toLowerCase();
-                const isPowerUnit = unit === "W" || unit === "kW";
-                const isPowerSensor = deviceClass === "power";
-                const isMeasurement = !stateClass || stateClass === "measurement";
-                return isPowerUnit && isPowerSensor && isMeasurement;
+                return unit === "W" || unit === "kW";
             })
             .sort((a, b) => String(a.friendly_name || a.entity_id).localeCompare(String(b.friendly_name || b.entity_id)));
 
@@ -1524,8 +1519,7 @@
         sensors.forEach((sensor) => {
             const option = document.createElement("option");
             option.value = sensor.entity_id;
-            const unit = String(sensor.unit_of_measurement || "").trim();
-            option.textContent = `${sensor.friendly_name || sensor.entity_id} [${sensor.entity_id}]${unit ? ` (${unit})` : ""}`;
+            option.textContent = sensor.friendly_name || sensor.entity_id;
             predictionOverlaySensorSelect.appendChild(option);
         });
     }
