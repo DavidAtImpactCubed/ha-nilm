@@ -149,6 +149,10 @@
         border: 1px solid #dbeafe;
     }
 
+    .chart-shell canvas {
+        touch-action: none;
+    }
+
     .chart-loading {
         position: absolute;
         inset: 0;
@@ -1006,10 +1010,12 @@
         .chart-shell {
             height: 200px;
             border-radius: 12px;
+            margin-left: -6px;
+            margin-right: -6px;
         }
 
         .stats-grid {
-            grid-template-columns: 1fr;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
             gap: 8px;
             margin-bottom: 14px;
         }
@@ -1115,7 +1121,7 @@
                 </div>
             </div>
 
-            <div class="chart-shell">
+            <div id="mainsSignalChartShell" class="chart-shell">
                 <div id="chartLoadingOverlay" class="chart-loading">
                     <div class="chart-loading-card">
                         <div class="chart-spinner"></div>
@@ -1252,6 +1258,7 @@
     let refreshSignalButton;
     let saveButton;
     let statusMessage;
+    let mainsSignalChartShell;
     let addApplianceButton;
     let energyStat;
     let avgPowerStat;
@@ -2159,6 +2166,7 @@
         currentPreviewModelName = modelName;
         currentPreviewStartUtc = startUtc;
         currentPreviewEndUtc = endUtc;
+        focusSignalChartOnMobile();
         showChartLoading("Preparing prediction...");
 
         try {
@@ -2254,6 +2262,14 @@
 
     function isPhoneScreen() {
         return window.matchMedia("(max-width: 480px)").matches;
+    }
+
+    function focusSignalChartOnMobile() {
+        if (!isCompactScreen() || !mainsSignalChartShell) return;
+        mainsSignalChartShell.scrollIntoView({
+            behavior: "smooth",
+            block: "start",
+        });
     }
 
     function showMessage(message, type) {
@@ -2927,6 +2943,7 @@
         historyRangeSelect = document.getElementById("historyRangeSelect");
         refreshSignalButton = document.getElementById("refreshSignalButton");
         saveButton = document.getElementById("saveButton");
+        mainsSignalChartShell = document.getElementById("mainsSignalChartShell");
         addApplianceButton = document.getElementById("addApplianceButton");
         chartLoadingOverlay = document.getElementById("chartLoadingOverlay");
         chartLoadingText = document.getElementById("chartLoadingText");
@@ -3204,6 +3221,7 @@
         historyRangeSelect = null;
         refreshSignalButton = null;
         saveButton = null;
+        mainsSignalChartShell = null;
         addApplianceButton = null;
         chartLoadingOverlay = null;
         chartLoadingText = null;
