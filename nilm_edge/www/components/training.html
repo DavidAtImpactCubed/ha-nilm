@@ -416,6 +416,14 @@
         min-width: 0;
     }
 
+    .training-server-status-header {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin-bottom: 4px;
+        flex-wrap: wrap;
+    }
+
     .training-server-inline-row {
         display: grid;
         grid-template-columns: minmax(0, 1fr) auto auto auto;
@@ -504,6 +512,9 @@
         .training-server-inline-row {
             grid-template-columns: 1fr;
             align-items: stretch;
+        }
+        .training-server-status-header {
+            align-items: flex-start;
         }
         .jobs-pagination {
             flex-direction: column;
@@ -631,8 +642,11 @@
 
     <div id="trainingServerStatusCard" class="training-server-status-card">
         <div class="training-server-status-copy">
-            <div class="training-server-status-title">Training Server Connection</div>
-            <div id="trainingServerStatusMessage" class="training-server-status-message">Checking training server connection before training...</div>
+            <div class="training-server-status-header">
+                <div class="training-server-status-title">Training Server Connection</div>
+                <span id="trainingServerStatusBadge" class="training-server-status-badge training-server-status-warning">Checking</span>
+            </div>
+            <div id="trainingServerStatusMessage" class="training-server-status-message hidden">Checking training server connection before training...</div>
             <div class="training-server-inline-row">
                 <div>
                     <label for="trainingServerUrlSelect" class="field-label">Training Server</label>
@@ -641,7 +655,6 @@
                     </select>
                 </div>
                 <button id="saveTrainingServerUrlBtn" class="action-btn action-primary" type="button">Save</button>
-                <span id="trainingServerStatusBadge" class="training-server-status-badge training-server-status-warning">Checking</span>
                 <button id="retryTrainingServerStatusBtn" class="action-btn action-neutral" type="button">
                     <i class="fas fa-sync mr-2" aria-hidden="true"></i> Retry
                 </button>
@@ -1188,6 +1201,7 @@
                 trainingServerStatusMessage.textContent = message || (ok
                     ? "Training server connection looks ready."
                     : "Training server connection is not available.");
+                trainingServerStatusMessage.classList.add("hidden");
             }
 
             if (trainingServerStatusBadge) {
