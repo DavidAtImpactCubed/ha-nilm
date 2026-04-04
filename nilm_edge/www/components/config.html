@@ -1159,6 +1159,7 @@
         "#0f766e",
         "#d97706",
     ];
+    const PREVIEW_MAINS_COLOR = "#64748b";
 
     function formatPower(value) {
         if (!Number.isFinite(value)) return "-";
@@ -1539,12 +1540,9 @@
             });
             const series = buildPredictionAlignedOverlaySeries(rawSeries, currentPreviewBasePowerSeries);
             const sensor = allSensorsById.get(entityId);
-            const overlayLabel = sensor?.friendly_name && sensor?.entity_id
-                ? `${sensor.friendly_name} [${sensor.entity_id}]`
-                : (sensor?.friendly_name || entityId);
             predictionOverlaySensors.push({
                 entityId,
-                friendlyName: overlayLabel,
+                friendlyName: sensor?.friendly_name || entityId,
                 color: PREVIEW_OVERLAY_COLORS[predictionOverlaySensors.length % PREVIEW_OVERLAY_COLORS.length],
                 series,
             });
@@ -1555,6 +1553,25 @@
             if (addPredictionOverlayButton) addPredictionOverlayButton.disabled = false;
             if (predictionOverlaySensorSelect) predictionOverlaySensorSelect.disabled = false;
         }
+    }
+
+    async function addDefaultMainsOverlay() {
+        const entityId = mainSensorSelect?.value;
+        if (!entityId || !currentPreviewStartUtc || !currentPreviewEndUtc) return;
+        if (!Array.isArray(currentPreviewBasePowerSeries) || !currentPreviewBasePowerSeries.length) return;
+        if (predictionOverlaySensors.some((item) => item.entityId === entityId)) return;
+
+        const rawSeries = await fetchSeriesForSensor(entityId, {
+            startUtc: currentPreviewStartUtc,
+            endUtc: currentPreviewEndUtc,
+        });
+        const series = buildPredictionAlignedOverlaySeries(rawSeries, currentPreviewBasePowerSeries);
+        predictionOverlaySensors.push({
+            entityId,
+            friendlyName: "Mains",
+            color: PREVIEW_MAINS_COLOR,
+            series,
+        });
     }
 
     function removePredictionOverlaySensor(entityId) {
@@ -1810,9 +1827,13 @@
             currentPreviewBasePowerSeries = powerSeries;
             currentPreviewStateSeries = stateSeries;
 
+            await addDefaultMainsOverlay();
+
             if (predictionPreviewEnergy) predictionPreviewEnergy.textContent = formatEnergy(energyWh);
             if (predictionPreviewOnPct) predictionPreviewOnPct.textContent = formatPercent(mainsSharePct);
 
+            renderPredictionOverlayList();
+            populatePredictionOverlaySensorSelect();
             renderPredictionPreviewChart(powerSeries, stateSeries, modelName);
         } catch (error) {
             console.error("Prediction preview failed:", error);
