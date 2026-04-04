@@ -346,22 +346,6 @@
         color: #1d4ed8;
     }
 
-    .prediction-share-help {
-        display: none;
-        margin-top: 8px;
-        padding: 12px 14px;
-        border-radius: 12px;
-        background: rgba(255, 255, 255, 0.92);
-        border: 1px solid #dbeafe;
-        color: #475569;
-        font-size: 0.9rem;
-        line-height: 1.45;
-    }
-
-    .prediction-share-help.active {
-        display: block;
-    }
-
     .embedding-list {
         display: flex;
         flex-direction: column;
@@ -1152,10 +1136,7 @@
                             <div id="signalPredictionShareCenterValue" class="prediction-share-center-value">100%</div>
                         </div>
                     </div>
-                    <div>
-                        <div id="signalPredictionShareList" class="prediction-share-list"></div>
-                        <div id="signalPredictionShareHelp" class="prediction-share-help"></div>
-                    </div>
+                    <div id="signalPredictionShareList" class="prediction-share-list"></div>
                 </div>
             </div>
 
@@ -1204,6 +1185,18 @@
         </div>
         <div class="config-modal-actions">
             <button id="closeRealtimeHelpButton" class="action-btn action-primary" type="button">OK</button>
+        </div>
+    </div>
+</div>
+
+<div id="baseLoadHelpModal" class="config-modal-overlay">
+    <div class="config-modal-card">
+        <div class="config-modal-title">Base Load</div>
+        <div class="config-modal-copy">
+            Base Load is the part of the mains that behaves like always-on consumption, such as standby devices or appliances that continuously draw power.
+        </div>
+        <div class="config-modal-actions">
+            <button id="closeBaseLoadHelpButton" class="action-btn action-primary" type="button">OK</button>
         </div>
     </div>
 </div>
@@ -1275,13 +1268,14 @@
     let signalPredictionShareChartCanvas;
     let signalPredictionShareCenterValue;
     let signalPredictionShareList;
-    let signalPredictionShareHelp;
     let deleteEmbeddingModal;
     let deleteEmbeddingModalMessage;
     let confirmDeleteEmbeddingButton;
     let cancelDeleteEmbeddingButton;
     let realtimeHelpModal;
     let closeRealtimeHelpButton;
+    let baseLoadHelpModal;
+    let closeBaseLoadHelpButton;
     let predictionPreviewModal;
     let predictionPreviewTitle;
     let predictionPreviewCopy;
@@ -1328,6 +1322,8 @@
     let cancelDeleteEmbeddingHandler;
     let closeRealtimeHelpHandler;
     let realtimeHelpOverlayHandler;
+    let closeBaseLoadHelpHandler;
+    let baseLoadHelpOverlayHandler;
     let closePredictionPreviewHandler;
     let predictionPreviewOverlayHandler;
     let addPredictionOverlayHandler;
@@ -1423,6 +1419,14 @@
 
     function closeRealtimeHelpModal() {
         if (realtimeHelpModal) realtimeHelpModal.classList.remove("active");
+    }
+
+    function openBaseLoadHelpModal() {
+        if (baseLoadHelpModal) baseLoadHelpModal.classList.add("active");
+    }
+
+    function closeBaseLoadHelpModal() {
+        if (baseLoadHelpModal) baseLoadHelpModal.classList.remove("active");
     }
 
     function closePredictionPreview() {
@@ -1666,22 +1670,14 @@
         }
     }
 
-    function showPredictionShareHelp(message = "") {
-        if (!signalPredictionShareHelp) return;
-        const text = String(message || "").trim();
-        signalPredictionShareHelp.textContent = text;
-        signalPredictionShareHelp.classList.toggle("active", Boolean(text));
-    }
-
     function renderInlinePredictionShareChart() {
-        if (!signalPredictionShareWrap || !signalPredictionShareList || !signalPredictionShareCenterValue || !signalPredictionShareChartCanvas || !signalPredictionShareHelp) {
+        if (!signalPredictionShareWrap || !signalPredictionShareList || !signalPredictionShareCenterValue || !signalPredictionShareChartCanvas) {
             return;
         }
 
         if (!activeInlinePredictions.length || !fullSignalSeries.length) {
             signalPredictionShareWrap.classList.add("hidden");
             signalPredictionShareList.innerHTML = "";
-            showPredictionShareHelp("");
             signalPredictionShareCenterValue.textContent = "0%";
             currentPredictionShareItems = [];
             if (signalPredictionShareChart) {
@@ -1833,7 +1829,6 @@
         activeInlinePredictions = modelKey
             ? activeInlinePredictions.filter((prediction) => prediction.modelKey !== modelKey)
             : [];
-        showPredictionShareHelp("");
         renderInlinePredictionUi();
         renderSignalChart(fullSignalSeries);
     }
@@ -2938,7 +2933,6 @@
         signalPredictionShareChartCanvas = document.getElementById("signalPredictionShareChart");
         signalPredictionShareCenterValue = document.getElementById("signalPredictionShareCenterValue");
         signalPredictionShareList = document.getElementById("signalPredictionShareList");
-        signalPredictionShareHelp = document.getElementById("signalPredictionShareHelp");
         statusMessage = document.getElementById("statusMessage");
         deleteEmbeddingModal = document.getElementById("deleteEmbeddingModal");
         deleteEmbeddingModalMessage = document.getElementById("deleteEmbeddingModalMessage");
@@ -2946,6 +2940,8 @@
         cancelDeleteEmbeddingButton = document.getElementById("cancelDeleteEmbeddingButton");
         realtimeHelpModal = document.getElementById("realtimeHelpModal");
         closeRealtimeHelpButton = document.getElementById("closeRealtimeHelpButton");
+        baseLoadHelpModal = document.getElementById("baseLoadHelpModal");
+        closeBaseLoadHelpButton = document.getElementById("closeBaseLoadHelpButton");
         predictionPreviewModal = document.getElementById("predictionPreviewModal");
         predictionPreviewTitle = document.getElementById("predictionPreviewTitle");
         predictionPreviewCopy = document.getElementById("predictionPreviewCopy");
@@ -2963,6 +2959,7 @@
         predictionPreviewIntervalsCanvas = document.getElementById("predictionPreviewIntervals");
         closeDeleteEmbeddingModal();
         closeRealtimeHelpModal();
+        closeBaseLoadHelpModal();
         closePredictionPreview();
         renderInlinePredictionUi();
         energyStat = document.getElementById("energyStat");
@@ -3044,6 +3041,7 @@
         };
         cancelDeleteEmbeddingHandler = () => closeDeleteEmbeddingModal();
         closeRealtimeHelpHandler = () => closeRealtimeHelpModal();
+        closeBaseLoadHelpHandler = () => closeBaseLoadHelpModal();
         closePredictionPreviewHandler = () => closePredictionPreview();
         predictionPreviewOverlayHandler = (event) => {
             const removeButton = event.target.closest("[data-overlay-remove]");
@@ -3083,10 +3081,7 @@
         signalPredictionShareListHandler = (event) => {
             const helpButton = event.target.closest("[data-share-help='baseload']");
             if (helpButton) {
-                const helpText = "Base Load is the part of the mains that behaves like always-on consumption, such as standby devices or appliances that continuously draw power. The NILM prediction treats it as the background level and estimates appliances on top of it.";
-                const isSameText = signalPredictionShareHelp?.classList.contains("active")
-                    && signalPredictionShareHelp?.textContent === helpText;
-                showPredictionShareHelp(isSameText ? "" : helpText);
+                openBaseLoadHelpModal();
                 return;
             }
 
@@ -3095,6 +3090,11 @@
             highlightPredictionShareSlice(row ? row.getAttribute("data-share-item") : null);
         };
         signalPredictionShareLeaveHandler = () => highlightPredictionShareSlice(null);
+        baseLoadHelpOverlayHandler = (event) => {
+            if (event.target === baseLoadHelpModal) {
+                closeBaseLoadHelpModal();
+            }
+        };
         sensorChangeHandler = async () => {
             try {
                 if (activeInlinePredictions.length) clearInlinePrediction();
@@ -3125,6 +3125,8 @@
         cancelDeleteEmbeddingButton.addEventListener("click", cancelDeleteEmbeddingHandler);
         closeRealtimeHelpButton.addEventListener("click", closeRealtimeHelpHandler);
         realtimeHelpModal.addEventListener("click", realtimeHelpOverlayHandler);
+        if (closeBaseLoadHelpButton) closeBaseLoadHelpButton.addEventListener("click", closeBaseLoadHelpHandler);
+        if (baseLoadHelpModal) baseLoadHelpModal.addEventListener("click", baseLoadHelpOverlayHandler);
         closePredictionPreviewButton.addEventListener("click", closePredictionPreviewHandler);
         predictionPreviewModal.addEventListener("click", predictionPreviewOverlayHandler);
         if (addPredictionOverlayButton) addPredictionOverlayButton.addEventListener("click", addPredictionOverlayHandler);
@@ -3155,6 +3157,8 @@
         if (cancelDeleteEmbeddingButton && cancelDeleteEmbeddingHandler) cancelDeleteEmbeddingButton.removeEventListener("click", cancelDeleteEmbeddingHandler);
         if (closeRealtimeHelpButton && closeRealtimeHelpHandler) closeRealtimeHelpButton.removeEventListener("click", closeRealtimeHelpHandler);
         if (realtimeHelpModal && realtimeHelpOverlayHandler) realtimeHelpModal.removeEventListener("click", realtimeHelpOverlayHandler);
+        if (closeBaseLoadHelpButton && closeBaseLoadHelpHandler) closeBaseLoadHelpButton.removeEventListener("click", closeBaseLoadHelpHandler);
+        if (baseLoadHelpModal && baseLoadHelpOverlayHandler) baseLoadHelpModal.removeEventListener("click", baseLoadHelpOverlayHandler);
         if (closePredictionPreviewButton && closePredictionPreviewHandler) closePredictionPreviewButton.removeEventListener("click", closePredictionPreviewHandler);
         if (predictionPreviewModal && predictionPreviewOverlayHandler) predictionPreviewModal.removeEventListener("click", predictionPreviewOverlayHandler);
         if (addPredictionOverlayButton && addPredictionOverlayHandler) addPredictionOverlayButton.removeEventListener("click", addPredictionOverlayHandler);
@@ -3206,7 +3210,6 @@
         signalPredictionShareChartCanvas = null;
         signalPredictionShareCenterValue = null;
         signalPredictionShareList = null;
-        signalPredictionShareHelp = null;
         statusMessage = null;
         deleteEmbeddingModal = null;
         deleteEmbeddingModalMessage = null;
@@ -3214,6 +3217,8 @@
         cancelDeleteEmbeddingButton = null;
         realtimeHelpModal = null;
         closeRealtimeHelpButton = null;
+        baseLoadHelpModal = null;
+        closeBaseLoadHelpButton = null;
         predictionPreviewModal = null;
         predictionPreviewTitle = null;
         predictionPreviewCopy = null;
@@ -3248,6 +3253,8 @@
         cancelDeleteEmbeddingHandler = null;
         closeRealtimeHelpHandler = null;
         realtimeHelpOverlayHandler = null;
+        closeBaseLoadHelpHandler = null;
+        baseLoadHelpOverlayHandler = null;
         closePredictionPreviewHandler = null;
         predictionPreviewOverlayHandler = null;
         addPredictionOverlayHandler = null;
