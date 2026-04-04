@@ -194,8 +194,8 @@ def build_web_app():
     app["training_server_manager"] = TrainingServerServiceManager(
         jobs_dir="/data/training_jobs",
         models_root=app_state.MODELS_ROOT,
-        training_server_url=app_state.TRAINING_SERVER_URL,
-        training_server_api_key=app_state.TRAINING_SERVER_API_KEY,
+        training_server_url=app_state.get_training_server_url(),
+        training_server_api_key=app_state.get_training_server_api_key(),
         save_embedding_npy_fn=save_embedding_npy,
         reload_algorithm_fn=app_state.reload_algorithm_config,
     )
