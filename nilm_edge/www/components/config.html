@@ -216,6 +216,21 @@
         border: 1px solid #fca5a5;
     }
 
+    .prediction-inline-panel {
+        margin-top: 16px;
+        display: grid;
+        gap: 10px;
+    }
+
+    .prediction-inline-panel.hidden {
+        display: none;
+    }
+
+    .prediction-inline-meta {
+        font-size: 0.95rem;
+        color: #475569;
+    }
+
     .embedding-list {
         display: flex;
         flex-direction: column;
@@ -986,6 +1001,11 @@
                 <canvas id="mainsSignalChart"></canvas>
             </div>
 
+            <div id="signalPredictionPanel" class="prediction-inline-panel hidden">
+                <div id="signalPredictionMeta" class="prediction-inline-meta"></div>
+                <div id="signalPredictionList" class="prediction-overlay-list"></div>
+            </div>
+
             <div id="statusMessage" class="status-message"></div>
         </section>
 
@@ -1094,6 +1114,9 @@
     let embeddingsCountStat;
     let embeddingsList;
     let chartLoadingOverlay;
+    let signalPredictionPanel;
+    let signalPredictionMeta;
+    let signalPredictionList;
     let deleteEmbeddingModal;
     let deleteEmbeddingModalMessage;
     let confirmDeleteEmbeddingButton;
@@ -1119,6 +1142,7 @@
     let predictionPreviewChart;
     let predictionIntervalsChart;
     let predictionOverlaySensors = [];
+    let activeInlinePrediction = null;
     let currentPreviewModelName = null;
     let currentPreviewBasePowerSeries = [];
     let currentPreviewStateSeries = [];
@@ -1147,6 +1171,7 @@
     let predictionPreviewOverlayHandler;
     let addPredictionOverlayHandler;
     let resetPredictionZoomHandler;
+    let signalPredictionListHandler;
     let latestPowerPollTickHandler;
     let messageTimeoutId;
     let pendingDeleteEmbeddingName = null;
@@ -1449,6 +1474,39 @@
             `;
             predictionOverlayList.appendChild(chip);
         });
+    }
+
+    function renderInlinePredictionUi() {
+        if (!signalPredictionPanel || !signalPredictionMeta || !signalPredictionList) return;
+
+        if (!activeInlinePrediction) {
+            signalPredictionPanel.classList.add("hidden");
+            signalPredictionMeta.textContent = "";
+            signalPredictionList.innerHTML = "";
+            return;
+        }
+
+        signalPredictionPanel.classList.remove("hidden");
+        signalPredictionMeta.textContent =
+            `${activeInlinePrediction.modelName} prediction for ${activeInlinePrediction.rangeLabel}. `
+            + `Energy: ${activeInlinePrediction.energyLabel}. `
+            + `Share of mains: ${activeInlinePrediction.shareLabel}.`;
+
+        signalPredictionList.innerHTML = `
+            <div class="prediction-overlay-chip">
+                <span class="prediction-overlay-dot" style="background:#0284c7;"></span>
+                <span>${activeInlinePrediction.modelName}</span>
+                <button class="prediction-overlay-remove" type="button" aria-label="Remove prediction" data-inline-prediction-remove="true">
+                    <i class="fas fa-times" aria-hidden="true"></i>
+                </button>
+            </div>
+        `;
+    }
+
+    function clearInlinePrediction() {
+        activeInlinePrediction = null;
+        renderInlinePredictionUi();
+        renderSignalChart(fullSignalSeries);
     }
 
     function estimateOverlayNominalStepMs(series) {
@@ -1768,30 +1826,11 @@
     }
 
     async function openPredictionPreview(modelKey, modelName) {
-        if (!predictionPreviewModal) return;
-
-        predictionPreviewModal.classList.add("active");
-        setPredictionPreviewProgress("Preparing preview request...", 2);
-        if (predictionPreviewEmpty) predictionPreviewEmpty.classList.remove("active");
-        if (predictionPreviewChart) {
-            predictionPreviewChart.destroy();
-            predictionPreviewChart = null;
-        }
-        if (predictionPreviewTitle) predictionPreviewTitle.textContent = `${modelName} Prediction Preview`;
-
         const { startUtc, endUtc } = getSelectedRangeBounds();
         currentPreviewModelName = modelName;
         currentPreviewStartUtc = startUtc;
         currentPreviewEndUtc = endUtc;
-        predictionOverlaySensors = [];
-        renderPredictionOverlayList();
-        populatePredictionOverlaySensorSelect();
-        if (predictionPreviewRange) predictionPreviewRange.textContent = formatRangeLabel(startUtc, endUtc);
-        if (predictionPreviewCopy) {
-            predictionPreviewCopy.textContent = "Power and state predictions for the selected mains range.";
-        }
-        if (predictionPreviewEnergy) predictionPreviewEnergy.textContent = "-";
-        if (predictionPreviewOnPct) predictionPreviewOnPct.textContent = "-";
+        showChartLoading();
 
         try {
             const previewUrl = `embeddings/${encodeURIComponent(modelKey)}/preview`;
@@ -1816,10 +1855,12 @@
             const payload = await waitForPredictionPreviewJob(startPayload.job_id);
             const powerSeries = Array.isArray(payload.power_series) ? payload.power_series : [];
             const stateSeries = Array.isArray(payload.state_series) ? payload.state_series : [];
-            setPredictionPreviewProgress("Rendering prediction charts...", 100);
 
             if (!powerSeries.length && !stateSeries.length) {
-                if (predictionPreviewEmpty) predictionPreviewEmpty.classList.add("active");
+                activeInlinePrediction = null;
+                renderInlinePredictionUi();
+                renderSignalChart(fullSignalSeries);
+                showMessage("No prediction history is available for the selected range yet.", "error");
                 return;
             }
 
@@ -1828,23 +1869,23 @@
             const mainsSharePct = mainsEnergyWh > 1e-9 ? (energyWh / mainsEnergyWh) * 100 : NaN;
             currentPreviewBasePowerSeries = powerSeries;
             currentPreviewStateSeries = stateSeries;
-
-            await addDefaultMainsOverlay();
-
-            if (predictionPreviewEnergy) predictionPreviewEnergy.textContent = formatEnergy(energyWh);
-            if (predictionPreviewOnPct) predictionPreviewOnPct.textContent = formatPercent(mainsSharePct);
-
-            renderPredictionOverlayList();
-            populatePredictionOverlaySensorSelect();
-            renderPredictionPreviewChart(powerSeries, stateSeries, modelName);
+            activeInlinePrediction = {
+                modelKey,
+                modelName,
+                powerSeries,
+                stateSeries,
+                rangeLabel: formatRangeLabel(startUtc, endUtc),
+                energyLabel: formatEnergy(energyWh),
+                shareLabel: formatPercent(mainsSharePct),
+            };
+            renderInlinePredictionUi();
+            renderSignalChart(fullSignalSeries);
+            showMessage(`${modelName} prediction added to the mains chart.`, "success");
         } catch (error) {
             console.error("Prediction preview failed:", error);
-            if (predictionPreviewCopy) {
-                predictionPreviewCopy.textContent = error.message || "Failed to load prediction preview.";
-            }
-            if (predictionPreviewEmpty) predictionPreviewEmpty.classList.add("active");
+            showMessage(error.message || "Failed to load prediction preview.", "error");
         } finally {
-            hidePredictionPreviewLoading();
+            hideChartLoading();
         }
     }
 
@@ -2006,6 +2047,9 @@
         if (!mainsSignalChart || !fullSignalSeries.length) {
             if (mainsSignalChart) {
                 mainsSignalChart.data.datasets[0].data = [];
+                if (mainsSignalChart.data.datasets[1]) {
+                    mainsSignalChart.data.datasets[1].data = [];
+                }
                 mainsSignalChart.update("none");
             }
             return;
@@ -2031,44 +2075,69 @@
             }
 
             mainsSignalChart.data.datasets[0].data = decimateSeriesForRange(fullSignalSeries, minX, maxX, 1200);
+            if (mainsSignalChart.data.datasets[1]) {
+                mainsSignalChart.data.datasets[1].data = activeInlinePrediction
+                    ? decimateSeriesForRange(activeInlinePrediction.powerSeries, minX, maxX, 1200)
+                    : [];
+            }
             mainsSignalChart.update("none");
         }, 80);
     }
 
     function renderSignalChart(series) {
+        const previousMinX = Number.isFinite(mainsSignalChart?.scales?.x?.min) ? mainsSignalChart.scales.x.min : undefined;
+        const previousMaxX = Number.isFinite(mainsSignalChart?.scales?.x?.max) ? mainsSignalChart.scales.x.max : undefined;
         if (mainsSignalChart) mainsSignalChart.destroy();
 
         const chartEl = document.getElementById("mainsSignalChart");
         const ctx = chartEl.getContext("2d");
         const minX = series.length ? series[0].x : undefined;
         const maxX = series.length ? series[series.length - 1].x : undefined;
+        const initialMinX = Number.isFinite(previousMinX) ? previousMinX : minX;
+        const initialMaxX = Number.isFinite(previousMaxX) ? previousMaxX : maxX;
 
         mainsSignalChart = new Chart(ctx, {
             type: "line",
             data: {
-                datasets: [{
-                    label: "Mains Power",
-                    data: series,
-                    parsing: false,
-                    normalized: true,
-                    borderColor: "#0284c7",
-                    backgroundColor: "rgba(14, 165, 233, 0.15)",
-                    fill: true,
-                    pointRadius: 0,
-                    borderWidth: 1.5,
-                    tension: 0.08,
-                    spanGaps: true,
-                }]
+                datasets: [
+                    {
+                        label: "Mains Power",
+                        data: series,
+                        parsing: false,
+                        normalized: true,
+                        borderColor: "#0284c7",
+                        backgroundColor: "rgba(14, 165, 233, 0.15)",
+                        fill: true,
+                        pointRadius: 0,
+                        borderWidth: 1.5,
+                        tension: 0.08,
+                        spanGaps: true,
+                    },
+                    {
+                        label: activeInlinePrediction ? `${activeInlinePrediction.modelName} Prediction (W)` : "Power Prediction (W)",
+                        data: activeInlinePrediction?.powerSeries || [],
+                        parsing: false,
+                        normalized: true,
+                        borderColor: "#2563eb",
+                        backgroundColor: "rgba(37, 99, 235, 0.12)",
+                        fill: false,
+                        pointRadius: 0,
+                        borderWidth: 2,
+                        tension: 0.15,
+                        spanGaps: true,
+                        hidden: !activeInlinePrediction,
+                    }
+                ]
             },
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
                 animation: false,
                 plugins: {
-                    legend: { display: false },
+                    legend: { display: Boolean(activeInlinePrediction) },
                     tooltip: {
                         callbacks: {
-                            label: (ctx) => ` ${formatPower(ctx.parsed.y)}`
+                            label: (ctx) => `${ctx.dataset.label}: ${formatPower(ctx.parsed.y)}`
                         }
                     },
                     zoom: {
@@ -2100,8 +2169,8 @@
                                 week: "dd/MM",
                             }
                         },
-                        min: minX,
-                        max: maxX,
+                        min: initialMinX,
+                        max: initialMaxX,
                         ticks: {
                             maxRotation: 0,
                             autoSkip: true,
@@ -2505,6 +2574,9 @@
         saveButton = document.getElementById("saveButton");
         addApplianceButton = document.getElementById("addApplianceButton");
         chartLoadingOverlay = document.getElementById("chartLoadingOverlay");
+        signalPredictionPanel = document.getElementById("signalPredictionPanel");
+        signalPredictionMeta = document.getElementById("signalPredictionMeta");
+        signalPredictionList = document.getElementById("signalPredictionList");
         statusMessage = document.getElementById("statusMessage");
         deleteEmbeddingModal = document.getElementById("deleteEmbeddingModal");
         deleteEmbeddingModalMessage = document.getElementById("deleteEmbeddingModalMessage");
@@ -2530,6 +2602,7 @@
         closeDeleteEmbeddingModal();
         closeRealtimeHelpModal();
         closePredictionPreview();
+        renderInlinePredictionUi();
         energyStat = document.getElementById("energyStat");
         avgPowerStat = document.getElementById("avgPowerStat");
         maxPowerStat = document.getElementById("maxPowerStat");
@@ -2639,8 +2712,15 @@
                 updatePredictionPreviewChartData();
             }
         };
+        signalPredictionListHandler = (event) => {
+            const removeButton = event.target.closest("[data-inline-prediction-remove]");
+            if (!removeButton) return;
+            clearInlinePrediction();
+            showMessage("Prediction removed from the mains chart.", "success");
+        };
         sensorChangeHandler = async () => {
             try {
+                if (activeInlinePrediction) clearInlinePrediction();
                 await fetchAndRenderSignal();
             } catch (error) {
                 console.error("Signal update after sensor change failed:", error);
@@ -2657,6 +2737,7 @@
         refreshSignalButton.addEventListener("click", refreshSignalButtonHandler);
         embeddingsList.addEventListener("click", embeddingsListClickHandler);
         embeddingsList.addEventListener("change", embeddingsListChangeHandler);
+        if (signalPredictionList) signalPredictionList.addEventListener("click", signalPredictionListHandler);
         confirmDeleteEmbeddingButton.addEventListener("click", confirmDeleteEmbeddingHandler);
         cancelDeleteEmbeddingButton.addEventListener("click", cancelDeleteEmbeddingHandler);
         closeRealtimeHelpButton.addEventListener("click", closeRealtimeHelpHandler);
@@ -2680,6 +2761,7 @@
         if (refreshSignalButton && refreshSignalButtonHandler) refreshSignalButton.removeEventListener("click", refreshSignalButtonHandler);
         if (embeddingsList && embeddingsListClickHandler) embeddingsList.removeEventListener("click", embeddingsListClickHandler);
         if (embeddingsList && embeddingsListChangeHandler) embeddingsList.removeEventListener("change", embeddingsListChangeHandler);
+        if (signalPredictionList && signalPredictionListHandler) signalPredictionList.removeEventListener("click", signalPredictionListHandler);
         if (confirmDeleteEmbeddingButton && confirmDeleteEmbeddingHandler) confirmDeleteEmbeddingButton.removeEventListener("click", confirmDeleteEmbeddingHandler);
         if (cancelDeleteEmbeddingButton && cancelDeleteEmbeddingHandler) cancelDeleteEmbeddingButton.removeEventListener("click", cancelDeleteEmbeddingHandler);
         if (closeRealtimeHelpButton && closeRealtimeHelpHandler) closeRealtimeHelpButton.removeEventListener("click", closeRealtimeHelpHandler);
@@ -2723,6 +2805,9 @@
         saveButton = null;
         addApplianceButton = null;
         chartLoadingOverlay = null;
+        signalPredictionPanel = null;
+        signalPredictionMeta = null;
+        signalPredictionList = null;
         statusMessage = null;
         deleteEmbeddingModal = null;
         deleteEmbeddingModalMessage = null;
@@ -2752,6 +2837,7 @@
         embeddingsCountStat = null;
         embeddingsList = null;
         fullSignalSeries = [];
+        activeInlinePrediction = null;
         saveButtonHandler = null;
         addApplianceButtonHandler = null;
         refreshSignalButtonHandler = null;
@@ -2767,6 +2853,7 @@
         predictionPreviewOverlayHandler = null;
         addPredictionOverlayHandler = null;
         resetPredictionZoomHandler = null;
+        signalPredictionListHandler = null;
         latestPowerPollTickHandler = null;
         pendingDeleteEmbeddingName = null;
         sensorsById = new Map();

@@ -719,13 +719,6 @@
                 <p id="supervisionModeHint" class="text-xs text-slate-500 mt-2">Use interval supervision when you only know when the appliance was ON inside the mains signal.</p>
             </div>
             <div class="mb-4">
-                <label for="trainingBundleSelect" class="field-label">Model Version</label>
-                <select id="trainingBundleSelect" class="field-input">
-                    <option value="">Loading model versions...</option>
-                </select>
-                <p id="trainingBundleHint" class="text-xs text-slate-500 mt-2">New training uses the latest available model version by default.</p>
-            </div>
-            <div class="mb-4">
                 <label for="applianceNameInput" class="field-label">Appliance Name (e.g., Refrigerator)</label>
                 <input type="text" id="applianceNameInput" class="field-input" placeholder="Enter appliance name">
                 <p id="applianceNameError" class="text-red-500 text-xs mt-1 hidden">Appliance name is required.</p>
@@ -992,8 +985,6 @@
     let applianceNameInput;
     let supervisionModeSelect;
     let supervisionModeHint;
-    let trainingBundleSelect;
-    let trainingBundleHint;
     let sensorSupervisionSection;
     let applianceSensorSelect;
     let applianceNameError;
@@ -1044,7 +1035,6 @@
     // --- FIX: Define MAIN_SENSOR_ENTITY_ID for history API calls ---
     let MAIN_SENSOR_ENTITY_ID = "";
     let trainingJobId = null;
-    let availableTrainingBundles = [];
 
     // Define initializeTrainingUI in the global scope so web_ui.html can call it
     window.initializeTrainingUI = function() {
@@ -1098,47 +1088,6 @@
                 second: withSeconds ? "2-digit" : undefined,
                 hour12: !prefers24Hour,
             });
-        }
-
-        function selectedTrainingBundle() {
-            if (!trainingBundleSelect?.value) return null;
-            return availableTrainingBundles.find((bundle) => bundle.bundle_id === trainingBundleSelect.value) || null;
-        }
-
-        async function fetchTrainingBundles() {
-            const response = await fetch("model-bundles");
-            if (!response.ok) {
-                throw new Error(`Failed to load model versions: HTTP ${response.status}`);
-            }
-            const payload = await response.json().catch(() => ({}));
-            availableTrainingBundles = Array.isArray(payload.bundles) ? payload.bundles : [];
-
-            if (!trainingBundleSelect) return;
-
-            trainingBundleSelect.innerHTML = "";
-            if (!availableTrainingBundles.length) {
-                trainingBundleSelect.innerHTML = `<option value="">No model versions available</option>`;
-                trainingBundleSelect.disabled = true;
-                return;
-            }
-
-            trainingBundleSelect.disabled = false;
-            availableTrainingBundles.forEach((bundle) => {
-                const option = document.createElement("option");
-                option.value = bundle.bundle_id;
-                option.textContent = bundle.label || `${bundle.mode} v${bundle.version}`;
-                option.dataset.bundleMode = bundle.mode || "";
-                trainingBundleSelect.appendChild(option);
-            });
-
-            const defaultBundle = availableTrainingBundles.find((bundle) => bundle.is_default_for_training)
-                || availableTrainingBundles[0];
-            if (defaultBundle) {
-                trainingBundleSelect.value = defaultBundle.bundle_id;
-                if (trainingBundleHint) {
-                    trainingBundleHint.textContent = `New training uses ${defaultBundle.label || defaultBundle.bundle_id} by default.`;
-                }
-            }
         }
 
         function setUiBusy(isBusy, msg = "") {
@@ -2295,8 +2244,6 @@
                 const payload = {
                     appliance_name: applianceNameInput.value.trim(),
                     supervision_mode: supervisionMode,
-                    bundle_id: selectedTrainingBundle()?.bundle_id || null,
-                    bundle_mode: selectedTrainingBundle()?.mode || "online",
                     appliance_sensor_id: applianceSensorSelect?.value || null,
                     selectedWindows: selectedWindows,
                     fullSensorHistoryData: fullSensorHistoryData,
@@ -2325,7 +2272,6 @@
                             appliance_name: applianceNameInput.value.trim(),
                             selected_windows: selectedWindows,
                             supervision_mode: supervisionMode,
-                            bundle_id: selectedTrainingBundle()?.bundle_id || null,
                             time_start_ms: firstTimestamp,
                             time_end_ms: lastTimestamp
                         }
@@ -2892,8 +2838,6 @@
         applianceNameInput = document.getElementById('applianceNameInput');
         supervisionModeSelect = document.getElementById('supervisionModeSelect');
         supervisionModeHint = document.getElementById('supervisionModeHint');
-        trainingBundleSelect = document.getElementById('trainingBundleSelect');
-        trainingBundleHint = document.getElementById('trainingBundleHint');
         sensorSupervisionSection = document.getElementById('sensorSupervisionSection');
         applianceSensorSelect = document.getElementById('applianceSensorSelect');
         applianceNameError = document.getElementById('applianceNameError');
@@ -2973,12 +2917,6 @@
             message: "Checking training server connection before training..."
         });
         updateSupervisionModeUI();
-        fetchTrainingBundles().catch((error) => {
-            console.error("Failed to load training bundles:", error);
-            if (trainingBundleHint) {
-                trainingBundleHint.textContent = error.message || "Failed to load model versions.";
-            }
-        });
         checkTrainingServerConnection();
 
         // Define Flatpickr initialization as a separate, retriable function
