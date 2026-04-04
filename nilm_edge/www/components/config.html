@@ -231,6 +231,90 @@
         color: #475569;
     }
 
+    .prediction-share-wrap {
+        display: grid;
+        grid-template-columns: minmax(0, 220px) minmax(0, 1fr);
+        gap: 16px;
+        align-items: center;
+        padding: 14px 16px;
+        border: 1px solid #dbeafe;
+        border-radius: 16px;
+        background: linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(239, 246, 255, 0.78));
+    }
+
+    .prediction-share-wrap.hidden {
+        display: none;
+    }
+
+    .prediction-share-canvas-wrap {
+        position: relative;
+        width: 100%;
+        max-width: 220px;
+        aspect-ratio: 1;
+        margin: 0 auto;
+    }
+
+    .prediction-share-center {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        pointer-events: none;
+        text-align: center;
+    }
+
+    .prediction-share-center-label {
+        font-size: 0.74rem;
+        font-weight: 700;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        color: #64748b;
+    }
+
+    .prediction-share-center-value {
+        font-size: 1.45rem;
+        line-height: 1.1;
+        font-weight: 800;
+        color: #0f172a;
+    }
+
+    .prediction-share-list {
+        display: grid;
+        gap: 8px;
+    }
+
+    .prediction-share-item {
+        display: grid;
+        grid-template-columns: auto minmax(0, 1fr) auto;
+        gap: 10px;
+        align-items: center;
+        font-size: 0.95rem;
+        color: #334155;
+    }
+
+    .prediction-share-dot {
+        width: 12px;
+        height: 12px;
+        border-radius: 999px;
+        box-shadow: inset 0 0 0 1px rgba(15, 23, 42, 0.06);
+    }
+
+    .prediction-share-name {
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        font-weight: 700;
+    }
+
+    .prediction-share-value {
+        color: #475569;
+        font-variant-numeric: tabular-nums;
+        font-weight: 700;
+    }
+
     .embedding-list {
         display: flex;
         flex-direction: column;
@@ -786,6 +870,10 @@
             gap: 10px;
         }
 
+        .prediction-share-wrap {
+            grid-template-columns: 1fr;
+        }
+
         .stat-card {
             padding: 12px;
         }
@@ -893,6 +981,11 @@
             grid-template-columns: 1fr;
             gap: 8px;
             margin-bottom: 14px;
+        }
+
+        .prediction-share-wrap {
+            padding: 12px;
+            border-radius: 12px;
         }
 
         .stat-card {
@@ -1004,6 +1097,16 @@
             <div id="signalPredictionPanel" class="prediction-inline-panel hidden">
                 <div id="signalPredictionMeta" class="prediction-inline-meta"></div>
                 <div id="signalPredictionList" class="prediction-overlay-list"></div>
+                <div id="signalPredictionShareWrap" class="prediction-share-wrap hidden">
+                    <div class="prediction-share-canvas-wrap">
+                        <canvas id="signalPredictionShareChart"></canvas>
+                        <div class="prediction-share-center">
+                            <div class="prediction-share-center-label">Detected</div>
+                            <div id="signalPredictionShareCenterValue" class="prediction-share-center-value">0%</div>
+                        </div>
+                    </div>
+                    <div id="signalPredictionShareList" class="prediction-share-list"></div>
+                </div>
             </div>
 
             <div id="statusMessage" class="status-message"></div>
@@ -1118,6 +1221,10 @@
     let signalPredictionPanel;
     let signalPredictionMeta;
     let signalPredictionList;
+    let signalPredictionShareWrap;
+    let signalPredictionShareChartCanvas;
+    let signalPredictionShareCenterValue;
+    let signalPredictionShareList;
     let deleteEmbeddingModal;
     let deleteEmbeddingModalMessage;
     let confirmDeleteEmbeddingButton;
@@ -1140,6 +1247,7 @@
     let predictionPreviewChartCanvas;
     let predictionPreviewIntervalsCanvas;
     let mainsSignalChart;
+    let signalPredictionShareChart;
     let predictionPreviewChart;
     let predictionIntervalsChart;
     let predictionOverlaySensors = [];
@@ -1477,6 +1585,103 @@
         });
     }
 
+    function pastelColorFromHex(hex, alpha = 0.9) {
+        const value = String(hex || "").replace("#", "").trim();
+        if (!/^[0-9a-fA-F]{6}$/.test(value)) {
+            return `rgba(191, 219, 254, ${alpha})`;
+        }
+        const r = parseInt(value.slice(0, 2), 16);
+        const g = parseInt(value.slice(2, 4), 16);
+        const b = parseInt(value.slice(4, 6), 16);
+        const mix = (channel) => Math.round(channel + (255 - channel) * 0.58);
+        return `rgba(${mix(r)}, ${mix(g)}, ${mix(b)}, ${alpha})`;
+    }
+
+    function renderInlinePredictionShareChart() {
+        if (!signalPredictionShareWrap || !signalPredictionShareList || !signalPredictionShareCenterValue || !signalPredictionShareChartCanvas) {
+            return;
+        }
+
+        if (!activeInlinePredictions.length || !fullSignalSeries.length) {
+            signalPredictionShareWrap.classList.add("hidden");
+            signalPredictionShareList.innerHTML = "";
+            signalPredictionShareCenterValue.textContent = "0%";
+            if (signalPredictionShareChart) {
+                signalPredictionShareChart.destroy();
+                signalPredictionShareChart = null;
+            }
+            return;
+        }
+
+        const mainsEnergyWh = computeSeriesEnergyWh(fullSignalSeries);
+        const items = activeInlinePredictions.map((prediction) => {
+            const energyWh = computeSeriesEnergyWh(prediction.powerSeries);
+            const sharePct = mainsEnergyWh > 1e-9 ? (energyWh / mainsEnergyWh) * 100 : 0;
+            return {
+                modelKey: prediction.modelKey,
+                modelName: prediction.modelName,
+                energyWh,
+                sharePct,
+                color: prediction.color,
+                pastelColor: pastelColorFromHex(prediction.color),
+            };
+        });
+
+        const totalSharePct = items.reduce((sum, item) => sum + item.sharePct, 0);
+        signalPredictionShareCenterValue.textContent = `${Math.round(totalSharePct)}%`;
+        signalPredictionShareWrap.classList.remove("hidden");
+
+        signalPredictionShareList.innerHTML = items.map((item) => `
+            <div class="prediction-share-item">
+                <span class="prediction-share-dot" style="background:${item.pastelColor};"></span>
+                <span class="prediction-share-name">${item.modelName}</span>
+                <span class="prediction-share-value">${item.sharePct.toFixed(1)}%</span>
+            </div>
+        `).join("");
+
+        const chartData = {
+            labels: items.map((item) => item.modelName),
+            datasets: [{
+                data: items.map((item) => Math.max(item.sharePct, 0)),
+                backgroundColor: items.map((item) => item.pastelColor),
+                borderColor: "rgba(255, 255, 255, 0.92)",
+                borderWidth: 2,
+                hoverOffset: 6,
+            }]
+        };
+
+        if (signalPredictionShareChart) {
+            signalPredictionShareChart.data = chartData;
+            signalPredictionShareChart.update("none");
+            return;
+        }
+
+        const ctx = signalPredictionShareChartCanvas.getContext("2d");
+        if (!ctx) return;
+
+        signalPredictionShareChart = new Chart(ctx, {
+            type: "doughnut",
+            data: chartData,
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                animation: false,
+                cutout: "68%",
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        callbacks: {
+                            label: (tooltipItem) => {
+                                const item = items[tooltipItem.dataIndex];
+                                return `${item.modelName}: ${item.sharePct.toFixed(1)}% (${formatEnergy(item.energyWh)})`;
+                            }
+                        }
+                    }
+                }
+            }
+        });
+    }
+
     function renderInlinePredictionUi() {
         if (!signalPredictionPanel || !signalPredictionMeta || !signalPredictionList) return;
 
@@ -1485,6 +1690,7 @@
             signalPredictionMeta.textContent = "";
             signalPredictionMeta.style.display = "none";
             signalPredictionList.innerHTML = "";
+            renderInlinePredictionShareChart();
             return;
         }
 
@@ -1501,6 +1707,8 @@
                 </button>
             </div>
         `).join("");
+
+        renderInlinePredictionShareChart();
     }
 
     function clearInlinePrediction(modelKey = null) {
@@ -2605,6 +2813,10 @@
         signalPredictionPanel = document.getElementById("signalPredictionPanel");
         signalPredictionMeta = document.getElementById("signalPredictionMeta");
         signalPredictionList = document.getElementById("signalPredictionList");
+        signalPredictionShareWrap = document.getElementById("signalPredictionShareWrap");
+        signalPredictionShareChartCanvas = document.getElementById("signalPredictionShareChart");
+        signalPredictionShareCenterValue = document.getElementById("signalPredictionShareCenterValue");
+        signalPredictionShareList = document.getElementById("signalPredictionShareList");
         statusMessage = document.getElementById("statusMessage");
         deleteEmbeddingModal = document.getElementById("deleteEmbeddingModal");
         deleteEmbeddingModalMessage = document.getElementById("deleteEmbeddingModalMessage");
@@ -2826,6 +3038,10 @@
             mainsSignalChart.destroy();
             mainsSignalChart = null;
         }
+        if (signalPredictionShareChart) {
+            signalPredictionShareChart.destroy();
+            signalPredictionShareChart = null;
+        }
 
         mainSensorSelect = null;
         historyRangeSelect = null;
@@ -2837,6 +3053,10 @@
         signalPredictionPanel = null;
         signalPredictionMeta = null;
         signalPredictionList = null;
+        signalPredictionShareWrap = null;
+        signalPredictionShareChartCanvas = null;
+        signalPredictionShareCenterValue = null;
+        signalPredictionShareList = null;
         statusMessage = null;
         deleteEmbeddingModal = null;
         deleteEmbeddingModalMessage = null;
