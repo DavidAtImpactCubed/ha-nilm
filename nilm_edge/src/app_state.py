@@ -129,20 +129,10 @@ async def resolve_training_server_url_state() -> Dict[str, Any]:
         }
 
     autodetect = await discover_training_server_addon(SUPERVISOR_API_URL, TOKEN)
-    if autodetect.get("ok") and autodetect.get("training_server_url"):
-        return {
-            "configured_training_server_url": configured_url,
-            "effective_training_server_url": autodetect["training_server_url"],
-            "training_server_url_source": "autodetected",
-            "autodetect": autodetect,
-        }
-
-    fallback_url = normalize_training_server_url(configured_url or option_url or TRAINING_SERVER_URL)
-    fallback_source = "ui_override" if configured_url else ("addon_option" if option_url else "default")
     return {
         "configured_training_server_url": configured_url,
-        "effective_training_server_url": fallback_url,
-        "training_server_url_source": fallback_source,
+        "effective_training_server_url": "",
+        "training_server_url_source": "missing",
         "autodetect": autodetect,
     }
 

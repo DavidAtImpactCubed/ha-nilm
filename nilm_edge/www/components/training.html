@@ -437,17 +437,9 @@
         white-space: pre-line;
     }
 
-    .training-server-config-card {
-        margin-bottom: 18px;
-        padding: 14px 16px;
-        border-radius: 16px;
-        border: 1px solid #e2e8f0;
-        background: rgba(255, 255, 255, 0.96);
-    }
-
     .training-server-config-grid {
         display: grid;
-        grid-template-columns: minmax(0, 1fr) auto auto auto;
+        grid-template-columns: minmax(0, 1fr) auto auto;
         gap: 10px;
         align-items: end;
     }
@@ -648,6 +640,15 @@
             <div class="training-server-status-title">Training Server Connection</div>
             <div id="trainingServerStatusMessage" class="training-server-status-message">Checking training server connection before training...</div>
             <div id="trainingServerStatusDetails" class="training-server-status-details hidden"></div>
+            <div class="training-server-config-grid mt-3">
+                <div>
+                    <label for="trainingServerUrlInput" class="field-label">Training Server URL</label>
+                    <input id="trainingServerUrlInput" class="field-input" type="text" placeholder="Enter http://hostname:8080/train or use Auto-detect">
+                </div>
+                <button id="detectTrainingServerUrlBtn" class="action-btn action-neutral" type="button">Auto-detect</button>
+                <button id="saveTrainingServerUrlBtn" class="action-btn action-primary" type="button">Save</button>
+            </div>
+            <div id="trainingServerConfigMeta" class="training-server-config-meta hidden"></div>
         </div>
         <div class="flex items-center gap-3">
             <span id="trainingServerStatusBadge" class="training-server-status-badge training-server-status-warning">Checking</span>
@@ -655,21 +656,6 @@
                 <i class="fas fa-sync mr-2" aria-hidden="true"></i> Retry
             </button>
         </div>
-    </div>
-
-    <div class="training-server-config-card">
-        <div class="training-server-status-title">Training Server URL</div>
-        <div class="training-server-status-message">Leave this empty to use automatic detection when the NILM Training Server add-on is installed and started.</div>
-        <div class="training-server-config-grid mt-3">
-            <div>
-                <label for="trainingServerUrlInput" class="field-label">Direct URL</label>
-                <input id="trainingServerUrlInput" class="field-input" type="text" placeholder="Auto-detect or enter http://hostname:8080/train">
-            </div>
-            <button id="detectTrainingServerUrlBtn" class="action-btn action-neutral" type="button">Auto-detect</button>
-            <button id="clearTrainingServerUrlBtn" class="action-btn action-neutral" type="button">Use Auto</button>
-            <button id="saveTrainingServerUrlBtn" class="action-btn action-primary" type="button">Save</button>
-        </div>
-        <div id="trainingServerConfigMeta" class="training-server-config-meta hidden"></div>
     </div>
 
     <!-- How This Training Session Works Info Section (Accordion) -->
@@ -977,7 +963,6 @@
     let trainingServerStatusDetails;
     let trainingServerUrlInput;
     let detectTrainingServerUrlBtn;
-    let clearTrainingServerUrlBtn;
     let saveTrainingServerUrlBtn;
     let trainingServerConfigMeta;
     let retryTrainingServerStatusBtn;
@@ -1051,7 +1036,6 @@
     let manualIntervalInputHandler;
     let retryTrainingServerStatusHandler;
     let detectTrainingServerUrlHandler;
-    let clearTrainingServerUrlHandler;
     let saveTrainingServerUrlHandler;
     // applyDateRangeHandler is now the Flatpickr onChange event
 
@@ -1316,7 +1300,7 @@
             if (trainingPrepStatus) {
                 trainingPrepStatus.textContent = urlValue
                     ? "Training server URL saved."
-                    : "Training server URL override cleared. Automatic detection will be used when available.";
+                    : "Training server URL cleared.";
                 trainingPrepStatus.classList.remove("hidden");
             }
         }
@@ -2817,19 +2801,12 @@
                     const payload = await autodetectTrainingServerUrl();
                     if (trainingPrepStatus) {
                         trainingPrepStatus.textContent = payload.training_server_url
-                            ? "Training server URL detected. Save it if you want to keep it as an override."
+                            ? "Training server URL detected. Press Save to use it."
                             : (payload.message || "Training server could not be detected automatically.");
                         trainingPrepStatus.classList.remove("hidden");
                     }
                 } catch (error) {
                     showValidationResultModal("Detection Error", error.message || "Failed to detect the training server.", true);
-                }
-            };
-            clearTrainingServerUrlHandler = async () => {
-                try {
-                    await saveTrainingServerUrlOverride("");
-                } catch (error) {
-                    showValidationResultModal("Save Error", error.message || "Failed to clear the training server URL.", true);
                 }
             };
             saveTrainingServerUrlHandler = async () => {
@@ -2840,7 +2817,6 @@
                 }
             };
             if (detectTrainingServerUrlBtn) detectTrainingServerUrlBtn.addEventListener('click', detectTrainingServerUrlHandler);
-            if (clearTrainingServerUrlBtn) clearTrainingServerUrlBtn.addEventListener('click', clearTrainingServerUrlHandler);
             if (saveTrainingServerUrlBtn) saveTrainingServerUrlBtn.addEventListener('click', saveTrainingServerUrlHandler);
 
             if (infoAccordionToggle && infoAccordionContent && accordionIcon) {
@@ -2885,7 +2861,6 @@
             if (closeValidationResultModalBtn && closeValidationResultHandler) closeValidationResultModalBtn.removeEventListener('click', closeValidationResultHandler);
             if (retryTrainingServerStatusBtn && retryTrainingServerStatusHandler) retryTrainingServerStatusBtn.removeEventListener('click', retryTrainingServerStatusHandler);
             if (detectTrainingServerUrlBtn && detectTrainingServerUrlHandler) detectTrainingServerUrlBtn.removeEventListener('click', detectTrainingServerUrlHandler);
-            if (clearTrainingServerUrlBtn && clearTrainingServerUrlHandler) clearTrainingServerUrlBtn.removeEventListener('click', clearTrainingServerUrlHandler);
             if (saveTrainingServerUrlBtn && saveTrainingServerUrlHandler) saveTrainingServerUrlBtn.removeEventListener('click', saveTrainingServerUrlHandler);
             if (infoAccordionToggle && infoAccordionToggleHandler) infoAccordionToggle.removeEventListener('click', infoAccordionToggleHandler);
             
@@ -2973,7 +2948,6 @@
         trainingServerStatusDetails = document.getElementById("trainingServerStatusDetails");
         trainingServerUrlInput = document.getElementById("trainingServerUrlInput");
         detectTrainingServerUrlBtn = document.getElementById("detectTrainingServerUrlBtn");
-        clearTrainingServerUrlBtn = document.getElementById("clearTrainingServerUrlBtn");
         saveTrainingServerUrlBtn = document.getElementById("saveTrainingServerUrlBtn");
         trainingServerConfigMeta = document.getElementById("trainingServerConfigMeta");
         retryTrainingServerStatusBtn = document.getElementById("retryTrainingServerStatusBtn");

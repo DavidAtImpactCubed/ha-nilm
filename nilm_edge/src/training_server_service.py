@@ -153,6 +153,24 @@ class TrainingServerServiceManager:
     async def get_training_server_connection_status(self) -> Dict[str, Any]:
         url_state = await app_state.resolve_training_server_url_state()
         training_server_url = url_state["effective_training_server_url"]
+        if not training_server_url:
+            autodetect = url_state.get("autodetect") or {}
+            message = "Training server URL is not configured."
+            if autodetect.get("ok") and autodetect.get("training_server_url"):
+                message = (
+                    "Training server URL is not saved yet. "
+                    "Press Auto-detect, review the detected URL, then press Save."
+                )
+            elif autodetect.get("message"):
+                message = f"{message} {autodetect.get('message')}"
+            return {
+                "status": "success",
+                "ok": False,
+                "state": "missing_config",
+                "message": message,
+                "training_server_url": "",
+                **url_state,
+            }
         training_server_api_key = app_state.get_training_server_api_key()
         result = await probe_training_server_connection(
             training_server_url=training_server_url,
