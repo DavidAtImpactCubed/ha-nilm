@@ -1317,7 +1317,7 @@
         }
     }
 
-    function setPredictionPreviewProgress(message, percent) {
+    function setPredictionProgress(message, percent) {
         const safePercent = Number.isFinite(percent) ? Math.max(0, Math.min(100, Math.round(percent))) : null;
         showChartLoading(
             safePercent === null
@@ -1354,7 +1354,7 @@
                 throw new Error(payload.message || `Failed to load preview progress: HTTP ${response.status}`);
             }
 
-            setPredictionPreviewProgress(
+            setPredictionProgress(
                 previewProgressMessage(payload.phase || payload.status),
                 Number(payload.percent)
             );
@@ -1832,7 +1832,7 @@
         currentPreviewModelName = modelName;
         currentPreviewStartUtc = startUtc;
         currentPreviewEndUtc = endUtc;
-        showChartLoading();
+        showChartLoading("Preparing prediction...");
 
         try {
             const previewUrl = `embeddings/${encodeURIComponent(modelKey)}/preview`;
@@ -1842,6 +1842,7 @@
                 body: JSON.stringify({
                     start: startUtc.toISOString(),
                     end: endUtc.toISOString(),
+                    mains_points: fullSignalSeries,
                 }),
             });
             if (!response.ok) {

@@ -88,7 +88,31 @@ async def _fetch_preview_history_points(fetch_start_dt, end_dt):
     }
 
 
-async def _build_preview_result(bundle_id, safe_name, start_dt, end_dt):
+def _normalize_preview_points(raw_points):
+    normalized = []
+    seen = set()
+    for point in raw_points or []:
+        if not isinstance(point, dict):
+            continue
+        raw_x = point.get("x")
+        raw_y = point.get("y")
+        try:
+            ts = float(raw_x)
+            if ts > 1e12:
+                ts /= 1000.0
+            value = float(raw_y)
+        except (TypeError, ValueError):
+            continue
+        key = (ts, value)
+        if key in seen:
+            continue
+        seen.add(key)
+        normalized.append((ts, value))
+    normalized.sort(key=lambda item: item[0])
+    return normalized
+
+
+async def _build_preview_result(bundle_id, safe_name, start_dt, end_dt, provided_points=None):
     bundle = get_bundle_by_id(app_state.model_bundles, bundle_id)
     if bundle is None:
         raise ValueError(f"Unknown bundle_id: {bundle_id}")
@@ -101,28 +125,35 @@ async def _build_preview_result(bundle_id, safe_name, start_dt, end_dt):
         top_k=None,
     )
 
-    lookback_s = preview_disaggregator.settings.sequence_length * preview_disaggregator.settings.frequency_s
-    fetch_start_dt = start_dt - timedelta(seconds=lookback_s)
-    if (end_dt.date() - fetch_start_dt.date()).days + 1 > 7:
-        fetch_start_dt = start_dt
+    points = _normalize_preview_points(provided_points)
+    if points:
+        yield {
+            "processed": len(points),
+            "total": len(points),
+            "phase": "history_ready",
+        }
+    else:
+        lookback_s = preview_disaggregator.settings.sequence_length * preview_disaggregator.settings.frequency_s
+        fetch_start_dt = start_dt - timedelta(seconds=lookback_s)
+        if (end_dt.date() - fetch_start_dt.date()).days + 1 > 7:
+            fetch_start_dt = start_dt
 
-    try:
-        points = []
-        async for history_update in _fetch_preview_history_points(fetch_start_dt, end_dt):
-            if history_update.get("phase") == "history_ready":
-                points = history_update.get("points") or []
-                yield {
-                    "processed": int(history_update.get("processed", 0)),
-                    "total": int(history_update.get("total", 0)),
-                    "phase": "history_ready",
-                }
-            else:
-                yield history_update
-    except asyncio.TimeoutError as exc:
-        raise RuntimeError(
-            f"Loading mains history took too long ({int(PREVIEW_HISTORY_TIMEOUT_S)}s). "
-            "Please reduce the selected range or check the Home Assistant connection."
-        ) from exc
+        try:
+            async for history_update in _fetch_preview_history_points(fetch_start_dt, end_dt):
+                if history_update.get("phase") == "history_ready":
+                    points = history_update.get("points") or []
+                    yield {
+                        "processed": int(history_update.get("processed", 0)),
+                        "total": int(history_update.get("total", 0)),
+                        "phase": "history_ready",
+                    }
+                else:
+                    yield history_update
+        except asyncio.TimeoutError as exc:
+            raise RuntimeError(
+                f"Loading mains history took too long ({int(PREVIEW_HISTORY_TIMEOUT_S)}s). "
+                "Please reduce the selected range or check the Home Assistant connection."
+            ) from exc
 
     if not points:
         yield {
@@ -194,7 +225,7 @@ async def _build_preview_result(bundle_id, safe_name, start_dt, end_dt):
     }
 
 
-async def _run_preview_job(app, job_id, bundle_id, safe_name, start_dt, end_dt):
+async def _run_preview_job(app, job_id, bundle_id, safe_name, start_dt, end_dt, provided_points=None):
     try:
         await _set_preview_job(app, job_id, {
             "status": "running",
@@ -205,7 +236,7 @@ async def _run_preview_job(app, job_id, bundle_id, safe_name, start_dt, end_dt):
             "percent": 5,
         })
 
-        async for update in _build_preview_result(bundle_id, safe_name, start_dt, end_dt):
+        async for update in _build_preview_result(bundle_id, safe_name, start_dt, end_dt, provided_points=provided_points):
             if update.get("done"):
                 await _set_preview_job(app, job_id, {
                     "status": "done",
@@ -380,9 +411,11 @@ async def start_preview_embedding_handler(request):
                 return web.json_response({"status": "error", "message": "Invalid JSON body"}, status=400)
             start_raw = str(data.get("start") or "").strip()
             end_raw = str(data.get("end") or "").strip()
+            provided_points = data.get("mains_points")
         else:
             start_raw = str(request.query.get("start") or "").strip()
             end_raw = str(request.query.get("end") or "").strip()
+            provided_points = None
         if not start_raw or not end_raw:
             return web.json_response({"status": "error", "message": "Missing start/end query parameters"}, status=400)
 
@@ -401,7 +434,7 @@ async def start_preview_embedding_handler(request):
             "percent": 0,
             "message": None,
         })
-        asyncio.create_task(_run_preview_job(request.app, job_id, bundle_id, safe_name, start_dt, end_dt))
+        asyncio.create_task(_run_preview_job(request.app, job_id, bundle_id, safe_name, start_dt, end_dt, provided_points=provided_points))
         return web.json_response({"status": "accepted", "job_id": job_id})
     except ValueError as exc:
         return web.json_response({"status": "error", "message": str(exc)}, status=400)
