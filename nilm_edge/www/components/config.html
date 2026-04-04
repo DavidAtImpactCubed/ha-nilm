@@ -995,7 +995,7 @@
                 <div id="chartLoadingOverlay" class="chart-loading">
                     <div class="chart-loading-card">
                         <div class="chart-spinner"></div>
-                        <span>Loading mains signal…</span>
+                        <span id="chartLoadingText">Loading mains signal…</span>
                     </div>
                 </div>
                 <canvas id="mainsSignalChart"></canvas>
@@ -1114,6 +1114,7 @@
     let embeddingsCountStat;
     let embeddingsList;
     let chartLoadingOverlay;
+    let chartLoadingText;
     let signalPredictionPanel;
     let signalPredictionMeta;
     let signalPredictionList;
@@ -1142,7 +1143,7 @@
     let predictionPreviewChart;
     let predictionIntervalsChart;
     let predictionOverlaySensors = [];
-    let activeInlinePrediction = null;
+    let activeInlinePredictions = [];
     let currentPreviewModelName = null;
     let currentPreviewBasePowerSeries = [];
     let currentPreviewStateSeries = [];
@@ -1318,7 +1319,7 @@
 
     function setPredictionPreviewProgress(message, percent) {
         const safePercent = Number.isFinite(percent) ? Math.max(0, Math.min(100, Math.round(percent))) : null;
-        showPredictionPreviewLoading(
+        showChartLoading(
             safePercent === null
                 ? message
                 : `${message} ${safePercent}%`
@@ -1479,32 +1480,33 @@
     function renderInlinePredictionUi() {
         if (!signalPredictionPanel || !signalPredictionMeta || !signalPredictionList) return;
 
-        if (!activeInlinePrediction) {
+        if (!activeInlinePredictions.length) {
             signalPredictionPanel.classList.add("hidden");
             signalPredictionMeta.textContent = "";
+            signalPredictionMeta.style.display = "none";
             signalPredictionList.innerHTML = "";
             return;
         }
 
         signalPredictionPanel.classList.remove("hidden");
-        signalPredictionMeta.textContent =
-            `${activeInlinePrediction.modelName} prediction for ${activeInlinePrediction.rangeLabel}. `
-            + `Energy: ${activeInlinePrediction.energyLabel}. `
-            + `Share of mains: ${activeInlinePrediction.shareLabel}.`;
+        signalPredictionMeta.textContent = "";
+        signalPredictionMeta.style.display = "none";
 
-        signalPredictionList.innerHTML = `
+        signalPredictionList.innerHTML = activeInlinePredictions.map((prediction) => `
             <div class="prediction-overlay-chip">
-                <span class="prediction-overlay-dot" style="background:#0284c7;"></span>
-                <span>${activeInlinePrediction.modelName}</span>
-                <button class="prediction-overlay-remove" type="button" aria-label="Remove prediction" data-inline-prediction-remove="true">
+                <span class="prediction-overlay-dot" style="background:${prediction.color};"></span>
+                <span>${prediction.modelName}</span>
+                <button class="prediction-overlay-remove" type="button" aria-label="Remove prediction" data-inline-prediction-remove="${prediction.modelKey}">
                     <i class="fas fa-times" aria-hidden="true"></i>
                 </button>
             </div>
-        `;
+        `).join("");
     }
 
-    function clearInlinePrediction() {
-        activeInlinePrediction = null;
+    function clearInlinePrediction(modelKey = null) {
+        activeInlinePredictions = modelKey
+            ? activeInlinePredictions.filter((prediction) => prediction.modelKey !== modelKey)
+            : [];
         renderInlinePredictionUi();
         renderSignalChart(fullSignalSeries);
     }
@@ -1857,9 +1859,6 @@
             const stateSeries = Array.isArray(payload.state_series) ? payload.state_series : [];
 
             if (!powerSeries.length && !stateSeries.length) {
-                activeInlinePrediction = null;
-                renderInlinePredictionUi();
-                renderSignalChart(fullSignalSeries);
                 showMessage("No prediction history is available for the selected range yet.", "error");
                 return;
             }
@@ -1869,18 +1868,23 @@
             const mainsSharePct = mainsEnergyWh > 1e-9 ? (energyWh / mainsEnergyWh) * 100 : NaN;
             currentPreviewBasePowerSeries = powerSeries;
             currentPreviewStateSeries = stateSeries;
-            activeInlinePrediction = {
+            const predictionColor = PREVIEW_OVERLAY_COLORS[
+                activeInlinePredictions.findIndex((prediction) => prediction.modelKey === modelKey) >= 0
+                    ? activeInlinePredictions.findIndex((prediction) => prediction.modelKey === modelKey) % PREVIEW_OVERLAY_COLORS.length
+                    : activeInlinePredictions.length % PREVIEW_OVERLAY_COLORS.length
+            ];
+            const inlinePrediction = {
                 modelKey,
                 modelName,
                 powerSeries,
                 stateSeries,
-                rangeLabel: formatRangeLabel(startUtc, endUtc),
-                energyLabel: formatEnergy(energyWh),
-                shareLabel: formatPercent(mainsSharePct),
+                color: predictionColor,
             };
+            activeInlinePredictions = activeInlinePredictions.filter((prediction) => prediction.modelKey !== modelKey);
+            activeInlinePredictions.push(inlinePrediction);
             renderInlinePredictionUi();
             renderSignalChart(fullSignalSeries);
-            showMessage(`${modelName} prediction added to the mains chart.`, "success");
+            showMessage(`${modelName} prediction added to the mains chart. Energy: ${formatEnergy(energyWh)}. Share of mains: ${formatPercent(mainsSharePct)}.`, "success");
         } catch (error) {
             console.error("Prediction preview failed:", error);
             showMessage(error.message || "Failed to load prediction preview.", "error");
@@ -1967,12 +1971,14 @@
         return Array.isArray(sensors) ? sensors : [];
     }
 
-    function showChartLoading() {
+    function showChartLoading(message = "Loading mains signal...") {
+        if (chartLoadingText) chartLoadingText.textContent = message;
         if (chartLoadingOverlay) chartLoadingOverlay.classList.add("active");
     }
 
     function hideChartLoading() {
         if (chartLoadingOverlay) chartLoadingOverlay.classList.remove("active");
+        if (chartLoadingText) chartLoadingText.textContent = "Loading mains signal...";
     }
 
     function decimateSeriesForRange(series, minX, maxX, targetPoints = 1200) {
@@ -2047,9 +2053,9 @@
         if (!mainsSignalChart || !fullSignalSeries.length) {
             if (mainsSignalChart) {
                 mainsSignalChart.data.datasets[0].data = [];
-                if (mainsSignalChart.data.datasets[1]) {
-                    mainsSignalChart.data.datasets[1].data = [];
-                }
+                mainsSignalChart.data.datasets.slice(1).forEach((dataset) => {
+                    dataset.data = [];
+                });
                 mainsSignalChart.update("none");
             }
             return;
@@ -2075,11 +2081,11 @@
             }
 
             mainsSignalChart.data.datasets[0].data = decimateSeriesForRange(fullSignalSeries, minX, maxX, 1200);
-            if (mainsSignalChart.data.datasets[1]) {
-                mainsSignalChart.data.datasets[1].data = activeInlinePrediction
-                    ? decimateSeriesForRange(activeInlinePrediction.powerSeries, minX, maxX, 1200)
-                    : [];
-            }
+            activeInlinePredictions.forEach((prediction, index) => {
+                const dataset = mainsSignalChart.data.datasets[index + 1];
+                if (!dataset) return;
+                dataset.data = decimateSeriesForRange(prediction.powerSeries, minX, maxX, 1200);
+            });
             mainsSignalChart.update("none");
         }, 80);
     }
@@ -2095,6 +2101,19 @@
         const maxX = series.length ? series[series.length - 1].x : undefined;
         const initialMinX = Number.isFinite(previousMinX) ? previousMinX : minX;
         const initialMaxX = Number.isFinite(previousMaxX) ? previousMaxX : maxX;
+        const predictionDatasets = activeInlinePredictions.map((prediction) => ({
+            label: `${prediction.modelName} Prediction (W)`,
+            data: prediction.powerSeries,
+            parsing: false,
+            normalized: true,
+            borderColor: prediction.color,
+            backgroundColor: prediction.color,
+            fill: false,
+            pointRadius: 0,
+            borderWidth: 2,
+            tension: 0.15,
+            spanGaps: true,
+        }));
 
         mainsSignalChart = new Chart(ctx, {
             type: "line",
@@ -2105,36 +2124,22 @@
                         data: series,
                         parsing: false,
                         normalized: true,
-                        borderColor: "#0284c7",
-                        backgroundColor: "rgba(14, 165, 233, 0.15)",
+                        borderColor: PREVIEW_MAINS_COLOR,
+                        backgroundColor: "rgba(100, 116, 139, 0.14)",
                         fill: true,
                         pointRadius: 0,
                         borderWidth: 1.5,
                         tension: 0.08,
                         spanGaps: true,
-                    },
-                    {
-                        label: activeInlinePrediction ? `${activeInlinePrediction.modelName} Prediction (W)` : "Power Prediction (W)",
-                        data: activeInlinePrediction?.powerSeries || [],
-                        parsing: false,
-                        normalized: true,
-                        borderColor: "#2563eb",
-                        backgroundColor: "rgba(37, 99, 235, 0.12)",
-                        fill: false,
-                        pointRadius: 0,
-                        borderWidth: 2,
-                        tension: 0.15,
-                        spanGaps: true,
-                        hidden: !activeInlinePrediction,
                     }
-                ]
+                ].concat(predictionDatasets)
             },
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
                 animation: false,
                 plugins: {
-                    legend: { display: Boolean(activeInlinePrediction) },
+                    legend: { display: activeInlinePredictions.length > 0 },
                     tooltip: {
                         callbacks: {
                             label: (ctx) => `${ctx.dataset.label}: ${formatPower(ctx.parsed.y)}`
@@ -2142,16 +2147,21 @@
                     },
                     zoom: {
                         pan: {
-                            enabled: !isPhoneScreen(),
+                            enabled: true,
                             mode: "x",
                             overScaleMode: "x",
                             threshold: 0,
                             onPanComplete: () => updateSignalChartData()
                         },
                         zoom: {
-                            wheel: { enabled: !isPhoneScreen(), speed: 0.1 },
-                            pinch: { enabled: !isPhoneScreen() },
-                            drag: { enabled: false },
+                            wheel: { enabled: true, speed: 0.1 },
+                            pinch: { enabled: true },
+                            drag: {
+                                enabled: true,
+                                backgroundColor: "rgba(2, 132, 199, 0.08)",
+                                borderColor: "rgba(2, 132, 199, 0.35)",
+                                borderWidth: 1,
+                            },
                             mode: "x",
                             onZoomComplete: () => updateSignalChartData()
                         },
@@ -2574,6 +2584,7 @@
         saveButton = document.getElementById("saveButton");
         addApplianceButton = document.getElementById("addApplianceButton");
         chartLoadingOverlay = document.getElementById("chartLoadingOverlay");
+        chartLoadingText = document.getElementById("chartLoadingText");
         signalPredictionPanel = document.getElementById("signalPredictionPanel");
         signalPredictionMeta = document.getElementById("signalPredictionMeta");
         signalPredictionList = document.getElementById("signalPredictionList");
@@ -2715,12 +2726,12 @@
         signalPredictionListHandler = (event) => {
             const removeButton = event.target.closest("[data-inline-prediction-remove]");
             if (!removeButton) return;
-            clearInlinePrediction();
+            clearInlinePrediction(removeButton.getAttribute("data-inline-prediction-remove"));
             showMessage("Prediction removed from the mains chart.", "success");
         };
         sensorChangeHandler = async () => {
             try {
-                if (activeInlinePrediction) clearInlinePrediction();
+                if (activeInlinePredictions.length) clearInlinePrediction();
                 await fetchAndRenderSignal();
             } catch (error) {
                 console.error("Signal update after sensor change failed:", error);
@@ -2805,6 +2816,7 @@
         saveButton = null;
         addApplianceButton = null;
         chartLoadingOverlay = null;
+        chartLoadingText = null;
         signalPredictionPanel = null;
         signalPredictionMeta = null;
         signalPredictionList = null;
@@ -2837,7 +2849,7 @@
         embeddingsCountStat = null;
         embeddingsList = null;
         fullSignalSeries = [];
-        activeInlinePrediction = null;
+        activeInlinePredictions = [];
         saveButtonHandler = null;
         addApplianceButtonHandler = null;
         refreshSignalButtonHandler = null;
