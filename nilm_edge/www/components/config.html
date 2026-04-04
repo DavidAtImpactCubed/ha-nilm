@@ -2139,7 +2139,12 @@
                 maintainAspectRatio: false,
                 animation: false,
                 plugins: {
-                    legend: { display: activeInlinePredictions.length > 0 },
+                    legend: {
+                        display: true,
+                        labels: {
+                            filter: (item) => item?.text === "Mains Power",
+                        }
+                    },
                     tooltip: {
                         callbacks: {
                             label: (ctx) => `${ctx.dataset.label}: ${formatPower(ctx.parsed.y)}`
