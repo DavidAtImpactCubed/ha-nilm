@@ -287,11 +287,20 @@
 
     .prediction-share-item {
         display: grid;
-        grid-template-columns: auto minmax(0, 1fr) auto;
+        grid-template-columns: auto minmax(0, 1fr) auto auto;
         gap: 10px;
         align-items: center;
         font-size: 0.95rem;
         color: #334155;
+        padding: 6px 8px;
+        border-radius: 10px;
+        cursor: default;
+        transition: background-color 0.18s ease, transform 0.18s ease;
+    }
+
+    .prediction-share-item.is-hovered {
+        background: rgba(241, 245, 249, 0.95);
+        transform: translateX(1px);
     }
 
     .prediction-share-dot {
@@ -313,6 +322,44 @@
         color: #475569;
         font-variant-numeric: tabular-nums;
         font-weight: 700;
+    }
+
+    .prediction-share-help-btn {
+        width: 24px;
+        height: 24px;
+        border: 1px solid #cbd5e1;
+        border-radius: 999px;
+        background: #ffffff;
+        color: #475569;
+        font-weight: 800;
+        font-size: 0.85rem;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        transition: background-color 0.18s ease, border-color 0.18s ease, color 0.18s ease;
+    }
+
+    .prediction-share-help-btn:hover {
+        background: #eff6ff;
+        border-color: #93c5fd;
+        color: #1d4ed8;
+    }
+
+    .prediction-share-help {
+        display: none;
+        margin-top: 8px;
+        padding: 12px 14px;
+        border-radius: 12px;
+        background: rgba(255, 255, 255, 0.92);
+        border: 1px solid #dbeafe;
+        color: #475569;
+        font-size: 0.9rem;
+        line-height: 1.45;
+    }
+
+    .prediction-share-help.active {
+        display: block;
     }
 
     .embedding-list {
@@ -1105,7 +1152,10 @@
                             <div id="signalPredictionShareCenterValue" class="prediction-share-center-value">100%</div>
                         </div>
                     </div>
-                    <div id="signalPredictionShareList" class="prediction-share-list"></div>
+                    <div>
+                        <div id="signalPredictionShareList" class="prediction-share-list"></div>
+                        <div id="signalPredictionShareHelp" class="prediction-share-help"></div>
+                    </div>
                 </div>
             </div>
 
@@ -1225,6 +1275,7 @@
     let signalPredictionShareChartCanvas;
     let signalPredictionShareCenterValue;
     let signalPredictionShareList;
+    let signalPredictionShareHelp;
     let deleteEmbeddingModal;
     let deleteEmbeddingModalMessage;
     let confirmDeleteEmbeddingButton;
@@ -1248,6 +1299,7 @@
     let predictionPreviewIntervalsCanvas;
     let mainsSignalChart;
     let signalPredictionShareChart;
+    let currentPredictionShareItems = [];
     let predictionPreviewChart;
     let predictionIntervalsChart;
     let predictionOverlaySensors = [];
@@ -1281,6 +1333,8 @@
     let addPredictionOverlayHandler;
     let resetPredictionZoomHandler;
     let signalPredictionListHandler;
+    let signalPredictionShareListHandler;
+    let signalPredictionShareLeaveHandler;
     let latestPowerPollTickHandler;
     let messageTimeoutId;
     let pendingDeleteEmbeddingName = null;
@@ -1597,15 +1651,33 @@
         return `rgba(${mix(r)}, ${mix(g)}, ${mix(b)}, ${alpha})`;
     }
 
+    function highlightPredictionShareSlice(modelKey = null) {
+        if (!signalPredictionShareChart) return;
+        const activeIndex = modelKey
+            ? currentPredictionShareItems.findIndex((item) => item.modelKey === modelKey)
+            : -1;
+        signalPredictionShareChart.setActiveElements(activeIndex >= 0 ? [{ datasetIndex: 0, index: activeIndex }] : []);
+        signalPredictionShareChart.update("none");
+
+        if (signalPredictionShareList) {
+            signalPredictionShareList.querySelectorAll("[data-share-item]").forEach((row) => {
+                row.classList.toggle("is-hovered", activeIndex >= 0 && row.getAttribute("data-share-item") === modelKey);
+            });
+        }
+    }
+
     function renderInlinePredictionShareChart() {
-        if (!signalPredictionShareWrap || !signalPredictionShareList || !signalPredictionShareCenterValue || !signalPredictionShareChartCanvas) {
+        if (!signalPredictionShareWrap || !signalPredictionShareList || !signalPredictionShareCenterValue || !signalPredictionShareChartCanvas || !signalPredictionShareHelp) {
             return;
         }
 
         if (!activeInlinePredictions.length || !fullSignalSeries.length) {
             signalPredictionShareWrap.classList.add("hidden");
             signalPredictionShareList.innerHTML = "";
+            signalPredictionShareHelp.classList.remove("active");
+            signalPredictionShareHelp.textContent = "";
             signalPredictionShareCenterValue.textContent = "0%";
+            currentPredictionShareItems = [];
             if (signalPredictionShareChart) {
                 signalPredictionShareChart.destroy();
                 signalPredictionShareChart = null;
@@ -1641,8 +1713,8 @@
                 modelName: "Base Load",
                 energyWh: baseloadEnergyWh,
                 sharePct: baseloadSharePct,
-                color: PREVIEW_MAINS_COLOR,
-                pastelColor: pastelColorFromHex(PREVIEW_MAINS_COLOR, 0.55),
+                color: "#94a3b8",
+                pastelColor: "rgba(191, 219, 254, 0.95)",
             },
             ...applianceItems,
             {
@@ -1650,16 +1722,18 @@
                 modelName: "Other",
                 energyWh: Math.max(0, mainsEnergyWh - baseloadEnergyWh - applianceItems.reduce((sum, item) => sum + item.energyWh, 0)),
                 sharePct: otherSharePct,
-                color: "#cbd5e1",
-                pastelColor: "rgba(226, 232, 240, 0.95)",
+                color: "#f59e0b",
+                pastelColor: "rgba(254, 240, 138, 0.95)",
             }
         ].filter((item) => item.sharePct > 0.05 || item.modelKey === "__other__");
+        currentPredictionShareItems = items;
 
         signalPredictionShareList.innerHTML = items.map((item) => `
-            <div class="prediction-share-item">
+            <div class="prediction-share-item" data-share-item="${item.modelKey}">
                 <span class="prediction-share-dot" style="background:${item.pastelColor};"></span>
                 <span class="prediction-share-name">${item.modelName}</span>
                 <span class="prediction-share-value">${item.sharePct.toFixed(1)}%</span>
+                ${item.modelKey === "__baseload__" ? `<button class="prediction-share-help-btn" type="button" aria-label="What does Base Load mean?" data-share-help="baseload">?</button>` : `<span></span>`}
             </div>
         `).join("");
 
@@ -1671,6 +1745,8 @@
                 borderColor: "rgba(255, 255, 255, 0.92)",
                 borderWidth: 2,
                 hoverOffset: 6,
+                hoverBorderWidth: 3,
+                spacing: 2,
             }]
         };
 
@@ -1691,6 +1767,10 @@
                 maintainAspectRatio: false,
                 animation: false,
                 cutout: "68%",
+                interaction: {
+                    mode: "nearest",
+                    intersect: false,
+                },
                 plugins: {
                     legend: { display: false },
                     tooltip: {
@@ -2984,6 +3064,21 @@
             clearInlinePrediction(removeButton.getAttribute("data-inline-prediction-remove"));
             showMessage("Prediction removed from the mains chart.", "success");
         };
+        signalPredictionShareListHandler = (event) => {
+            const helpButton = event.target.closest("[data-share-help='baseload']");
+            if (helpButton) {
+                const isActive = signalPredictionShareHelp?.classList.contains("active");
+                if (signalPredictionShareHelp) {
+                    signalPredictionShareHelp.textContent = "Base Load is the per-window minimum mains power used by inference as the always-on background level. Appliance predictions are compared against the remaining mains above that baseline.";
+                    signalPredictionShareHelp.classList.toggle("active", !isActive);
+                }
+                return;
+            }
+
+            const row = event.target.closest("[data-share-item]");
+            highlightPredictionShareSlice(row ? row.getAttribute("data-share-item") : null);
+        };
+        signalPredictionShareLeaveHandler = () => highlightPredictionShareSlice(null);
         sensorChangeHandler = async () => {
             try {
                 if (activeInlinePredictions.length) clearInlinePrediction();
@@ -3004,6 +3099,12 @@
         embeddingsList.addEventListener("click", embeddingsListClickHandler);
         embeddingsList.addEventListener("change", embeddingsListChangeHandler);
         if (signalPredictionList) signalPredictionList.addEventListener("click", signalPredictionListHandler);
+        if (signalPredictionShareList) {
+            signalPredictionShareList.addEventListener("click", signalPredictionShareListHandler);
+            signalPredictionShareList.addEventListener("mouseover", signalPredictionShareListHandler);
+            signalPredictionShareList.addEventListener("focusin", signalPredictionShareListHandler);
+            signalPredictionShareList.addEventListener("mouseleave", signalPredictionShareLeaveHandler);
+        }
         confirmDeleteEmbeddingButton.addEventListener("click", confirmDeleteEmbeddingHandler);
         cancelDeleteEmbeddingButton.addEventListener("click", cancelDeleteEmbeddingHandler);
         closeRealtimeHelpButton.addEventListener("click", closeRealtimeHelpHandler);
@@ -3028,6 +3129,12 @@
         if (embeddingsList && embeddingsListClickHandler) embeddingsList.removeEventListener("click", embeddingsListClickHandler);
         if (embeddingsList && embeddingsListChangeHandler) embeddingsList.removeEventListener("change", embeddingsListChangeHandler);
         if (signalPredictionList && signalPredictionListHandler) signalPredictionList.removeEventListener("click", signalPredictionListHandler);
+        if (signalPredictionShareList && signalPredictionShareListHandler) {
+            signalPredictionShareList.removeEventListener("click", signalPredictionShareListHandler);
+            signalPredictionShareList.removeEventListener("mouseover", signalPredictionShareListHandler);
+            signalPredictionShareList.removeEventListener("focusin", signalPredictionShareListHandler);
+            if (signalPredictionShareLeaveHandler) signalPredictionShareList.removeEventListener("mouseleave", signalPredictionShareLeaveHandler);
+        }
         if (confirmDeleteEmbeddingButton && confirmDeleteEmbeddingHandler) confirmDeleteEmbeddingButton.removeEventListener("click", confirmDeleteEmbeddingHandler);
         if (cancelDeleteEmbeddingButton && cancelDeleteEmbeddingHandler) cancelDeleteEmbeddingButton.removeEventListener("click", cancelDeleteEmbeddingHandler);
         if (closeRealtimeHelpButton && closeRealtimeHelpHandler) closeRealtimeHelpButton.removeEventListener("click", closeRealtimeHelpHandler);
@@ -3129,6 +3236,8 @@
         addPredictionOverlayHandler = null;
         resetPredictionZoomHandler = null;
         signalPredictionListHandler = null;
+        signalPredictionShareListHandler = null;
+        signalPredictionShareLeaveHandler = null;
         latestPowerPollTickHandler = null;
         pendingDeleteEmbeddingName = null;
         sensorsById = new Map();
