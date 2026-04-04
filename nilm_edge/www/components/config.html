@@ -1677,6 +1677,32 @@
         }
     }
 
+    function showPredictionShareTooltip(modelKey = null) {
+        if (!signalPredictionShareChart) return;
+        const activeIndex = modelKey
+            ? currentPredictionShareItems.findIndex((item) => item.modelKey === modelKey)
+            : -1;
+
+        if (activeIndex < 0) {
+            signalPredictionShareChart.setActiveElements([]);
+            if (signalPredictionShareChart.tooltip?.setActiveElements) {
+                signalPredictionShareChart.tooltip.setActiveElements([], { x: 0, y: 0 });
+            }
+            signalPredictionShareChart.update("none");
+            return;
+        }
+
+        const meta = signalPredictionShareChart.getDatasetMeta(0);
+        const element = meta?.data?.[activeIndex];
+        const position = element?.getCenterPoint ? element.getCenterPoint() : { x: 0, y: 0 };
+        const active = [{ datasetIndex: 0, index: activeIndex }];
+        signalPredictionShareChart.setActiveElements(active);
+        if (signalPredictionShareChart.tooltip?.setActiveElements) {
+            signalPredictionShareChart.tooltip.setActiveElements(active, position);
+        }
+        signalPredictionShareChart.update("none");
+    }
+
     function renderInlinePredictionShareChart() {
         if (!signalPredictionShareWrap || !signalPredictionShareList || !signalPredictionShareCenterValue || !signalPredictionShareChartCanvas) {
             return;
@@ -3107,10 +3133,19 @@
             }
 
             const row = event.target.closest("[data-share-item]");
-            if (!row || event.type === "click") return;
-            highlightPredictionShareSlice(row ? row.getAttribute("data-share-item") : null);
+            if (!row) return;
+            const modelKey = row.getAttribute("data-share-item");
+            if (event.type === "click") {
+                highlightPredictionShareSlice(modelKey);
+                showPredictionShareTooltip(modelKey);
+                return;
+            }
+            highlightPredictionShareSlice(modelKey);
         };
-        signalPredictionShareLeaveHandler = () => highlightPredictionShareSlice(null);
+        signalPredictionShareLeaveHandler = () => {
+            highlightPredictionShareSlice(null);
+            showPredictionShareTooltip(null);
+        };
         baseLoadHelpOverlayHandler = (event) => {
             if (event.target === baseLoadHelpModal) {
                 closeBaseLoadHelpModal();
