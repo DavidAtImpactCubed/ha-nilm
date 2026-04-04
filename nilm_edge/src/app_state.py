@@ -8,23 +8,14 @@ from ha_client import HistoryQuery, fetch_history_points
 from model_registry import discover_model_bundles, get_latest_bundle_for_mode
 from online_runtime import MultiBundleOnlineRuntime
 from supervisor_addons import discover_training_server_addon
-from training_server_url import DEFAULT_TRAINING_SERVER_URL, normalize_training_server_url
+from training_server_url import normalize_training_server_url
 
 
-TRAINING_SERVER_URL = (
-    os.getenv("TRAINING_SERVER_URL", "").strip()
-    or os.getenv("CLOUD_TRAIN_URL", "").strip()
-    or DEFAULT_TRAINING_SERVER_URL
-)
-TRAINING_SERVER_API_KEY = (
-    os.getenv("TRAINING_SERVER_API_KEY", "").strip()
-    or None
-)
+TRAINING_SERVER_API_KEY = os.getenv("TRAINING_SERVER_API_KEY", "").strip() or None
 MODELS_ROOT = "/data/models"
 LEGACY_EMBEDDINGS_DIR = "/data/embeddings"
 INFERENCE_ROOT = "/app/inference"
 CONFIG_FILE_PATH = "/data/config.json"
-ADDON_OPTIONS_PATH = "/data/options.json"
 SUPERVISOR_API_URL = os.getenv("SUPERVISOR_API_URL", "http://supervisor")
 
 HA_WS_URL = os.getenv("HA_WS_URL", "ws://supervisor/core/websocket")
@@ -48,28 +39,11 @@ async def maybe_await(value):
     return await value if inspect.isawaitable(value) else value
 
 
-def _load_addon_options() -> Dict[str, Any]:
-    if not os.path.exists(ADDON_OPTIONS_PATH):
-        return {}
-
-    try:
-        with open(ADDON_OPTIONS_PATH, "r", encoding="utf-8") as file_handle:
-            payload = json.load(file_handle)
-        return payload if isinstance(payload, dict) else {}
-    except Exception as exc:
-        print(f"Error reading add-on options from {ADDON_OPTIONS_PATH}: {exc}")
-        return {}
-
-
 def get_training_server_url() -> str:
     local_url = str(current_config.get("training_server_url") or "").strip()
     if local_url:
         return normalize_training_server_url(local_url)
-    options = _load_addon_options()
-    option_url = str(options.get("training_server_url") or "").strip()
-    if option_url:
-        return normalize_training_server_url(option_url)
-    return normalize_training_server_url(TRAINING_SERVER_URL)
+    return ""
 
 
 def get_configured_training_server_url() -> str:
@@ -77,10 +51,6 @@ def get_configured_training_server_url() -> str:
 
 
 def get_training_server_api_key() -> Optional[str]:
-    options = _load_addon_options()
-    option_api_key = str(options.get("training_server_api_key") or "").strip()
-    if option_api_key:
-        return option_api_key
     return TRAINING_SERVER_API_KEY
 
 
@@ -137,26 +107,6 @@ async def resolve_training_server_url_state() -> Dict[str, Any]:
             "configured_training_server_url": configured_url,
             "effective_training_server_url": normalized,
             "training_server_url_source": "ui_override",
-            "available_training_servers": available_training_servers,
-            "autodetect": None,
-        }
-
-    options = _load_addon_options()
-    option_url = str(options.get("training_server_url") or "").strip()
-    if _is_direct_training_server_url(option_url):
-        normalized = normalize_training_server_url(option_url)
-        _append_training_server_option(
-            available_training_servers,
-            seen_urls,
-            option_id="addon_option",
-            label="Internal Add-on",
-            url=normalized,
-            description="Configured internal training server.",
-        )
-        return {
-            "configured_training_server_url": configured_url,
-            "effective_training_server_url": normalized,
-            "training_server_url_source": "addon_option",
             "available_training_servers": available_training_servers,
             "autodetect": None,
         }
