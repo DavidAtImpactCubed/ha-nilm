@@ -1666,6 +1666,13 @@
         }
     }
 
+    function showPredictionShareHelp(message = "") {
+        if (!signalPredictionShareHelp) return;
+        const text = String(message || "").trim();
+        signalPredictionShareHelp.textContent = text;
+        signalPredictionShareHelp.classList.toggle("active", Boolean(text));
+    }
+
     function renderInlinePredictionShareChart() {
         if (!signalPredictionShareWrap || !signalPredictionShareList || !signalPredictionShareCenterValue || !signalPredictionShareChartCanvas || !signalPredictionShareHelp) {
             return;
@@ -1674,8 +1681,7 @@
         if (!activeInlinePredictions.length || !fullSignalSeries.length) {
             signalPredictionShareWrap.classList.add("hidden");
             signalPredictionShareList.innerHTML = "";
-            signalPredictionShareHelp.classList.remove("active");
-            signalPredictionShareHelp.textContent = "";
+            showPredictionShareHelp("");
             signalPredictionShareCenterValue.textContent = "0%";
             currentPredictionShareItems = [];
             if (signalPredictionShareChart) {
@@ -1768,8 +1774,16 @@
                 animation: false,
                 cutout: "68%",
                 interaction: {
-                    mode: "nearest",
-                    intersect: false,
+                    mode: "point",
+                    intersect: true,
+                },
+                onHover: (event, activeElements, chart) => {
+                    const activeIndex = Array.isArray(activeElements) && activeElements.length ? activeElements[0].index : -1;
+                    const item = activeIndex >= 0 ? currentPredictionShareItems[activeIndex] : null;
+                    highlightPredictionShareSlice(item ? item.modelKey : null);
+                    if (chart?.canvas) {
+                        chart.canvas.style.cursor = item ? "pointer" : "default";
+                    }
                 },
                 plugins: {
                     legend: { display: false },
@@ -1819,6 +1833,7 @@
         activeInlinePredictions = modelKey
             ? activeInlinePredictions.filter((prediction) => prediction.modelKey !== modelKey)
             : [];
+        showPredictionShareHelp("");
         renderInlinePredictionUi();
         renderSignalChart(fullSignalSeries);
     }
@@ -3068,15 +3083,15 @@
         signalPredictionShareListHandler = (event) => {
             const helpButton = event.target.closest("[data-share-help='baseload']");
             if (helpButton) {
-                const isActive = signalPredictionShareHelp?.classList.contains("active");
-                if (signalPredictionShareHelp) {
-                    signalPredictionShareHelp.textContent = "Base Load is the per-window minimum mains power used by inference as the always-on background level. Appliance predictions are compared against the remaining mains above that baseline.";
-                    signalPredictionShareHelp.classList.toggle("active", !isActive);
-                }
+                const helpText = "Base Load is the part of the mains that behaves like always-on consumption, such as standby devices or appliances that continuously draw power. The NILM prediction treats it as the background level and estimates appliances on top of it.";
+                const isSameText = signalPredictionShareHelp?.classList.contains("active")
+                    && signalPredictionShareHelp?.textContent === helpText;
+                showPredictionShareHelp(isSameText ? "" : helpText);
                 return;
             }
 
             const row = event.target.closest("[data-share-item]");
+            if (!row || event.type === "click") return;
             highlightPredictionShareSlice(row ? row.getAttribute("data-share-item") : null);
         };
         signalPredictionShareLeaveHandler = () => highlightPredictionShareSlice(null);
