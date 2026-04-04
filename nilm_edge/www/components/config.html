@@ -1454,14 +1454,19 @@
         if (!predictionOverlaySensorSelect) return;
 
         const sensors = Array.from(allSensorsById.values())
-            .filter((sensor) => sensor?.entity_id)
+            .filter((sensor) => {
+                if (!sensor?.entity_id) return false;
+                const unit = String(sensor.unit_of_measurement || "").trim();
+                return unit === "W" || unit === "kW";
+            })
             .sort((a, b) => String(a.friendly_name || a.entity_id).localeCompare(String(b.friendly_name || b.entity_id)));
 
         predictionOverlaySensorSelect.innerHTML = `<option value="">Select sensor</option>`;
         sensors.forEach((sensor) => {
             const option = document.createElement("option");
             option.value = sensor.entity_id;
-            option.textContent = sensor.friendly_name || sensor.entity_id;
+            const unit = String(sensor.unit_of_measurement || "").trim();
+            option.textContent = `${sensor.friendly_name || sensor.entity_id}${unit ? ` (${unit})` : ""}`;
             predictionOverlaySensorSelect.appendChild(option);
         });
     }
@@ -2294,6 +2299,8 @@
     async function fetchSeriesForSensor(sensorEntityId, bounds = null) {
         if (!sensorEntityId) return [];
 
+        const sensorMeta = allSensorsById.get(sensorEntityId);
+        const unit = String(sensorMeta?.unit_of_measurement || "").trim();
         const response = await fetch(buildHistoryUrlForSensor(sensorEntityId, bounds));
         if (!response.ok) {
             return [];
@@ -2304,7 +2311,10 @@
         return rawSeries
             .map((point) => {
                 const timeValue = typeof point?.x === "number" ? point.x : Date.parse(point?.x);
-                const powerValue = Number(point?.y);
+                let powerValue = Number(point?.y);
+                if (unit === "kW" && Number.isFinite(powerValue)) {
+                    powerValue *= 1000;
+                }
                 if (!Number.isFinite(timeValue) || !Number.isFinite(powerValue)) {
                     return null;
                 }

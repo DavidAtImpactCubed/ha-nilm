@@ -37,6 +37,8 @@ async def get_sensors_handler(request):
                     "friendly_name": attributes.get("friendly_name", entity_id),
                     "state": state.get("state"),
                     "last_changed": state.get("last_changed"),
+                    "device_class": attributes.get("device_class"),
+                    "unit_of_measurement": attributes.get("unit_of_measurement"),
                     "source": source,
                     "is_virtual": is_virtual,
                 })
