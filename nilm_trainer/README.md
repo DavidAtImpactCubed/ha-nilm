@@ -13,7 +13,9 @@ This service receives prepared NILM training data, runs appliance-model training
 
 When this add-on starts inside Home Assistant, its logs print the exact `training_server_url` that the `NILM` add-on should use.
 
-Use that printed URL in the `NILM` add-on Configuration tab if the default `homeassistant.local` endpoint does not work for training uploads.
+You can also open the add-on Web UI to see the same URL in a copy-friendly page.
+
+Use that displayed URL in the `NILM` add-on Configuration tab.
 
 ## Bundle Requirements
 

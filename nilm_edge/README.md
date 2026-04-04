@@ -18,8 +18,8 @@ It listens to one aggregate mains power sensor, applies the available appliance 
 
 1. Add your add-on repository to Home Assistant.
 2. Install the `NILM` add-on.
-3. If training uploads fail through the default endpoint, open the `NILM Training Server` add-on logs and copy the `training_server_url` printed at startup.
-4. In the `NILM` add-on Configuration tab, set `training_server_url` to that printed value.
+3. Open the `NILM Training Server` add-on Web UI or logs and copy the displayed `training_server_url`.
+4. In the `NILM` add-on Configuration tab, set `training_server_url` to that value.
 5. Start the add-on.
 6. Open the web UI from the add-on page.
 
@@ -60,6 +60,14 @@ The training page:
 Training is not performed inside this add-on itself.
 
 This add-on prepares the training payload and sends it to the configured `TRAINING_SERVER_URL`. By default that URL points to a Home Assistant-hosted training server endpoint, but it can also point to an external compatible server.
+
+You can enter the training server as either:
+
+- `hostname:8080`
+- `http://hostname:8080`
+- `http://hostname:8080/train`
+
+The add-on normalizes those forms to the actual training endpoint automatically.
 
 ## Published Home Assistant Entities
 

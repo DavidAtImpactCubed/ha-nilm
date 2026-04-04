@@ -151,7 +151,8 @@ class TrainingServerServiceManager:
         }
 
     async def get_training_server_connection_status(self) -> Dict[str, Any]:
-        training_server_url = app_state.get_training_server_url()
+        url_state = await app_state.resolve_training_server_url_state()
+        training_server_url = url_state["effective_training_server_url"]
         training_server_api_key = app_state.get_training_server_api_key()
         result = await probe_training_server_connection(
             training_server_url=training_server_url,
@@ -161,14 +162,27 @@ class TrainingServerServiceManager:
         return {
             "status": "success",
             "training_server_url": training_server_url,
+            **url_state,
             **result,
+        }
+
+    async def detect_training_server(self) -> Dict[str, Any]:
+        url_state = await app_state.resolve_training_server_url_state()
+        autodetect = url_state.get("autodetect") or {}
+        return {
+            "status": "success",
+            **autodetect,
+            "configured_training_server_url": url_state.get("configured_training_server_url", ""),
+            "effective_training_server_url": url_state.get("effective_training_server_url", ""),
+            "training_server_url_source": url_state.get("training_server_url_source"),
         }
 
     async def start_send(self, job_id: str) -> Dict[str, Any]:
         prepared = await self._read(job_id)
         training_server_payload = training_server_payload_from_prepared(prepared)
         payload_summary = summarize_training_server_payload(training_server_payload)
-        training_server_url = app_state.get_training_server_url()
+        url_state = await app_state.resolve_training_server_url_state()
+        training_server_url = url_state["effective_training_server_url"]
         training_server_api_key = app_state.get_training_server_api_key()
         print(
             f"Starting training server send for local_job_id={job_id} "
@@ -192,6 +206,7 @@ class TrainingServerServiceManager:
         await self._patch_job(job_id, {
             "training_server_job_id": training_server_job_id,
             "training_server_url": training_server_url,
+            "training_server_url_source": url_state.get("training_server_url_source"),
             "state": "training_server_queued",
             "updated_at": _utc_now_iso(),
             "error": None,

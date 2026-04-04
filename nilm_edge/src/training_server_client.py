@@ -4,20 +4,25 @@ import asyncio
 import gzip
 import json
 from typing import Any, Dict, Optional, Callable
-from urllib.parse import urlparse
 
 import aiohttp
+from training_server_url import (
+    normalize_training_server_url,
+    training_server_origin,
+    training_server_status_base,
+    uses_homeassistant_gateway,
+)
 
 
 class TrainingServerError(RuntimeError):
     pass
 
 
-def _training_server_base_from_url(training_server_url: str) -> str:
-    u = urlparse(training_server_url)
-    if not u.scheme or not u.netloc:
+def _normalized_training_server_url(training_server_url: str) -> str:
+    normalized_url = normalize_training_server_url(training_server_url)
+    if not normalized_url or not training_server_origin(normalized_url):
         raise TrainingServerError(f"Invalid TRAINING_SERVER_URL: {training_server_url!r}")
-    return f"{u.scheme}://{u.netloc}"
+    return normalized_url
 
 
 def _headers(api_key: Optional[str]) -> Dict[str, str]:
@@ -33,6 +38,7 @@ async def start_training_job(
     payload: Dict[str, Any],
     timeout_s: float = 30.0,
 ) -> Dict[str, Any]:
+    training_server_url = _normalized_training_server_url(training_server_url)
     timeout = aiohttp.ClientTimeout(total=timeout_s, connect=10, sock_read=timeout_s)
     payload_text = json.dumps(payload, separators=(",", ":"))
     payload_size_bytes = len(payload_text.encode("utf-8"))
@@ -108,7 +114,7 @@ async def probe_training_server_connection(
         }
 
     try:
-        base = _training_server_base_from_url(training_server_url)
+        normalized_url = _normalized_training_server_url(training_server_url)
     except TrainingServerError as e:
         return {
             "ok": False,
@@ -117,7 +123,10 @@ async def probe_training_server_connection(
         }
 
     timeout = aiohttp.ClientTimeout(total=timeout_s, connect=5, sock_read=5)
-    candidates = [training_server_url, f"{base}/train", base]
+    origin = training_server_origin(normalized_url)
+    candidates = [normalized_url]
+    if origin and origin != normalized_url:
+        candidates.append(origin)
     last_error = None
 
     try:
@@ -138,11 +147,21 @@ async def probe_training_server_connection(
                             message = "Training server connection looks ready."
                             if resp.status >= 400:
                                 message = f"Training server is reachable (HTTP {resp.status})."
+                            state = "ready"
+                            if uses_homeassistant_gateway(normalized_url):
+                                state = "proxy_route"
+                                message = (
+                                    "Training server is reachable through the Home Assistant gateway, "
+                                    "but direct add-on hostnames are more reliable for training uploads. "
+                                    "Open the NILM Training Server Web UI or logs and copy the displayed training_server_url."
+                                )
                             return {
                                 "ok": True,
-                                "state": "ready",
+                                "state": state,
                                 "message": message,
                                 "http_status": resp.status,
+                                "configured_url": training_server_url,
+                                "normalized_url": normalized_url,
                                 "checked_url": url,
                                 "response_excerpt": text[:200],
                             }
@@ -170,8 +189,8 @@ async def fetch_training_status(
     job_id: str,
     timeout_s: float = 15.0,
 ) -> Dict[str, Any]:
-    base = _training_server_base_from_url(training_server_url)
-    status_url = f"{base}/train/{job_id}"
+    status_base = training_server_status_base(_normalized_training_server_url(training_server_url))
+    status_url = f"{status_base}/{job_id}"
     timeout = aiohttp.ClientTimeout(total=timeout_s, connect=10, sock_read=10)
 
     try:
@@ -216,8 +235,8 @@ async def poll_training_result(
        'done' but the file isn't immediately accessible (e.g., 404/500 errors).
     3. Small Payload Optimization: Ideal for 128-dim vectors.
     """
-    base = _training_server_base_from_url(training_server_url)
-    result_url = f"{base}/train/{job_id}/result"
+    status_base = training_server_status_base(_normalized_training_server_url(training_server_url))
+    result_url = f"{status_base}/{job_id}/result"
     deadline = asyncio.get_running_loop().time() + max_wait_s
 
     while asyncio.get_running_loop().time() < deadline:

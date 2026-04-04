@@ -16,9 +16,9 @@ async def receive_training_data_handler(request: web.Request) -> web.Response:
             return web.json_response({"status": "error", "message": "training_server_manager not configured"}, status=500)
 
         action = (request.query.get("action") or "").strip().lower()
-        if action not in ("prepare", "send", "status", "training_server_status"):
+        if action not in ("prepare", "send", "status", "training_server_status", "training_server_detect"):
             return web.json_response(
-                {"status": "error", "message": "Missing/invalid action. Use ?action=prepare|send|status|training_server_status"},
+                {"status": "error", "message": "Missing/invalid action. Use ?action=prepare|send|status|training_server_status|training_server_detect"},
                 status=400,
             )
 
@@ -155,6 +155,15 @@ async def receive_training_data_handler(request: web.Request) -> web.Response:
                 print(traceback.format_exc(), flush=True)
                 return web.json_response({"status": "error", "message": f"Failed to check training server connection: {exc}"}, status=500)
             return web.json_response(status_payload, status=200)
+
+        if action == "training_server_detect":
+            try:
+                detect_payload = await maybe_await(svc.detect_training_server())
+            except Exception as exc:
+                print(f"Training server detection failed: {exc}", flush=True)
+                print(traceback.format_exc(), flush=True)
+                return web.json_response({"status": "error", "message": f"Failed to detect training server: {exc}"}, status=500)
+            return web.json_response(detect_payload, status=200)
 
         job_id = (request.query.get("job_id") or "").strip()
         if not job_id:

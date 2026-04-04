@@ -7,11 +7,14 @@ from embedding_store import migrate_legacy_models, rename_bundle_models_dir
 from ha_client import HistoryQuery, fetch_history_points
 from model_registry import discover_model_bundles, get_latest_bundle_for_mode
 from online_runtime import MultiBundleOnlineRuntime
+from supervisor_addons import discover_training_server_addon
+from training_server_url import DEFAULT_TRAINING_SERVER_URL, normalize_training_server_url
 
 
 TRAINING_SERVER_URL = (
     os.getenv("TRAINING_SERVER_URL", "").strip()
     or os.getenv("CLOUD_TRAIN_URL", "").strip()
+    or DEFAULT_TRAINING_SERVER_URL
 )
 TRAINING_SERVER_API_KEY = (
     os.getenv("TRAINING_SERVER_API_KEY", "").strip()
@@ -22,6 +25,7 @@ LEGACY_EMBEDDINGS_DIR = "/data/embeddings"
 INFERENCE_ROOT = "/app/inference"
 CONFIG_FILE_PATH = "/data/config.json"
 ADDON_OPTIONS_PATH = "/data/options.json"
+SUPERVISOR_API_URL = os.getenv("SUPERVISOR_API_URL", "http://supervisor")
 
 HA_WS_URL = os.getenv("HA_WS_URL", "ws://supervisor/core/websocket")
 HA_REST_API_URL = os.getenv("HA_REST_API_URL", "http://supervisor/core/api")
@@ -33,6 +37,7 @@ if not INGRESS_URL_BASE.endswith("/"):
 
 current_config = {
     "main_sensor_id": (os.getenv("MAIN_SENSOR", "").strip() or None),
+    "training_server_url": None,
 }
 
 refquery_instance = None
@@ -57,11 +62,18 @@ def _load_addon_options() -> Dict[str, Any]:
 
 
 def get_training_server_url() -> str:
+    local_url = str(current_config.get("training_server_url") or "").strip()
+    if local_url:
+        return normalize_training_server_url(local_url)
     options = _load_addon_options()
     option_url = str(options.get("training_server_url") or "").strip()
     if option_url:
-        return option_url
-    return TRAINING_SERVER_URL
+        return normalize_training_server_url(option_url)
+    return normalize_training_server_url(TRAINING_SERVER_URL)
+
+
+def get_configured_training_server_url() -> str:
+    return str(current_config.get("training_server_url") or "").strip()
 
 
 def get_training_server_api_key() -> Optional[str]:
@@ -87,6 +99,54 @@ async def history_fetcher(start_dt, end_dt):
     return await fetch_history_points(HA_REST_API_URL, TOKEN, query)
 
 
+def _is_direct_training_server_url(url: str) -> bool:
+    normalized = normalize_training_server_url(url)
+    if not normalized:
+        return False
+    return "homeassistant.local" not in normalized and "://supervisor" not in normalized and "://homeassistant" not in normalized
+
+
+async def resolve_training_server_url_state() -> Dict[str, Any]:
+    configured_url = get_configured_training_server_url()
+    if _is_direct_training_server_url(configured_url):
+        normalized = normalize_training_server_url(configured_url)
+        return {
+            "configured_training_server_url": configured_url,
+            "effective_training_server_url": normalized,
+            "training_server_url_source": "ui_override",
+            "autodetect": None,
+        }
+
+    options = _load_addon_options()
+    option_url = str(options.get("training_server_url") or "").strip()
+    if _is_direct_training_server_url(option_url):
+        normalized = normalize_training_server_url(option_url)
+        return {
+            "configured_training_server_url": configured_url,
+            "effective_training_server_url": normalized,
+            "training_server_url_source": "addon_option",
+            "autodetect": None,
+        }
+
+    autodetect = await discover_training_server_addon(SUPERVISOR_API_URL, TOKEN)
+    if autodetect.get("ok") and autodetect.get("training_server_url"):
+        return {
+            "configured_training_server_url": configured_url,
+            "effective_training_server_url": autodetect["training_server_url"],
+            "training_server_url_source": "autodetected",
+            "autodetect": autodetect,
+        }
+
+    fallback_url = normalize_training_server_url(configured_url or option_url or TRAINING_SERVER_URL)
+    fallback_source = "ui_override" if configured_url else ("addon_option" if option_url else "default")
+    return {
+        "configured_training_server_url": configured_url,
+        "effective_training_server_url": fallback_url,
+        "training_server_url_source": fallback_source,
+        "autodetect": autodetect,
+    }
+
+
 def load_config():
     if not os.path.exists(CONFIG_FILE_PATH):
         print(f"No config file found at {CONFIG_FILE_PATH}. Using default values.")
@@ -96,7 +156,13 @@ def load_config():
         with open(CONFIG_FILE_PATH, "r", encoding="utf-8") as file_handle:
             loaded_config = json.load(file_handle)
         loaded_sensor_id = loaded_config.get("main_sensor_id", current_config["main_sensor_id"])
+        loaded_training_server_url = loaded_config.get("training_server_url", current_config["training_server_url"])
         current_config["main_sensor_id"] = (str(loaded_sensor_id).strip() if loaded_sensor_id is not None else None) or None
+        current_config["training_server_url"] = (
+            normalize_training_server_url(str(loaded_training_server_url).strip())
+            if loaded_training_server_url
+            else None
+        )
         print(f"Configuration loaded from {CONFIG_FILE_PATH}")
     except json.JSONDecodeError as exc:
         print(f"Error decoding config.json: {exc}. Using current in-memory values.")
@@ -104,8 +170,15 @@ def load_config():
         print(f"Error reading config.json: {exc}. Using current in-memory values.")
 
 
-def save_config(main_sensor_id):
-    current_config["main_sensor_id"] = (str(main_sensor_id).strip() if main_sensor_id is not None else None) or None
+def save_config(*, main_sensor_id=None, training_server_url=None, update_main_sensor_id=False, update_training_server_url=False):
+    if update_main_sensor_id:
+        current_config["main_sensor_id"] = (str(main_sensor_id).strip() if main_sensor_id is not None else None) or None
+    if update_training_server_url:
+        current_config["training_server_url"] = (
+            normalize_training_server_url(str(training_server_url).strip())
+            if training_server_url is not None and str(training_server_url).strip()
+            else None
+        )
     try:
         os.makedirs(os.path.dirname(CONFIG_FILE_PATH), exist_ok=True)
         with open(CONFIG_FILE_PATH, "w", encoding="utf-8") as file_handle:

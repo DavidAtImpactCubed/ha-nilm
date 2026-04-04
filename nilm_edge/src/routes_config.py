@@ -4,21 +4,40 @@ import app_state
 
 
 async def get_config_handler(request):
-    return web.json_response(app_state.current_config)
+    training_server_state = await app_state.resolve_training_server_url_state()
+    return web.json_response({
+        **app_state.current_config,
+        **training_server_state,
+    })
 
 
 async def post_config_handler(request):
     try:
         data = await request.json()
+        if not isinstance(data, dict):
+            raise ValueError("Request body must be a JSON object.")
+
+        update_main_sensor_id = "main_sensor_id" in data
+        update_training_server_url = "training_server_url" in data
+        if not update_main_sensor_id and not update_training_server_url:
+            raise ValueError("Nothing to update. Provide 'main_sensor_id' and/or 'training_server_url'.")
+
         new_main_sensor_id = data.get("main_sensor_id")
+        new_training_server_url = data.get("training_server_url")
 
-        if new_main_sensor_id is None:
-            raise ValueError("Missing 'main_sensor_id' in request body.")
-        if not isinstance(new_main_sensor_id, str):
+        if update_main_sensor_id and new_main_sensor_id is not None and not isinstance(new_main_sensor_id, str):
             raise ValueError("Invalid format for 'main_sensor_id' (must be string).")
+        if update_training_server_url and new_training_server_url is not None and not isinstance(new_training_server_url, str):
+            raise ValueError("Invalid format for 'training_server_url' (must be string).")
 
-        app_state.save_config(new_main_sensor_id)
-        app_state.reload_algorithm_config()
+        app_state.save_config(
+            main_sensor_id=new_main_sensor_id,
+            training_server_url=new_training_server_url,
+            update_main_sensor_id=update_main_sensor_id,
+            update_training_server_url=update_training_server_url,
+        )
+        if update_main_sensor_id:
+            app_state.reload_algorithm_config()
 
         return web.json_response({"status": "success", "message": "Configuration updated successfully."})
     except ValueError as exc:

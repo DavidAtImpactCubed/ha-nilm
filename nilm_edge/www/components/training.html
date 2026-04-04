@@ -429,6 +429,37 @@
         line-height: 1.45;
     }
 
+    .training-server-status-details {
+        color: #64748b;
+        font-size: 0.82rem;
+        line-height: 1.5;
+        margin-top: 8px;
+        white-space: pre-line;
+    }
+
+    .training-server-config-card {
+        margin-bottom: 18px;
+        padding: 14px 16px;
+        border-radius: 16px;
+        border: 1px solid #e2e8f0;
+        background: rgba(255, 255, 255, 0.96);
+    }
+
+    .training-server-config-grid {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto auto auto;
+        gap: 10px;
+        align-items: end;
+    }
+
+    .training-server-config-meta {
+        color: #64748b;
+        font-size: 0.82rem;
+        line-height: 1.5;
+        margin-top: 8px;
+        white-space: pre-line;
+    }
+
     .training-server-status-badge {
         display: inline-flex;
         align-items: center;
@@ -484,6 +515,9 @@
         .training-server-status-card {
             flex-direction: column;
             align-items: stretch;
+        }
+        .training-server-config-grid {
+            grid-template-columns: 1fr;
         }
         .jobs-pagination {
             flex-direction: column;
@@ -613,6 +647,7 @@
         <div class="training-server-status-copy">
             <div class="training-server-status-title">Training Server Connection</div>
             <div id="trainingServerStatusMessage" class="training-server-status-message">Checking training server connection before training...</div>
+            <div id="trainingServerStatusDetails" class="training-server-status-details hidden"></div>
         </div>
         <div class="flex items-center gap-3">
             <span id="trainingServerStatusBadge" class="training-server-status-badge training-server-status-warning">Checking</span>
@@ -620,6 +655,21 @@
                 <i class="fas fa-sync mr-2" aria-hidden="true"></i> Retry
             </button>
         </div>
+    </div>
+
+    <div class="training-server-config-card">
+        <div class="training-server-status-title">Training Server URL</div>
+        <div class="training-server-status-message">Leave this empty to use automatic detection when the NILM Training Server add-on is installed and started.</div>
+        <div class="training-server-config-grid mt-3">
+            <div>
+                <label for="trainingServerUrlInput" class="field-label">Direct URL</label>
+                <input id="trainingServerUrlInput" class="field-input" type="text" placeholder="Auto-detect or enter http://hostname:8080/train">
+            </div>
+            <button id="detectTrainingServerUrlBtn" class="action-btn action-neutral" type="button">Auto-detect</button>
+            <button id="clearTrainingServerUrlBtn" class="action-btn action-neutral" type="button">Use Auto</button>
+            <button id="saveTrainingServerUrlBtn" class="action-btn action-primary" type="button">Save</button>
+        </div>
+        <div id="trainingServerConfigMeta" class="training-server-config-meta hidden"></div>
     </div>
 
     <!-- How This Training Session Works Info Section (Accordion) -->
@@ -924,6 +974,12 @@
     let trainingServerStatusCard;
     let trainingServerStatusMessage;
     let trainingServerStatusBadge;
+    let trainingServerStatusDetails;
+    let trainingServerUrlInput;
+    let detectTrainingServerUrlBtn;
+    let clearTrainingServerUrlBtn;
+    let saveTrainingServerUrlBtn;
+    let trainingServerConfigMeta;
     let retryTrainingServerStatusBtn;
     let jobsUI = null;
     let sendToTrainingServerBtn;
@@ -994,6 +1050,9 @@
     let supervisionModeChangeHandler;
     let manualIntervalInputHandler;
     let retryTrainingServerStatusHandler;
+    let detectTrainingServerUrlHandler;
+    let clearTrainingServerUrlHandler;
+    let saveTrainingServerUrlHandler;
     // applyDateRangeHandler is now the Flatpickr onChange event
 
 
@@ -1149,13 +1208,41 @@
             setUiBusy(false, finalMessage);
         }
 
-        function setTrainingServerStatusUi({ ok = false, state = "unreachable", message = "" } = {}) {
+        function buildTrainingServerStatusDetails({ normalized_url = "", effective_training_server_url = "", training_server_url = "", checked_url = "", state = "", training_server_url_source = "" } = {}) {
+            const lines = [];
+            const displayUrl = effective_training_server_url || normalized_url || training_server_url;
+            if (displayUrl) {
+                lines.push(`Using URL: ${displayUrl}`);
+            }
+            if (training_server_url_source) {
+                lines.push(`Source: ${training_server_url_source}`);
+            }
+            if (checked_url && checked_url !== displayUrl) {
+                lines.push(`Connection check hit: ${checked_url}`);
+            }
+            return lines.join("\n");
+        }
+
+        function setTrainingServerStatusUi({ ok = false, state = "unreachable", message = "", normalized_url = "", effective_training_server_url = "", training_server_url = "", checked_url = "", training_server_url_source = "" } = {}) {
             trainingServerConnectionReady = !!ok;
 
             if (trainingServerStatusMessage) {
                 trainingServerStatusMessage.textContent = message || (ok
                     ? "Training server connection looks ready."
                     : "Training server connection is not available.");
+            }
+
+            if (trainingServerStatusDetails) {
+                const details = buildTrainingServerStatusDetails({
+                    normalized_url,
+                    effective_training_server_url,
+                    training_server_url,
+                    checked_url,
+                    state,
+                    training_server_url_source
+                });
+                trainingServerStatusDetails.textContent = details;
+                trainingServerStatusDetails.classList.toggle("hidden", !details);
             }
 
             if (trainingServerStatusBadge) {
@@ -1177,6 +1264,74 @@
 
             if (checkAllDataBtn) checkAllDataBtn.disabled = !trainingServerConnectionReady;
             if (sendToTrainingServerBtn) sendToTrainingServerBtn.disabled = !trainingServerConnectionReady;
+        }
+
+        function updateTrainingServerConfigUi(payload = {}) {
+            if (trainingServerUrlInput) {
+                trainingServerUrlInput.value = payload.configured_training_server_url || "";
+            }
+
+            if (trainingServerConfigMeta) {
+                const lines = [];
+                if (payload.effective_training_server_url) {
+                    lines.push(`Effective URL: ${payload.effective_training_server_url}`);
+                }
+                if (payload.training_server_url_source) {
+                    lines.push(`Source: ${payload.training_server_url_source}`);
+                }
+                const autodetect = payload.autodetect || payload;
+                if (autodetect && autodetect.hostname) {
+                    lines.push(`Detected hostname: ${autodetect.hostname}`);
+                }
+                if (autodetect && autodetect.message) {
+                    lines.push(autodetect.message);
+                }
+                trainingServerConfigMeta.textContent = lines.join("\n");
+                trainingServerConfigMeta.classList.toggle("hidden", lines.length === 0);
+            }
+        }
+
+        async function refreshTrainingServerConfigState() {
+            const response = await fetch("config");
+            const payload = await response.json().catch(() => ({}));
+            if (!response.ok) {
+                throw new Error(payload.message || `HTTP ${response.status}`);
+            }
+            updateTrainingServerConfigUi(payload);
+            return payload;
+        }
+
+        async function saveTrainingServerUrlOverride(urlValue) {
+            const response = await fetch("config", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ training_server_url: urlValue })
+            });
+            const payload = await response.json().catch(() => ({}));
+            if (!response.ok) {
+                throw new Error(payload.message || `HTTP ${response.status}`);
+            }
+            await refreshTrainingServerConfigState();
+            await checkTrainingServerConnection(true);
+            if (trainingPrepStatus) {
+                trainingPrepStatus.textContent = urlValue
+                    ? "Training server URL saved."
+                    : "Training server URL override cleared. Automatic detection will be used when available.";
+                trainingPrepStatus.classList.remove("hidden");
+            }
+        }
+
+        async function autodetectTrainingServerUrl() {
+            const response = await fetch("training?action=training_server_detect");
+            const payload = await response.json().catch(() => ({}));
+            if (!response.ok) {
+                throw new Error(payload.message || `HTTP ${response.status}`);
+            }
+            updateTrainingServerConfigUi(payload);
+            if (payload.training_server_url && trainingServerUrlInput) {
+                trainingServerUrlInput.value = payload.training_server_url;
+            }
+            return payload;
         }
 
         async function checkTrainingServerConnection(showSuccessFeedback = false) {
@@ -1207,6 +1362,7 @@
                 }
 
                 setTrainingServerStatusUi(payload);
+                updateTrainingServerConfigUi(payload);
 
                 if (showSuccessFeedback && payload.ok && trainingPrepStatus) {
                     trainingPrepStatus.textContent = "Training server connection is ready.";
@@ -2656,6 +2812,36 @@
             if (closeValidationResultModalBtn) closeValidationResultModalBtn.addEventListener('click', closeValidationResultHandler);
             retryTrainingServerStatusHandler = () => checkTrainingServerConnection(true);
             if (retryTrainingServerStatusBtn) retryTrainingServerStatusBtn.addEventListener('click', retryTrainingServerStatusHandler);
+            detectTrainingServerUrlHandler = async () => {
+                try {
+                    const payload = await autodetectTrainingServerUrl();
+                    if (trainingPrepStatus) {
+                        trainingPrepStatus.textContent = payload.training_server_url
+                            ? "Training server URL detected. Save it if you want to keep it as an override."
+                            : (payload.message || "Training server could not be detected automatically.");
+                        trainingPrepStatus.classList.remove("hidden");
+                    }
+                } catch (error) {
+                    showValidationResultModal("Detection Error", error.message || "Failed to detect the training server.", true);
+                }
+            };
+            clearTrainingServerUrlHandler = async () => {
+                try {
+                    await saveTrainingServerUrlOverride("");
+                } catch (error) {
+                    showValidationResultModal("Save Error", error.message || "Failed to clear the training server URL.", true);
+                }
+            };
+            saveTrainingServerUrlHandler = async () => {
+                try {
+                    await saveTrainingServerUrlOverride(trainingServerUrlInput ? trainingServerUrlInput.value : "");
+                } catch (error) {
+                    showValidationResultModal("Save Error", error.message || "Failed to save the training server URL.", true);
+                }
+            };
+            if (detectTrainingServerUrlBtn) detectTrainingServerUrlBtn.addEventListener('click', detectTrainingServerUrlHandler);
+            if (clearTrainingServerUrlBtn) clearTrainingServerUrlBtn.addEventListener('click', clearTrainingServerUrlHandler);
+            if (saveTrainingServerUrlBtn) saveTrainingServerUrlBtn.addEventListener('click', saveTrainingServerUrlHandler);
 
             if (infoAccordionToggle && infoAccordionContent && accordionIcon) {
                 infoAccordionToggle.addEventListener('click', infoAccordionToggleHandler);
@@ -2698,6 +2884,9 @@
             if (cancelClearBtn && cancelClearHandler) cancelClearBtn.removeEventListener('click', cancelClearHandler);
             if (closeValidationResultModalBtn && closeValidationResultHandler) closeValidationResultModalBtn.removeEventListener('click', closeValidationResultHandler);
             if (retryTrainingServerStatusBtn && retryTrainingServerStatusHandler) retryTrainingServerStatusBtn.removeEventListener('click', retryTrainingServerStatusHandler);
+            if (detectTrainingServerUrlBtn && detectTrainingServerUrlHandler) detectTrainingServerUrlBtn.removeEventListener('click', detectTrainingServerUrlHandler);
+            if (clearTrainingServerUrlBtn && clearTrainingServerUrlHandler) clearTrainingServerUrlBtn.removeEventListener('click', clearTrainingServerUrlHandler);
+            if (saveTrainingServerUrlBtn && saveTrainingServerUrlHandler) saveTrainingServerUrlBtn.removeEventListener('click', saveTrainingServerUrlHandler);
             if (infoAccordionToggle && infoAccordionToggleHandler) infoAccordionToggle.removeEventListener('click', infoAccordionToggleHandler);
             
             if (dateRangePickerInstance) {
@@ -2781,6 +2970,12 @@
         trainingServerStatusCard = document.getElementById("trainingServerStatusCard");
         trainingServerStatusMessage = document.getElementById("trainingServerStatusMessage");
         trainingServerStatusBadge = document.getElementById("trainingServerStatusBadge");
+        trainingServerStatusDetails = document.getElementById("trainingServerStatusDetails");
+        trainingServerUrlInput = document.getElementById("trainingServerUrlInput");
+        detectTrainingServerUrlBtn = document.getElementById("detectTrainingServerUrlBtn");
+        clearTrainingServerUrlBtn = document.getElementById("clearTrainingServerUrlBtn");
+        saveTrainingServerUrlBtn = document.getElementById("saveTrainingServerUrlBtn");
+        trainingServerConfigMeta = document.getElementById("trainingServerConfigMeta");
         retryTrainingServerStatusBtn = document.getElementById("retryTrainingServerStatusBtn");
 
         jobsTableBody = document.getElementById("jobsTableBody");
@@ -2965,6 +3160,7 @@
 
         fetchConfig().then(async cfg => {
             if (cfg?.main_sensor_id) MAIN_SENSOR_ENTITY_ID = cfg.main_sensor_id;
+            updateTrainingServerConfigUi(cfg || {});
             try {
                 const sensors = await fetchAvailablePowerSensors();
                 populateApplianceSensorSelect(sensors, MAIN_SENSOR_ENTITY_ID);

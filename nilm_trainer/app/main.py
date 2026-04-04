@@ -9,6 +9,7 @@ from typing import Any, Dict, List, Optional
 import os
 
 from fastapi import FastAPI, HTTPException, Request
+from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 
 from app.model_registry import discover_server_bundles, get_bundle_by_id, get_latest_bundle_for_mode
@@ -37,13 +38,11 @@ SERVER_TRAINING = {
 
 @app.on_event("startup")
 async def log_startup_info():
-    addon_hostname = (os.getenv("HOSTNAME") or "").strip()
-    if addon_hostname:
-        print(f"NILM Training Server hostname: {addon_hostname}", flush=True)
-        print(
-            f"NILM add-on should use this training_server_url: http://{addon_hostname}:8080/train",
-            flush=True,
-        )
+    info = _connection_info()
+    if info["hostname"]:
+        print(f"NILM Training Server hostname: {info['hostname']}", flush=True)
+        print(f"NILM add-on should use this training_server_url: {info['training_server_url']}", flush=True)
+        print("Open the NILM Training Server Web UI to copy this URL later.", flush=True)
     else:
         print("NILM Training Server hostname is not available in HOSTNAME.", flush=True)
 
@@ -60,6 +59,100 @@ class TrainPayload(BaseModel):
     bundle_mode: Optional[str] = None
     bundle_version: Optional[int] = None
     settings: Dict[str, Any]
+
+
+def _connection_info() -> Dict[str, str]:
+    addon_hostname = (os.getenv("HOSTNAME") or "").strip()
+    training_server_url = f"http://{addon_hostname}:8080/train" if addon_hostname else ""
+    return {
+        "hostname": addon_hostname,
+        "training_server_url": training_server_url,
+    }
+
+
+@app.get("/", response_class=HTMLResponse)
+async def landing_page():
+    info = _connection_info()
+    hostname = info["hostname"] or "unavailable"
+    training_server_url = info["training_server_url"] or "unavailable"
+    return f"""
+    <!doctype html>
+    <html lang="en">
+    <head>
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1">
+      <title>NILM Training Server</title>
+      <style>
+        body {{
+          margin: 0;
+          font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+          background: linear-gradient(180deg, #eff6ff 0%, #ffffff 100%);
+          color: #0f172a;
+        }}
+        main {{
+          max-width: 760px;
+          margin: 48px auto;
+          padding: 28px;
+          background: rgba(255, 255, 255, 0.95);
+          border: 1px solid #dbeafe;
+          border-radius: 20px;
+          box-shadow: 0 18px 40px rgba(15, 23, 42, 0.08);
+        }}
+        h1 {{
+          margin-top: 0;
+          margin-bottom: 10px;
+        }}
+        p {{
+          color: #475569;
+          line-height: 1.6;
+        }}
+        .card {{
+          margin-top: 20px;
+          padding: 16px;
+          border-radius: 16px;
+          border: 1px solid #bfdbfe;
+          background: #f8fbff;
+        }}
+        .label {{
+          font-size: 0.85rem;
+          font-weight: 700;
+          color: #1d4ed8;
+          text-transform: uppercase;
+          letter-spacing: 0.04em;
+          margin-bottom: 6px;
+        }}
+        code {{
+          display: block;
+          padding: 12px 14px;
+          border-radius: 12px;
+          background: #0f172a;
+          color: #e2e8f0;
+          overflow-wrap: anywhere;
+          font-size: 0.95rem;
+        }}
+      </style>
+    </head>
+    <body>
+      <main>
+        <h1>NILM Training Server</h1>
+        <p>Use the value below in the <strong>NILM</strong> add-on Configuration tab as <code style="display:inline;padding:2px 6px;background:#e2e8f0;color:#0f172a;">training_server_url</code>.</p>
+        <div class="card">
+          <div class="label">Hostname</div>
+          <code>{hostname}</code>
+        </div>
+        <div class="card">
+          <div class="label">Training Server URL</div>
+          <code>{training_server_url}</code>
+        </div>
+      </main>
+    </body>
+    </html>
+    """
+
+
+@app.get("/connection-info")
+async def connection_info():
+    return _connection_info()
 
 @app.get("/version")
 def version():
