@@ -1101,8 +1101,8 @@
                     <div class="prediction-share-canvas-wrap">
                         <canvas id="signalPredictionShareChart"></canvas>
                         <div class="prediction-share-center">
-                            <div class="prediction-share-center-label">Detected</div>
-                            <div id="signalPredictionShareCenterValue" class="prediction-share-center-value">0%</div>
+                            <div class="prediction-share-center-label">Mains</div>
+                            <div id="signalPredictionShareCenterValue" class="prediction-share-center-value">100%</div>
                         </div>
                     </div>
                     <div id="signalPredictionShareList" class="prediction-share-list"></div>
@@ -1614,7 +1614,9 @@
         }
 
         const mainsEnergyWh = computeSeriesEnergyWh(fullSignalSeries);
-        const items = activeInlinePredictions.map((prediction) => {
+        const baseloadSource = activeInlinePredictions.find((prediction) => Array.isArray(prediction.baseloadSeries) && prediction.baseloadSeries.length);
+        const baseloadEnergyWh = baseloadSource ? computeSeriesEnergyWh(baseloadSource.baseloadSeries) : 0;
+        const applianceItems = activeInlinePredictions.map((prediction) => {
             const energyWh = computeSeriesEnergyWh(prediction.powerSeries);
             const sharePct = mainsEnergyWh > 1e-9 ? (energyWh / mainsEnergyWh) * 100 : 0;
             return {
@@ -1627,9 +1629,31 @@
             };
         });
 
-        const totalSharePct = items.reduce((sum, item) => sum + item.sharePct, 0);
-        signalPredictionShareCenterValue.textContent = `${Math.round(totalSharePct)}%`;
+        const baseloadSharePct = mainsEnergyWh > 1e-9 ? (baseloadEnergyWh / mainsEnergyWh) * 100 : 0;
+        const applianceSharePct = applianceItems.reduce((sum, item) => sum + item.sharePct, 0);
+        const otherSharePct = Math.max(0, 100 - baseloadSharePct - applianceSharePct);
+        signalPredictionShareCenterValue.textContent = "100%";
         signalPredictionShareWrap.classList.remove("hidden");
+
+        const items = [
+            {
+                modelKey: "__baseload__",
+                modelName: "Base Load",
+                energyWh: baseloadEnergyWh,
+                sharePct: baseloadSharePct,
+                color: PREVIEW_MAINS_COLOR,
+                pastelColor: pastelColorFromHex(PREVIEW_MAINS_COLOR, 0.55),
+            },
+            ...applianceItems,
+            {
+                modelKey: "__other__",
+                modelName: "Other",
+                energyWh: Math.max(0, mainsEnergyWh - baseloadEnergyWh - applianceItems.reduce((sum, item) => sum + item.energyWh, 0)),
+                sharePct: otherSharePct,
+                color: "#cbd5e1",
+                pastelColor: "rgba(226, 232, 240, 0.95)",
+            }
+        ].filter((item) => item.sharePct > 0.05 || item.modelKey === "__other__");
 
         signalPredictionShareList.innerHTML = items.map((item) => `
             <div class="prediction-share-item">
@@ -2065,6 +2089,7 @@
 
             const payload = await waitForPredictionPreviewJob(startPayload.job_id);
             const powerSeries = Array.isArray(payload.power_series) ? payload.power_series : [];
+            const baseloadSeries = Array.isArray(payload.baseload_series) ? payload.baseload_series : [];
             const stateSeries = Array.isArray(payload.state_series) ? payload.state_series : [];
 
             if (!powerSeries.length && !stateSeries.length) {
@@ -2086,6 +2111,7 @@
                 modelKey,
                 modelName,
                 powerSeries,
+                baseloadSeries,
                 stateSeries,
                 color: predictionColor,
             };

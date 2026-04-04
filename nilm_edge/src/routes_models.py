@@ -192,6 +192,7 @@ async def _build_preview_result(bundle_id, safe_name, start_dt, end_dt, provided
         return
 
     power_series = []
+    baseload_series = []
     preview_times_ms = []
     processed = 0
     total = len(points)
@@ -220,9 +221,12 @@ async def _build_preview_result(bundle_id, safe_name, start_dt, end_dt, provided
             continue
 
         power_value = float(appliance_result.get("power", 0.0) or 0.0)
+        raw_window = preview_disaggregator.window.to_ordered_full()
+        baseload_value = float(np.min(raw_window)) if raw_window is not None and len(raw_window) else 0.0
         target_ms = int(round(target_ts * 1000.0))
 
         power_series.append({"x": target_ms, "y": power_value})
+        baseload_series.append({"x": target_ms, "y": max(0.0, baseload_value)})
         preview_times_ms.append(target_ms)
 
     state_series = []
@@ -245,6 +249,7 @@ async def _build_preview_result(bundle_id, safe_name, start_dt, end_dt, provided
     yield {
         "done": True,
         "power_series": power_series,
+        "baseload_series": baseload_series,
         "state_series": state_series,
         "processed": total,
         "total": total,
@@ -273,6 +278,7 @@ async def _run_preview_job(app, job_id, bundle_id, safe_name, start_dt, end_dt, 
                     "percent": 100,
                     "result": {
                         "power_series": update.get("power_series", []),
+                        "baseload_series": update.get("baseload_series", []),
                         "state_series": update.get("state_series", []),
                     },
                 })
