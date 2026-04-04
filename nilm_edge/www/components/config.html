@@ -2091,8 +2091,17 @@
     }
 
     function renderSignalChart(series) {
-        const previousMinX = Number.isFinite(mainsSignalChart?.scales?.x?.min) ? mainsSignalChart.scales.x.min : undefined;
-        const previousMaxX = Number.isFinite(mainsSignalChart?.scales?.x?.max) ? mainsSignalChart.scales.x.max : undefined;
+        const canReusePreviousRange = Boolean(
+            mainsSignalChart
+            && Array.isArray(mainsSignalChart.data?.datasets?.[0]?.data)
+            && mainsSignalChart.data.datasets[0].data.length
+        );
+        const previousMinX = canReusePreviousRange && Number.isFinite(mainsSignalChart?.scales?.x?.min)
+            ? mainsSignalChart.scales.x.min
+            : undefined;
+        const previousMaxX = canReusePreviousRange && Number.isFinite(mainsSignalChart?.scales?.x?.max)
+            ? mainsSignalChart.scales.x.max
+            : undefined;
         if (mainsSignalChart) mainsSignalChart.destroy();
 
         const chartEl = document.getElementById("mainsSignalChart");
@@ -2176,6 +2185,8 @@
                 scales: {
                     x: {
                         type: "time",
+                        bounds: "data",
+                        offset: false,
                         time: {
                             tooltipFormat: "PPpp",
                             displayFormats: {
