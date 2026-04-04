@@ -3080,7 +3080,7 @@
         };
         signalPredictionShareListHandler = (event) => {
             const helpButton = event.target.closest("[data-share-help='baseload']");
-            if (helpButton) {
+            if (helpButton && event.type === "click") {
                 openBaseLoadHelpModal();
                 return;
             }
