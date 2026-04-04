@@ -112,6 +112,17 @@ def _normalize_preview_points(raw_points):
     return normalized
 
 
+async def _fetch_preview_history_points_range(fetch_start_dt, end_dt):
+    if fetch_start_dt >= end_dt:
+        return []
+
+    points = []
+    async for history_update in _fetch_preview_history_points(fetch_start_dt, end_dt):
+        if history_update.get("phase") == "history_ready":
+            points = history_update.get("points") or []
+    return points
+
+
 async def _build_preview_result(bundle_id, safe_name, start_dt, end_dt, provided_points=None):
     bundle = get_bundle_by_id(app_state.model_bundles, bundle_id)
     if bundle is None:
@@ -125,19 +136,34 @@ async def _build_preview_result(bundle_id, safe_name, start_dt, end_dt, provided
         top_k=None,
     )
 
+    lookback_s = preview_disaggregator.settings.sequence_length * preview_disaggregator.settings.frequency_s
+    fetch_start_dt = start_dt - timedelta(seconds=lookback_s)
+    if (end_dt.date() - fetch_start_dt.date()).days + 1 > 7:
+        fetch_start_dt = start_dt
+
     points = _normalize_preview_points(provided_points)
     if points:
+        earliest_ts = points[0][0]
+        required_start_ts = fetch_start_dt.timestamp()
+        if earliest_ts > required_start_ts + 1e-6:
+            missing_end_dt = datetime.fromtimestamp(earliest_ts, tz=timezone.utc)
+            try:
+                missing_points = await _fetch_preview_history_points_range(fetch_start_dt, missing_end_dt)
+            except asyncio.TimeoutError as exc:
+                raise RuntimeError(
+                    f"Loading mains history took too long ({int(PREVIEW_HISTORY_TIMEOUT_S)}s). "
+                    "Please reduce the selected range or check the Home Assistant connection."
+                ) from exc
+            points = _normalize_preview_points(
+                [{"x": ts, "y": value} for ts, value in missing_points] +
+                [{"x": ts, "y": value} for ts, value in points]
+            )
         yield {
             "processed": len(points),
             "total": len(points),
             "phase": "history_ready",
         }
     else:
-        lookback_s = preview_disaggregator.settings.sequence_length * preview_disaggregator.settings.frequency_s
-        fetch_start_dt = start_dt - timedelta(seconds=lookback_s)
-        if (end_dt.date() - fetch_start_dt.date()).days + 1 > 7:
-            fetch_start_dt = start_dt
-
         try:
             async for history_update in _fetch_preview_history_points(fetch_start_dt, end_dt):
                 if history_update.get("phase") == "history_ready":
