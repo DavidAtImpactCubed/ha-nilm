@@ -106,14 +106,38 @@ def _is_direct_training_server_url(url: str) -> bool:
     return "homeassistant.local" not in normalized and "://supervisor" not in normalized and "://homeassistant" not in normalized
 
 
+def _append_training_server_option(options_list, seen_urls, *, option_id: str, label: str, url: str, description: str = ""):
+    normalized = normalize_training_server_url(url)
+    if not normalized or normalized in seen_urls:
+        return
+    seen_urls.add(normalized)
+    options_list.append({
+        "id": option_id,
+        "label": label,
+        "url": normalized,
+        "description": description,
+    })
+
+
 async def resolve_training_server_url_state() -> Dict[str, Any]:
+    available_training_servers = []
+    seen_urls = set()
     configured_url = get_configured_training_server_url()
     if _is_direct_training_server_url(configured_url):
         normalized = normalize_training_server_url(configured_url)
+        _append_training_server_option(
+            available_training_servers,
+            seen_urls,
+            option_id="saved",
+            label="Saved Training Server",
+            url=normalized,
+            description="Currently selected training server.",
+        )
         return {
             "configured_training_server_url": configured_url,
             "effective_training_server_url": normalized,
             "training_server_url_source": "ui_override",
+            "available_training_servers": available_training_servers,
             "autodetect": None,
         }
 
@@ -121,18 +145,38 @@ async def resolve_training_server_url_state() -> Dict[str, Any]:
     option_url = str(options.get("training_server_url") or "").strip()
     if _is_direct_training_server_url(option_url):
         normalized = normalize_training_server_url(option_url)
+        _append_training_server_option(
+            available_training_servers,
+            seen_urls,
+            option_id="addon_option",
+            label="Configured Training Server",
+            url=normalized,
+            description="Configured in the add-on options.",
+        )
         return {
             "configured_training_server_url": configured_url,
             "effective_training_server_url": normalized,
             "training_server_url_source": "addon_option",
+            "available_training_servers": available_training_servers,
             "autodetect": None,
         }
 
     autodetect = await discover_training_server_addon(SUPERVISOR_API_URL, TOKEN)
+    if autodetect.get("ok") and autodetect.get("training_server_url"):
+        hostname = autodetect.get("hostname") or "internal add-on"
+        _append_training_server_option(
+            available_training_servers,
+            seen_urls,
+            option_id="internal_addon",
+            label="Internal NILM Training Server",
+            url=autodetect["training_server_url"],
+            description=f"Detected add-on hostname: {hostname}",
+        )
     return {
         "configured_training_server_url": configured_url,
         "effective_training_server_url": "",
         "training_server_url_source": "missing",
+        "available_training_servers": available_training_servers,
         "autodetect": autodetect,
     }
 

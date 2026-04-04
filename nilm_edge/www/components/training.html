@@ -439,7 +439,7 @@
 
     .training-server-config-grid {
         display: grid;
-        grid-template-columns: minmax(0, 1fr) auto auto;
+        grid-template-columns: minmax(0, 1fr) auto;
         gap: 10px;
         align-items: end;
     }
@@ -642,10 +642,11 @@
             <div id="trainingServerStatusDetails" class="training-server-status-details hidden"></div>
             <div class="training-server-config-grid mt-3">
                 <div>
-                    <label for="trainingServerUrlInput" class="field-label">Training Server URL</label>
-                    <input id="trainingServerUrlInput" class="field-input" type="text" placeholder="Enter http://hostname:8080/train or use Auto-detect">
+                    <label for="trainingServerUrlSelect" class="field-label">Training Server</label>
+                    <select id="trainingServerUrlSelect" class="field-input">
+                        <option value="">No training server available</option>
+                    </select>
                 </div>
-                <button id="detectTrainingServerUrlBtn" class="action-btn action-neutral" type="button">Auto-detect</button>
                 <button id="saveTrainingServerUrlBtn" class="action-btn action-primary" type="button">Save</button>
             </div>
             <div id="trainingServerConfigMeta" class="training-server-config-meta hidden"></div>
@@ -961,8 +962,7 @@
     let trainingServerStatusMessage;
     let trainingServerStatusBadge;
     let trainingServerStatusDetails;
-    let trainingServerUrlInput;
-    let detectTrainingServerUrlBtn;
+    let trainingServerUrlSelect;
     let saveTrainingServerUrlBtn;
     let trainingServerConfigMeta;
     let retryTrainingServerStatusBtn;
@@ -1035,7 +1035,6 @@
     let supervisionModeChangeHandler;
     let manualIntervalInputHandler;
     let retryTrainingServerStatusHandler;
-    let detectTrainingServerUrlHandler;
     let saveTrainingServerUrlHandler;
     // applyDateRangeHandler is now the Flatpickr onChange event
 
@@ -1251,8 +1250,37 @@
         }
 
         function updateTrainingServerConfigUi(payload = {}) {
-            if (trainingServerUrlInput) {
-                trainingServerUrlInput.value = payload.configured_training_server_url || "";
+            if (trainingServerUrlSelect) {
+                const options = Array.isArray(payload.available_training_servers) ? payload.available_training_servers : [];
+                const selectedUrl = payload.configured_training_server_url || "";
+                trainingServerUrlSelect.innerHTML = "";
+
+                if (!options.length) {
+                    const emptyOption = document.createElement("option");
+                    emptyOption.value = "";
+                    emptyOption.textContent = "No training server available";
+                    trainingServerUrlSelect.appendChild(emptyOption);
+                } else {
+                    const placeholderOption = document.createElement("option");
+                    placeholderOption.value = "";
+                    placeholderOption.textContent = "Select a training server";
+                    trainingServerUrlSelect.appendChild(placeholderOption);
+
+                    for (const item of options) {
+                        const optionEl = document.createElement("option");
+                        optionEl.value = item.url || "";
+                        optionEl.textContent = item.label || item.url || "Training server";
+                        trainingServerUrlSelect.appendChild(optionEl);
+                    }
+                }
+
+                trainingServerUrlSelect.value = selectedUrl;
+                trainingServerUrlSelect.disabled = options.length === 0;
+            }
+
+            if (saveTrainingServerUrlBtn) {
+                const options = Array.isArray(payload.available_training_servers) ? payload.available_training_servers : [];
+                saveTrainingServerUrlBtn.disabled = options.length === 0;
             }
 
             if (trainingServerConfigMeta) {
@@ -1269,6 +1297,11 @@
                 }
                 if (autodetect && autodetect.message) {
                     lines.push(autodetect.message);
+                }
+                const selectedOption = (Array.isArray(payload.available_training_servers) ? payload.available_training_servers : [])
+                    .find(item => (item.url || "") === (payload.configured_training_server_url || ""));
+                if (selectedOption && selectedOption.description) {
+                    lines.push(selectedOption.description);
                 }
                 trainingServerConfigMeta.textContent = lines.join("\n");
                 trainingServerConfigMeta.classList.toggle("hidden", lines.length === 0);
@@ -1305,19 +1338,6 @@
             }
         }
 
-        async function autodetectTrainingServerUrl() {
-            const response = await fetch("training?action=training_server_detect");
-            const payload = await response.json().catch(() => ({}));
-            if (!response.ok) {
-                throw new Error(payload.message || `HTTP ${response.status}`);
-            }
-            updateTrainingServerConfigUi(payload);
-            if (payload.training_server_url && trainingServerUrlInput) {
-                trainingServerUrlInput.value = payload.training_server_url;
-            }
-            return payload;
-        }
-
         async function checkTrainingServerConnection(showSuccessFeedback = false) {
             setTrainingServerStatusUi({
                 ok: false,
@@ -1328,6 +1348,7 @@
             if (retryTrainingServerStatusBtn) retryTrainingServerStatusBtn.disabled = true;
 
             try {
+                await refreshTrainingServerConfigState();
                 const response = await fetch("training?action=training_server_status");
                 const payload = await response.json().catch(() => ({}));
                 if (!response.ok) {
@@ -2796,27 +2817,13 @@
             if (closeValidationResultModalBtn) closeValidationResultModalBtn.addEventListener('click', closeValidationResultHandler);
             retryTrainingServerStatusHandler = () => checkTrainingServerConnection(true);
             if (retryTrainingServerStatusBtn) retryTrainingServerStatusBtn.addEventListener('click', retryTrainingServerStatusHandler);
-            detectTrainingServerUrlHandler = async () => {
-                try {
-                    const payload = await autodetectTrainingServerUrl();
-                    if (trainingPrepStatus) {
-                        trainingPrepStatus.textContent = payload.training_server_url
-                            ? "Training server URL detected. Press Save to use it."
-                            : (payload.message || "Training server could not be detected automatically.");
-                        trainingPrepStatus.classList.remove("hidden");
-                    }
-                } catch (error) {
-                    showValidationResultModal("Detection Error", error.message || "Failed to detect the training server.", true);
-                }
-            };
             saveTrainingServerUrlHandler = async () => {
                 try {
-                    await saveTrainingServerUrlOverride(trainingServerUrlInput ? trainingServerUrlInput.value : "");
+                    await saveTrainingServerUrlOverride(trainingServerUrlSelect ? trainingServerUrlSelect.value : "");
                 } catch (error) {
                     showValidationResultModal("Save Error", error.message || "Failed to save the training server URL.", true);
                 }
             };
-            if (detectTrainingServerUrlBtn) detectTrainingServerUrlBtn.addEventListener('click', detectTrainingServerUrlHandler);
             if (saveTrainingServerUrlBtn) saveTrainingServerUrlBtn.addEventListener('click', saveTrainingServerUrlHandler);
 
             if (infoAccordionToggle && infoAccordionContent && accordionIcon) {
@@ -2860,7 +2867,6 @@
             if (cancelClearBtn && cancelClearHandler) cancelClearBtn.removeEventListener('click', cancelClearHandler);
             if (closeValidationResultModalBtn && closeValidationResultHandler) closeValidationResultModalBtn.removeEventListener('click', closeValidationResultHandler);
             if (retryTrainingServerStatusBtn && retryTrainingServerStatusHandler) retryTrainingServerStatusBtn.removeEventListener('click', retryTrainingServerStatusHandler);
-            if (detectTrainingServerUrlBtn && detectTrainingServerUrlHandler) detectTrainingServerUrlBtn.removeEventListener('click', detectTrainingServerUrlHandler);
             if (saveTrainingServerUrlBtn && saveTrainingServerUrlHandler) saveTrainingServerUrlBtn.removeEventListener('click', saveTrainingServerUrlHandler);
             if (infoAccordionToggle && infoAccordionToggleHandler) infoAccordionToggle.removeEventListener('click', infoAccordionToggleHandler);
             
@@ -2946,8 +2952,7 @@
         trainingServerStatusMessage = document.getElementById("trainingServerStatusMessage");
         trainingServerStatusBadge = document.getElementById("trainingServerStatusBadge");
         trainingServerStatusDetails = document.getElementById("trainingServerStatusDetails");
-        trainingServerUrlInput = document.getElementById("trainingServerUrlInput");
-        detectTrainingServerUrlBtn = document.getElementById("detectTrainingServerUrlBtn");
+        trainingServerUrlSelect = document.getElementById("trainingServerUrlSelect");
         saveTrainingServerUrlBtn = document.getElementById("saveTrainingServerUrlBtn");
         trainingServerConfigMeta = document.getElementById("trainingServerConfigMeta");
         retryTrainingServerStatusBtn = document.getElementById("retryTrainingServerStatusBtn");

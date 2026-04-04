@@ -159,7 +159,7 @@ class TrainingServerServiceManager:
             if autodetect.get("ok") and autodetect.get("training_server_url"):
                 message = (
                     "Training server URL is not saved yet. "
-                    "Press Auto-detect, review the detected URL, then press Save."
+                    "Select the detected server and press Save."
                 )
             elif autodetect.get("message"):
                 message = f"{message} {autodetect.get('message')}"
