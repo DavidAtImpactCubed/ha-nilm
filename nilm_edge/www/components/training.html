@@ -401,9 +401,9 @@
 
     .training-server-status-card {
         display: flex;
-        align-items: center;
+        align-items: flex-start;
         justify-content: space-between;
-        gap: 14px;
+        gap: 16px;
         margin-bottom: 18px;
         padding: 14px 16px;
         border-radius: 16px;
@@ -414,6 +414,14 @@
     .training-server-status-copy {
         flex: 1 1 auto;
         min-width: 0;
+    }
+
+    .training-server-inline-row {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto auto auto;
+        gap: 10px;
+        align-items: end;
+        margin-top: 12px;
     }
 
     .training-server-status-title {
@@ -429,25 +437,12 @@
         line-height: 1.45;
     }
 
-    .training-server-status-details {
-        color: #64748b;
-        font-size: 0.82rem;
-        line-height: 1.5;
-        margin-top: 8px;
-        white-space: pre-line;
-    }
-
-    .training-server-config-grid {
-        display: block;
-        margin-top: 12px;
-    }
-
     .training-server-config-meta {
         color: #64748b;
         font-size: 0.82rem;
         line-height: 1.5;
         margin-top: 8px;
-        white-space: pre-line;
+        white-space: normal;
     }
 
     .training-server-status-badge {
@@ -506,10 +501,9 @@
             flex-direction: column;
             align-items: stretch;
         }
-        .training-server-status-card > .flex.items-center.gap-3 {
-            width: 100%;
-            justify-content: flex-start;
-            flex-wrap: wrap;
+        .training-server-inline-row {
+            grid-template-columns: 1fr;
+            align-items: stretch;
         }
         .jobs-pagination {
             flex-direction: column;
@@ -639,23 +633,20 @@
         <div class="training-server-status-copy">
             <div class="training-server-status-title">Training Server Connection</div>
             <div id="trainingServerStatusMessage" class="training-server-status-message">Checking training server connection before training...</div>
-            <div id="trainingServerStatusDetails" class="training-server-status-details hidden"></div>
-            <div class="training-server-config-grid mt-3">
+            <div class="training-server-inline-row">
                 <div>
                     <label for="trainingServerUrlSelect" class="field-label">Training Server</label>
                     <select id="trainingServerUrlSelect" class="field-input">
                         <option value="">No training server available</option>
                     </select>
                 </div>
+                <button id="saveTrainingServerUrlBtn" class="action-btn action-primary" type="button">Save</button>
+                <span id="trainingServerStatusBadge" class="training-server-status-badge training-server-status-warning">Checking</span>
+                <button id="retryTrainingServerStatusBtn" class="action-btn action-neutral" type="button">
+                    <i class="fas fa-sync mr-2" aria-hidden="true"></i> Retry
+                </button>
             </div>
             <div id="trainingServerConfigMeta" class="training-server-config-meta hidden"></div>
-        </div>
-        <div class="flex items-center gap-3">
-            <button id="saveTrainingServerUrlBtn" class="action-btn action-primary" type="button">Save</button>
-            <span id="trainingServerStatusBadge" class="training-server-status-badge training-server-status-warning">Checking</span>
-            <button id="retryTrainingServerStatusBtn" class="action-btn action-neutral" type="button">
-                <i class="fas fa-sync mr-2" aria-hidden="true"></i> Retry
-            </button>
         </div>
     </div>
 
@@ -961,7 +952,6 @@
     let trainingServerStatusCard;
     let trainingServerStatusMessage;
     let trainingServerStatusBadge;
-    let trainingServerStatusDetails;
     let trainingServerUrlSelect;
     let saveTrainingServerUrlBtn;
     let trainingServerConfigMeta;
@@ -1191,18 +1181,6 @@
             setUiBusy(false, finalMessage);
         }
 
-        function buildTrainingServerStatusDetails({ normalized_url = "", effective_training_server_url = "", training_server_url = "", checked_url = "", state = "", training_server_url_source = "" } = {}) {
-            const lines = [];
-            const displayUrl = effective_training_server_url || normalized_url || training_server_url;
-            if (displayUrl) {
-                lines.push(`Using URL: ${displayUrl}`);
-            }
-            if (checked_url && checked_url !== displayUrl) {
-                lines.push(`Connection check hit: ${checked_url}`);
-            }
-            return lines.join("\n");
-        }
-
         function setTrainingServerStatusUi({ ok = false, state = "unreachable", message = "", normalized_url = "", effective_training_server_url = "", training_server_url = "", checked_url = "", training_server_url_source = "" } = {}) {
             trainingServerConnectionReady = !!ok;
 
@@ -1210,19 +1188,6 @@
                 trainingServerStatusMessage.textContent = message || (ok
                     ? "Training server connection looks ready."
                     : "Training server connection is not available.");
-            }
-
-            if (trainingServerStatusDetails) {
-                const details = buildTrainingServerStatusDetails({
-                    normalized_url,
-                    effective_training_server_url,
-                    training_server_url,
-                    checked_url,
-                    state,
-                    training_server_url_source
-                });
-                trainingServerStatusDetails.textContent = details;
-                trainingServerStatusDetails.classList.toggle("hidden", !details);
             }
 
             if (trainingServerStatusBadge) {
@@ -1283,19 +1248,15 @@
             if (trainingServerConfigMeta) {
                 const lines = [];
                 if (payload.effective_training_server_url) {
-                    lines.push(`Effective URL: ${payload.effective_training_server_url}`);
+                    lines.push(payload.effective_training_server_url);
                 }
                 const autodetect = payload.autodetect || payload;
-                if (autodetect && autodetect.hostname) {
-                    lines.push(`Internal add-on hostname: ${autodetect.hostname}`);
-                }
-                if (autodetect && autodetect.message) {
-                    lines.push(autodetect.message);
-                }
                 const selectedOption = (Array.isArray(payload.available_training_servers) ? payload.available_training_servers : [])
                     .find(item => (item.url || "") === (payload.configured_training_server_url || ""));
                 if (selectedOption && selectedOption.description) {
                     lines.push(selectedOption.description);
+                } else if (!payload.effective_training_server_url && autodetect && autodetect.message) {
+                    lines.push(autodetect.message);
                 }
                 trainingServerConfigMeta.textContent = lines.join("\n");
                 trainingServerConfigMeta.classList.toggle("hidden", lines.length === 0);
@@ -2945,7 +2906,6 @@
         trainingServerStatusCard = document.getElementById("trainingServerStatusCard");
         trainingServerStatusMessage = document.getElementById("trainingServerStatusMessage");
         trainingServerStatusBadge = document.getElementById("trainingServerStatusBadge");
-        trainingServerStatusDetails = document.getElementById("trainingServerStatusDetails");
         trainingServerUrlSelect = document.getElementById("trainingServerUrlSelect");
         saveTrainingServerUrlBtn = document.getElementById("saveTrainingServerUrlBtn");
         trainingServerConfigMeta = document.getElementById("trainingServerConfigMeta");
