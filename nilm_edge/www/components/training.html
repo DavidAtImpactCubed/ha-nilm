@@ -1261,13 +1261,12 @@
             if (trainingServerConfigMeta) {
                 const lines = [];
                 if (payload.effective_training_server_url) {
-                    lines.push(payload.effective_training_server_url);
+                    lines.push(`Using URL as training server: ${payload.effective_training_server_url}`);
                 }
                 const autodetect = payload.autodetect || payload;
                 const selectedOption = (Array.isArray(payload.available_training_servers) ? payload.available_training_servers : [])
                     .find(item => (item.url || "") === (payload.configured_training_server_url || ""));
                 if (selectedOption && selectedOption.description) {
-                    lines.push(selectedOption.description);
                 } else if (!payload.effective_training_server_url && autodetect && autodetect.message) {
                     lines.push(autodetect.message);
                 }
