@@ -1774,7 +1774,10 @@
                     intersect: true,
                 },
                 onHover: (event, activeElements, chart) => {
-                    const activeIndex = Array.isArray(activeElements) && activeElements.length ? activeElements[0].index : -1;
+                    const hitElements = chart?.getElementsAtEventForMode
+                        ? chart.getElementsAtEventForMode(event, "point", { intersect: true }, false)
+                        : [];
+                    const activeIndex = Array.isArray(hitElements) && hitElements.length ? hitElements[0].index : -1;
                     const item = activeIndex >= 0 ? currentPredictionShareItems[activeIndex] : null;
                     highlightPredictionShareSlice(item ? item.modelKey : null);
                     if (chart?.canvas) {
@@ -1784,9 +1787,11 @@
                 plugins: {
                     legend: { display: false },
                     tooltip: {
+                        mode: "point",
+                        intersect: true,
                         callbacks: {
                             label: (tooltipItem) => {
-                                const item = items[tooltipItem.dataIndex];
+                                const item = currentPredictionShareItems[tooltipItem.dataIndex];
                                 return `${item.modelName}: ${item.sharePct.toFixed(1)}% (${formatEnergy(item.energyWh)})`;
                             }
                         }
@@ -2651,7 +2656,6 @@
                 <div class="embedding-topline">
                     <div>
                         <div class="embedding-name">${embedding.name}</div>
-                        <div class="stat-label">${embedding.bundle_label || ""}</div>
                     </div>
                 </div>
                 <div class="embedding-meta">
