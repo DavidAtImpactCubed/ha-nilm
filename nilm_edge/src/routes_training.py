@@ -16,7 +16,6 @@ async def receive_training_data_handler(request: web.Request) -> web.Response:
             return web.json_response({"status": "error", "message": "training_server_manager not configured"}, status=500)
 
         action = (request.query.get("action") or "").strip().lower()
-        print(f"Training route called method={request.method} action={action}", flush=True)
         if action not in ("prepare", "send", "status", "training_server_status"):
             return web.json_response(
                 {"status": "error", "message": "Missing/invalid action. Use ?action=prepare|send|status|training_server_status"},
@@ -139,8 +138,6 @@ async def receive_training_data_handler(request: web.Request) -> web.Response:
             job_id = (request.query.get("job_id") or "").strip()
             if not job_id:
                 return web.json_response({"status": "error", "message": "Missing job_id in query"}, status=400)
-            print(f"Training status requested local_job_id={job_id}", flush=True)
-
             try:
                 status_payload = await maybe_await(svc.get_status(job_id))
             except FileNotFoundError:
@@ -152,7 +149,6 @@ async def receive_training_data_handler(request: web.Request) -> web.Response:
 
         if action == "training_server_status":
             try:
-                print("Training server connection status requested", flush=True)
                 status_payload = await maybe_await(svc.get_training_server_connection_status())
             except Exception as exc:
                 print(f"Training server connection status failed: {exc}", flush=True)
@@ -163,8 +159,6 @@ async def receive_training_data_handler(request: web.Request) -> web.Response:
         job_id = (request.query.get("job_id") or "").strip()
         if not job_id:
             return web.json_response({"status": "error", "message": "Missing job_id in query"}, status=400)
-        print(f"Training send requested local_job_id={job_id}", flush=True)
-
         try:
             info = await svc.start_send(job_id)
         except FileNotFoundError:

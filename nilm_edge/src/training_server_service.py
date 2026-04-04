@@ -263,11 +263,6 @@ class TrainingServerServiceManager:
                         timeout_s=240.0,
                     )
                     await self._merge_training_server_status(job_id, st)
-                    print(
-                        f"Training poll update local_job_id={job_id} training_server_job_id={training_server_job_id} "
-                        f"status={st.get('status')} progress={json.dumps(st.get('progress') or {}, sort_keys=True)}",
-                        flush=True,
-                    )
 
                     s = (st.get("status") or "").lower()
                     if s in ("done", "error"):
