@@ -1450,6 +1450,60 @@
         });
     }
 
+    function estimateOverlayNominalStepMs(series) {
+        if (!Array.isArray(series) || series.length < 2) return 8000;
+        const diffs = [];
+        for (let i = 1; i < series.length; i += 1) {
+            const dt = Number(series[i]?.x) - Number(series[i - 1]?.x);
+            if (Number.isFinite(dt) && dt > 0) diffs.push(dt);
+        }
+        if (!diffs.length) return 8000;
+        diffs.sort((a, b) => a - b);
+        return diffs[Math.floor(diffs.length / 2)] || 8000;
+    }
+
+    function buildPredictionAlignedOverlaySeries(rawSeries, referenceSeries, maxHoldFactor = 5) {
+        if (!Array.isArray(referenceSeries) || !referenceSeries.length) return [];
+
+        const refs = referenceSeries
+            .map((point) => ({ x: Number(point?.x) }))
+            .filter((point) => Number.isFinite(point.x));
+
+        if (!refs.length) return [];
+
+        const raw = (Array.isArray(rawSeries) ? rawSeries : [])
+            .map((point) => ({ x: Number(point?.x), y: Number(point?.y) }))
+            .filter((point) => Number.isFinite(point.x) && Number.isFinite(point.y))
+            .sort((a, b) => a.x - b.x);
+
+        if (!raw.length) {
+            return refs.map((point) => ({ x: point.x, y: 0 }));
+        }
+
+        const nominalStepMs = estimateOverlayNominalStepMs(refs);
+        const maxHoldMs = Math.max(nominalStepMs, nominalStepMs * maxHoldFactor);
+        const out = [];
+        let idx = -1;
+
+        for (const ref of refs) {
+            while (idx + 1 < raw.length && raw[idx + 1].x <= ref.x) {
+                idx += 1;
+            }
+
+            let y = 0;
+            if (idx >= 0) {
+                const age = ref.x - raw[idx].x;
+                if (age >= 0 && age <= maxHoldMs) {
+                    y = Math.max(0, raw[idx].y);
+                }
+            }
+
+            out.push({ x: ref.x, y });
+        }
+
+        return out;
+    }
+
     function populatePredictionOverlaySensorSelect() {
         if (!predictionOverlaySensorSelect) return;
 
@@ -1457,7 +1511,12 @@
             .filter((sensor) => {
                 if (!sensor?.entity_id) return false;
                 const unit = String(sensor.unit_of_measurement || "").trim();
-                return unit === "W" || unit === "kW";
+                const deviceClass = String(sensor.device_class || "").trim().toLowerCase();
+                const stateClass = String(sensor.state_class || "").trim().toLowerCase();
+                const isPowerUnit = unit === "W" || unit === "kW";
+                const isPowerSensor = deviceClass === "power";
+                const isMeasurement = !stateClass || stateClass === "measurement";
+                return isPowerUnit && isPowerSensor && isMeasurement;
             })
             .sort((a, b) => String(a.friendly_name || a.entity_id).localeCompare(String(b.friendly_name || b.entity_id)));
 
@@ -1466,7 +1525,7 @@
             const option = document.createElement("option");
             option.value = sensor.entity_id;
             const unit = String(sensor.unit_of_measurement || "").trim();
-            option.textContent = `${sensor.friendly_name || sensor.entity_id}${unit ? ` (${unit})` : ""}`;
+            option.textContent = `${sensor.friendly_name || sensor.entity_id} [${sensor.entity_id}]${unit ? ` (${unit})` : ""}`;
             predictionOverlaySensorSelect.appendChild(option);
         });
     }
@@ -1480,14 +1539,18 @@
         if (predictionOverlaySensorSelect) predictionOverlaySensorSelect.disabled = true;
         showPredictionPreviewLoading("Loading comparison sensor...");
         try {
-            const series = await fetchSeriesForSensor(entityId, {
+            const rawSeries = await fetchSeriesForSensor(entityId, {
                 startUtc: currentPreviewStartUtc,
                 endUtc: currentPreviewEndUtc,
             });
+            const series = buildPredictionAlignedOverlaySeries(rawSeries, currentPreviewBasePowerSeries);
             const sensor = allSensorsById.get(entityId);
+            const overlayLabel = sensor?.friendly_name && sensor?.entity_id
+                ? `${sensor.friendly_name} [${sensor.entity_id}]`
+                : (sensor?.friendly_name || entityId);
             predictionOverlaySensors.push({
                 entityId,
-                friendlyName: sensor?.friendly_name || entityId,
+                friendlyName: overlayLabel,
                 color: PREVIEW_OVERLAY_COLORS[predictionOverlaySensors.length % PREVIEW_OVERLAY_COLORS.length],
                 series,
             });
@@ -1529,8 +1592,7 @@
             borderWidth: 2,
             pointRadius: 0,
             tension: 0,
-            stepped: "after",
-            spanGaps: false,
+            spanGaps: true,
             borderDash: [8, 4],
         }));
 
