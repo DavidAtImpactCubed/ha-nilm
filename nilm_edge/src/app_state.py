@@ -128,10 +128,10 @@ async def resolve_training_server_url_state() -> Dict[str, Any]:
         _append_training_server_option(
             available_training_servers,
             seen_urls,
-            option_id="saved",
-            label="Saved Training Server",
+            option_id="internal_addon_saved",
+            label="Internal Add-on",
             url=normalized,
-            description="Currently selected training server.",
+            description="Saved internal training server selection.",
         )
         return {
             "configured_training_server_url": configured_url,
@@ -149,9 +149,9 @@ async def resolve_training_server_url_state() -> Dict[str, Any]:
             available_training_servers,
             seen_urls,
             option_id="addon_option",
-            label="Configured Training Server",
+            label="Internal Add-on",
             url=normalized,
-            description="Configured in the add-on options.",
+            description="Configured internal training server.",
         )
         return {
             "configured_training_server_url": configured_url,
@@ -168,9 +168,9 @@ async def resolve_training_server_url_state() -> Dict[str, Any]:
             available_training_servers,
             seen_urls,
             option_id="internal_addon",
-            label="Internal NILM Training Server",
+            label="Internal Add-on",
             url=autodetect["training_server_url"],
-            description=f"Detected add-on hostname: {hostname}",
+            description=f"Detected internal add-on hostname: {hostname}",
         )
     return {
         "configured_training_server_url": configured_url,

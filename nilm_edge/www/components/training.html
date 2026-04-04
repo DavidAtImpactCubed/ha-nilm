@@ -438,10 +438,8 @@
     }
 
     .training-server-config-grid {
-        display: grid;
-        grid-template-columns: minmax(0, 1fr) auto;
-        gap: 10px;
-        align-items: end;
+        display: block;
+        margin-top: 12px;
     }
 
     .training-server-config-meta {
@@ -508,8 +506,10 @@
             flex-direction: column;
             align-items: stretch;
         }
-        .training-server-config-grid {
-            grid-template-columns: 1fr;
+        .training-server-status-card > .flex.items-center.gap-3 {
+            width: 100%;
+            justify-content: flex-start;
+            flex-wrap: wrap;
         }
         .jobs-pagination {
             flex-direction: column;
@@ -647,11 +647,11 @@
                         <option value="">No training server available</option>
                     </select>
                 </div>
-                <button id="saveTrainingServerUrlBtn" class="action-btn action-primary" type="button">Save</button>
             </div>
             <div id="trainingServerConfigMeta" class="training-server-config-meta hidden"></div>
         </div>
         <div class="flex items-center gap-3">
+            <button id="saveTrainingServerUrlBtn" class="action-btn action-primary" type="button">Save</button>
             <span id="trainingServerStatusBadge" class="training-server-status-badge training-server-status-warning">Checking</span>
             <button id="retryTrainingServerStatusBtn" class="action-btn action-neutral" type="button">
                 <i class="fas fa-sync mr-2" aria-hidden="true"></i> Retry
@@ -1197,9 +1197,6 @@
             if (displayUrl) {
                 lines.push(`Using URL: ${displayUrl}`);
             }
-            if (training_server_url_source) {
-                lines.push(`Source: ${training_server_url_source}`);
-            }
             if (checked_url && checked_url !== displayUrl) {
                 lines.push(`Connection check hit: ${checked_url}`);
             }
@@ -1288,12 +1285,9 @@
                 if (payload.effective_training_server_url) {
                     lines.push(`Effective URL: ${payload.effective_training_server_url}`);
                 }
-                if (payload.training_server_url_source) {
-                    lines.push(`Source: ${payload.training_server_url_source}`);
-                }
                 const autodetect = payload.autodetect || payload;
                 if (autodetect && autodetect.hostname) {
-                    lines.push(`Detected hostname: ${autodetect.hostname}`);
+                    lines.push(`Internal add-on hostname: ${autodetect.hostname}`);
                 }
                 if (autodetect && autodetect.message) {
                     lines.push(autodetect.message);
