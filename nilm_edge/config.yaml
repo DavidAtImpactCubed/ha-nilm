@@ -1,9 +1,10 @@
 name: "NILM"
-version: "1.0.19"
+version: "1.0.20"
 slug: "nilm"
 description: "Real-time load disaggregation for Home Assistant"
 homeassistant_api: true
 hassio_api: true
+hassio_role: manager
 startup: application
 panel_icon: "mdi:flash"
 panel_title: "NILM"

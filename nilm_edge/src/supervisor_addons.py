@@ -104,10 +104,16 @@ async def discover_training_server_addon(base_url: str, token: Optional[str], ti
             "message": "NILM Training Server add-on was detected automatically.",
         }
     except Exception as exc:
+        message = str(exc)
+        if "HTTP 403" in message or "403: Forbidden" in message:
+            message = (
+                "Supervisor denied add-on discovery (HTTP 403). "
+                "Rebuild the NILM add-on with hassio_role: manager, then retry autodetect."
+            )
         return {
             "ok": False,
             "installed": False,
             "started": False,
             "state": "supervisor_error",
-            "message": str(exc),
+            "message": message,
         }
