@@ -3135,12 +3135,9 @@
             const row = event.target.closest("[data-share-item]");
             if (!row) return;
             const modelKey = row.getAttribute("data-share-item");
-            if (event.type === "click") {
-                highlightPredictionShareSlice(modelKey);
-                showPredictionShareTooltip(modelKey);
-                return;
-            }
+            if (event.type === "click") return;
             highlightPredictionShareSlice(modelKey);
+            showPredictionShareTooltip(modelKey);
         };
         signalPredictionShareLeaveHandler = () => {
             highlightPredictionShareSlice(null);
