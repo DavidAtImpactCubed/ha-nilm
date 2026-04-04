@@ -1545,6 +1545,7 @@
                 friendlyName: sensor?.friendly_name || entityId,
                 color: PREVIEW_OVERLAY_COLORS[predictionOverlaySensors.length % PREVIEW_OVERLAY_COLORS.length],
                 series,
+                style: "comparison",
             });
             renderPredictionOverlayList();
             renderPredictionPreviewChart(currentPreviewBasePowerSeries, currentPreviewStateSeries, currentPreviewModelName);
@@ -1571,6 +1572,7 @@
             friendlyName: "Mains",
             color: PREVIEW_MAINS_COLOR,
             series,
+            style: "mains",
         });
     }
 
@@ -1600,11 +1602,11 @@
             normalized: true,
             borderColor: overlay.color,
             backgroundColor: overlay.color,
-            borderWidth: 2,
+            borderWidth: overlay.style === "mains" ? 1.8 : 2,
             pointRadius: 0,
-            tension: 0,
+            tension: overlay.style === "mains" ? 0.12 : 0,
             spanGaps: true,
-            borderDash: [8, 4],
+            borderDash: overlay.style === "mains" ? [] : [8, 4],
         }));
 
         predictionPreviewChart = new Chart(powerCtx, {
