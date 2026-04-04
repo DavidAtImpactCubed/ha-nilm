@@ -1261,7 +1261,7 @@
             if (trainingServerConfigMeta) {
                 const lines = [];
                 if (payload.effective_training_server_url) {
-                    lines.push(`Using URL as training server: ${payload.effective_training_server_url}`);
+                    lines.push(`Using training server: ${payload.effective_training_server_url}`);
                 }
                 const autodetect = payload.autodetect || payload;
                 const selectedOption = (Array.isArray(payload.available_training_servers) ? payload.available_training_servers : [])
