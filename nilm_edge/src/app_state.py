@@ -141,7 +141,6 @@ def reload_algorithm_config():
             history_fetcher=history_fetcher,
             top_k=None,
         )
-        print(f"DEBUG: Initialized online runtime of type: {type(refquery_instance)}")
         print("Algorithm configuration reloaded successfully.")
     except Exception as exc:
         print(f"ERROR: Failed to initialize RefQuery disaggregator: {exc}")
