@@ -1,21 +1,21 @@
 # NILM Training Server
 
-This service receives prepared NILM training data, runs appliance-model training, and returns the trained model outputs needed by the NILM add-on.
+This service receives prepared NILM training data, runs appliance-model training, and returns the trained model outputs needed by the NILM app.
 
 ## What The Service Does
 
-- Accepts prepared training jobs from the NILM add-on or any compatible client.
+- Accepts prepared training jobs from the NILM app or any compatible client.
 - Runs background training jobs for a selected model bundle.
 - Tracks job progress and exposes job status through a simple HTTP API.
 - Returns the trained embedding, learned thresholds, and training metadata when a job finishes.
 
 ## Home Assistant Setup
 
-When this add-on starts inside Home Assistant, its logs print the exact `training_server_url` that the `NILM` add-on should use.
+When this app starts inside Home Assistant, its logs print the exact `training_server_url` that the `NILM` app should use.
 
-You can also open the add-on Web UI to see the same URL in a copy-friendly page.
+You can also open the app Web UI to see the same URL in a copy-friendly page.
 
-Use that displayed URL in the `NILM` add-on Configuration tab.
+Use that displayed URL in the `NILM` app Configuration tab.
 
 ## Bundle Requirements
 
@@ -24,7 +24,7 @@ The service expects a training bundle that contains the Keras head model and its
 - `bundles/online_v1/head.h5`
 - `bundles/online_v1/bundle_manifest.json`
 
-This training bundle should match the corresponding inference bundle used by the NILM add-on.
+This training bundle should match the corresponding inference bundle used by the NILM app.
 
 ## API Overview
 

@@ -99,7 +99,7 @@ async def resolve_training_server_url_state() -> Dict[str, Any]:
             available_training_servers,
             seen_urls,
             option_id="internal_addon_saved",
-            label="Internal Add-on",
+            label="Internal App",
             url=normalized,
             description="Saved internal training server selection.",
         )
@@ -113,14 +113,14 @@ async def resolve_training_server_url_state() -> Dict[str, Any]:
 
     autodetect = await discover_training_server_addon(SUPERVISOR_API_URL, TOKEN)
     if autodetect.get("ok") and autodetect.get("training_server_url"):
-        hostname = autodetect.get("hostname") or "internal add-on"
+        hostname = autodetect.get("hostname") or "internal app"
         _append_training_server_option(
             available_training_servers,
             seen_urls,
             option_id="internal_addon",
-            label="Internal Add-on",
+            label="Internal App",
             url=autodetect["training_server_url"],
-            description=f"Detected internal add-on hostname: {hostname}",
+            description=f"Detected internal app hostname: {hostname}",
         )
     return {
         "configured_training_server_url": configured_url,

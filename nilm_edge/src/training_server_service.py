@@ -251,7 +251,7 @@ class TrainingServerServiceManager:
         progress = st.get("progress")
         percent = _percent_from_progress(progress)
 
-        # Map training server status -> addon state
+        # Map training server status -> app state
         if training_server_status == "queued":
             state = "training_server_queued"
         elif training_server_status == "running":

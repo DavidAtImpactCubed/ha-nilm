@@ -1,17 +1,17 @@
-# NILM Add-ons For Home Assistant
+# NILM Apps For Home Assistant
 
-This repository provides two Home Assistant add-ons for NILM:
+This repository provides two Home Assistant apps for NILM:
 
 - `NILM`
 - `NILM Training Server`
 
 Together, they let you train appliance models from Home Assistant history and run live appliance disaggregation from a mains power sensor.
 
-## Available Add-ons
+## Available Apps
 
 ### NILM
 
-This is the main add-on used inside Home Assistant.
+This is the main app used inside Home Assistant.
 
 It:
 
@@ -22,7 +22,7 @@ It:
 
 ### NILM Training Server
 
-This add-on receives prepared training jobs and returns trained model outputs for the `NILM` add-on.
+This app receives prepared training jobs and returns trained model outputs for the `NILM` app.
 
 It:
 
@@ -34,7 +34,7 @@ It:
 
 Training and live inference are separated on purpose.
 
-The `NILM` add-on needs to stay responsive and lightweight because it runs continuously inside Home Assistant and performs live predictions.
+The `NILM` app needs to stay responsive and lightweight because it runs continuously inside Home Assistant and performs live predictions.
 
 The `NILM Training Server` is heavier because training needs more CPU, memory, and machine-learning dependencies.
 
@@ -56,7 +56,7 @@ The normal flow is:
 ## Add This Repository To Home Assistant
 
 1. Open Home Assistant.
-2. Go to `Settings` > `Add-ons` > `Add-on Store`.
+2. Go to `Settings` > `Apps` > `App Store`.
 3. Open the top-right menu and choose `Repositories`.
 4. Add this repository URL:
 
@@ -64,11 +64,11 @@ The normal flow is:
 https://github.com/lgarciamarrero92/ha-nilm
 ```
 
-5. Install the add-ons you want from the store.
+5. Install the apps you want from the store.
 
 ## More Information
 
-For details about each add-on:
+For details about each app:
 
 - [nilm_edge/README.md](/c:/Users/lgarc/Repositories/ha-nilm/nilm_edge/README.md)
 - [nilm_trainer/README.md](/c:/Users/lgarc/Repositories/ha-nilm/nilm_trainer/README.md)

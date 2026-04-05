@@ -9,7 +9,7 @@ from typing import Any, Dict, List, Optional, Tuple
 import numpy as np
 
 try:
-    # Preferred for HA add-on (lightweight)
+    # Preferred for HA app (lightweight)
     from tflite_runtime.interpreter import Interpreter
 except ImportError:
     # Fallback for dev machines with full TF installed

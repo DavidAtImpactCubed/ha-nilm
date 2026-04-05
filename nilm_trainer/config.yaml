@@ -18,7 +18,7 @@ ports:
 ports_description:
   8080/tcp: "HTTP API"
 
-# Nice clickable link in the add-on page (Swagger UI)
+# Nice clickable link in the app page (Swagger UI)
 webui: "http://[HOST]:[PORT:8080]/docs"
 
 options: {}

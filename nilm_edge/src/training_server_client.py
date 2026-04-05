@@ -152,7 +152,7 @@ async def probe_training_server_connection(
                                 state = "proxy_route"
                                 message = (
                                     "Training server is reachable through the Home Assistant gateway, "
-                                    "but direct add-on hostnames are more reliable for training uploads. "
+                                    "but direct app hostnames are more reliable for training uploads. "
                                     "Open the NILM Training Server Web UI or logs and copy the displayed training_server_url."
                                 )
                             return {

@@ -41,7 +41,7 @@ async def log_startup_info():
     info = _connection_info()
     if info["hostname"]:
         print(f"NILM Training Server hostname: {info['hostname']}", flush=True)
-        print(f"NILM add-on should use this training_server_url: {info['training_server_url']}", flush=True)
+        print(f"NILM app should use this training_server_url: {info['training_server_url']}", flush=True)
         print("Open the NILM Training Server Web UI to copy this URL later.", flush=True)
     else:
         print("NILM Training Server hostname is not available in HOSTNAME.", flush=True)
@@ -135,7 +135,7 @@ async def landing_page():
     <body>
       <main>
         <h1>NILM Training Server</h1>
-        <p>Use the value below in the <strong>NILM</strong> add-on Configuration tab as <code style="display:inline;padding:2px 6px;background:#e2e8f0;color:#0f172a;">training_server_url</code>.</p>
+        <p>Use the value below in the <strong>NILM</strong> app Configuration tab as <code style="display:inline;padding:2px 6px;background:#e2e8f0;color:#0f172a;">training_server_url</code>.</p>
         <div class="card">
           <div class="label">Hostname</div>
           <code>{hostname}</code>

@@ -1275,7 +1275,7 @@
                         setTrainingServerStatusUi({
                             ok: false,
                             state: "invalid_config",
-                            message: "This running add-on version does not support training server preflight checks yet. Restart or update the add-on to enable this warning."
+                            message: "This running app version does not support training server preflight checks yet. Restart or update the app to enable this warning."
                         });
                         return;
                     }
@@ -2638,7 +2638,7 @@
                 if (manualEndInput) manualEndInput.value = '';
                 // Removed: if (currentDateRangeDisplay) currentDateRangeDisplay.classList.add('hidden'); 
                 console.log("DEBUG: fetchSensorHistoryData - Caught exception. Calling showValidationResultModal().");
-                showValidationResultModal("Data Fetch Failed", `Failed to retrieve historical data: ${error.message}. Please check addon logs, Home Assistant's status, or mock server status.`, true);
+                showValidationResultModal("Data Fetch Failed", `Failed to retrieve historical data: ${error.message}. Please check app logs, Home Assistant's status, or mock server status.`, true);
             } finally {
                 console.log('DEBUG: Exiting fetchSensorHistoryData. Hiding loading indicator.');
                 hideLoadingIndicator(); 

@@ -51,7 +51,7 @@ async def discover_training_server_addon(base_url: str, token: Optional[str], ti
                 "installed": False,
                 "started": False,
                 "state": "not_installed",
-                "message": "NILM Training Server add-on is not installed.",
+                "message": "NILM Training Server app is not installed.",
             }
 
         candidates.sort(key=lambda addon: 0 if str(addon.get("state") or "").lower() == "started" else 1)
@@ -79,7 +79,7 @@ async def discover_training_server_addon(base_url: str, token: Optional[str], ti
                 "slug": selected_slug,
                 "hostname": hostname,
                 "training_server_url": training_server_url,
-                "message": "NILM Training Server add-on is installed but not started.",
+                "message": "NILM Training Server app is installed but not started.",
             }
 
         if not hostname:
@@ -90,7 +90,7 @@ async def discover_training_server_addon(base_url: str, token: Optional[str], ti
                 "state": "missing_hostname",
                 "slug": selected_slug,
                 "training_server_url": "",
-                "message": "NILM Training Server add-on is started, but its hostname is not available.",
+                "message": "NILM Training Server app is started, but its hostname is not available.",
             }
 
         return {
@@ -101,14 +101,14 @@ async def discover_training_server_addon(base_url: str, token: Optional[str], ti
             "slug": selected_slug,
             "hostname": hostname,
             "training_server_url": training_server_url,
-            "message": "NILM Training Server add-on was detected automatically. Select it and press Save to use it.",
+            "message": "NILM Training Server app was detected automatically. Select it and press Save to use it.",
         }
     except Exception as exc:
         message = str(exc)
         if "HTTP 403" in message or "403: Forbidden" in message:
             message = (
-                "Supervisor denied add-on discovery (HTTP 403). "
-                "Rebuild the NILM add-on with hassio_role: manager, then retry autodetect."
+                "Supervisor denied app discovery (HTTP 403). "
+                "Rebuild the NILM app with hassio_role: manager, then retry autodetect."
             )
         return {
             "ok": False,

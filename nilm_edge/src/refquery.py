@@ -11,7 +11,7 @@ import numpy as np
 from embedding_store import is_embedding_marked_deleted, load_embedding_metadata
 
 try:
-    # Preferred for HA add-on (lightweight)
+    # Preferred for HA app (lightweight)
     from tflite_runtime.interpreter import Interpreter
 except ImportError:
     # Fallback for dev machines with full TF installed
@@ -239,7 +239,7 @@ class RefQueryDisaggregator:
                 try:
                     shutil.copy2(src, dst)
                 except Exception:
-                    # Do not fail addon startup if copying defaults fails.
+                    # Do not fail app startup if copying defaults fails.
                     pass
 
     # -------------------- embeddings --------------------

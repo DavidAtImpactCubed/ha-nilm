@@ -2,12 +2,12 @@
 
 This repository is intended to use two long-lived branches:
 
-- `main`: release-ready Home Assistant add-ons only
+- `main`: release-ready Home Assistant apps only
 - `dev`: everything in `main`, plus local development helpers such as mock services, local compose files, datasets, and workflow notes
 
 ## Files Intended For `main`
 
-Keep the production add-on code and documentation:
+Keep the production app code and documentation:
 
 - `nilm_edge/config.yaml`
 - `nilm_edge/Dockerfile`
