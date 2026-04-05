@@ -481,6 +481,77 @@
         color: #991b1b;
     }
 
+    .training-stepper {
+        display: grid;
+        grid-template-columns: repeat(5, minmax(0, 1fr));
+        gap: 12px;
+        margin-bottom: 18px;
+    }
+
+    .training-step {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 12px 14px;
+        border-radius: 16px;
+        border: 1px solid #e2e8f0;
+        background: rgba(255, 255, 255, 0.88);
+        min-width: 0;
+    }
+
+    .training-step.is-current {
+        border-color: #7dd3fc;
+        background: linear-gradient(180deg, rgba(224, 242, 254, 0.88), rgba(255, 255, 255, 0.96));
+        box-shadow: 0 10px 24px rgba(14, 165, 233, 0.12);
+    }
+
+    .training-step.is-complete {
+        border-color: #86efac;
+        background: linear-gradient(180deg, rgba(220, 252, 231, 0.9), rgba(255, 255, 255, 0.96));
+    }
+
+    .training-step-index {
+        width: 32px;
+        height: 32px;
+        border-radius: 999px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.86rem;
+        font-weight: 800;
+        flex: 0 0 auto;
+        background: #e2e8f0;
+        color: #334155;
+    }
+
+    .training-step.is-current .training-step-index {
+        background: #0ea5e9;
+        color: #fff;
+    }
+
+    .training-step.is-complete .training-step-index {
+        background: #16a34a;
+        color: #fff;
+    }
+
+    .training-step-copy {
+        min-width: 0;
+    }
+
+    .training-step-title {
+        color: #0f172a;
+        font-size: 0.9rem;
+        font-weight: 800;
+        line-height: 1.15;
+    }
+
+    .training-step-note {
+        color: #64748b;
+        font-size: 0.76rem;
+        margin-top: 2px;
+        line-height: 1.25;
+    }
+
     @media (max-width: 640px) {
         .nilm-training {
             padding: 12px;
@@ -496,6 +567,10 @@
         .nilm-hero h1 {
             font-size: 1.55rem;
             line-height: 1.15;
+        }
+        .training-stepper {
+            grid-template-columns: 1fr;
+            gap: 8px;
         }
         .panel-surface {
             padding: 14px;
@@ -639,6 +714,44 @@
             <p class="panel-copy mt-3 max-w-2xl">Prepare NILM training data from mains history using interval supervision or a ground-truth appliance sensor.</p>
         </div>
     </header>
+
+    <div id="trainingStepper" class="training-stepper">
+        <div class="training-step" data-step="server">
+            <span class="training-step-index">1</span>
+            <div class="training-step-copy">
+                <div class="training-step-title">Server</div>
+                <div class="training-step-note">Select and verify a training server</div>
+            </div>
+        </div>
+        <div class="training-step" data-step="appliance">
+            <span class="training-step-index">2</span>
+            <div class="training-step-copy">
+                <div class="training-step-title">Appliance</div>
+                <div class="training-step-note">Choose appliance name and supervision</div>
+            </div>
+        </div>
+        <div class="training-step" data-step="labels">
+            <span class="training-step-index">3</span>
+            <div class="training-step-copy">
+                <div class="training-step-title">Labels</div>
+                <div class="training-step-note">Add intervals or choose a sensor</div>
+            </div>
+        </div>
+        <div class="training-step" data-step="prepare">
+            <span class="training-step-index">4</span>
+            <div class="training-step-copy">
+                <div class="training-step-title">Prepare</div>
+                <div class="training-step-note">Build the training package</div>
+            </div>
+        </div>
+        <div class="training-step" data-step="train">
+            <span class="training-step-index">5</span>
+            <div class="training-step-copy">
+                <div class="training-step-title">Train</div>
+                <div class="training-step-note">Send and follow job progress</div>
+            </div>
+        </div>
+    </div>
 
     <div id="trainingServerStatusCard" class="training-server-status-card">
         <div class="training-server-status-copy">
@@ -942,6 +1055,7 @@
     let activeSelectionId = null;
     let selectedWindows = []; // Stores all selected time windows
     let trainingServerConnectionReady = false;
+    let trainingStepper;
 
     let jobsUIReadyPromise = null;
     let pendingJobEvents = []; // {kind:"prepared"|"sent", data:{...}}
@@ -1171,6 +1285,7 @@
 
             if (checkAllDataBtn) checkAllDataBtn.disabled = !trainingServerConnectionReady;
             if (sendToTrainingServerBtn) sendToTrainingServerBtn.disabled = !trainingServerConnectionReady;
+            updateTrainingStepper();
         }
 
         function updateTrainingServerConfigUi(payload = {}) {
@@ -1303,10 +1418,56 @@
 
         function showSendToTrainingServerReady() {
             if (sendToTrainingServerBtn) sendToTrainingServerBtn.classList.remove("hidden");
+            updateTrainingStepper();
         }
 
         function hideSendToTrainingServer() {
             if (sendToTrainingServerBtn) sendToTrainingServerBtn.classList.add("hidden");
+            updateTrainingStepper();
+        }
+
+        function currentTrainingStepperState() {
+            const serverReady = Boolean(trainingServerConnectionReady);
+            const applianceReady = Boolean(applianceNameInput?.value?.trim())
+                && (currentSupervisionMode() !== "sensor" || Boolean(applianceSensorSelect?.value));
+            const labelsReady = currentSupervisionMode() === "sensor"
+                ? Boolean(applianceSensorSelect?.value)
+                : selectedWindows.length > 0;
+            const prepareReady = Boolean(trainingJobId);
+            const trainReady = Array.isArray(pendingJobEvents)
+                && pendingJobEvents.some((event) => event?.kind === "sent");
+            return { serverReady, applianceReady, labelsReady, prepareReady, trainReady };
+        }
+
+        function updateTrainingStepper() {
+            if (!trainingStepper) return;
+
+            const { serverReady, applianceReady, labelsReady, prepareReady, trainReady } = currentTrainingStepperState();
+            const currentStep = !serverReady
+                ? "server"
+                : !applianceReady
+                    ? "appliance"
+                    : !labelsReady
+                        ? "labels"
+                        : !prepareReady
+                            ? "prepare"
+                            : !trainReady
+                                ? "train"
+                                : null;
+
+            const completed = {
+                server: serverReady,
+                appliance: serverReady && applianceReady,
+                labels: serverReady && applianceReady && labelsReady,
+                prepare: serverReady && applianceReady && labelsReady && prepareReady,
+                train: serverReady && applianceReady && labelsReady && prepareReady && trainReady,
+            };
+
+            trainingStepper.querySelectorAll("[data-step]").forEach((stepEl) => {
+                const stepKey = stepEl.getAttribute("data-step");
+                stepEl.classList.toggle("is-complete", Boolean(completed[stepKey]));
+                stepEl.classList.toggle("is-current", currentStep === stepKey);
+            });
         }
 
         function toIsoUtcNoMs(date) {
@@ -1373,6 +1534,7 @@
             if (powerChart) {
                 initializePowerChart(fullSensorHistoryData, firstTimestamp, lastTimestamp);
             }
+            updateTrainingStepper();
         }
 
         function finishIntervalSelectionMode() {
@@ -1810,6 +1972,7 @@
             }
             selectedWindows = selectedWindows.filter(window => window.id !== idToRemove);
             renderSelectionPreviews(); 
+            updateTrainingStepper();
         }
 
         // 4b. Selection Preview Rendering (depends on removeSelection, fullSensorHistoryData, Chart.js, DOM elements)
@@ -1929,6 +2092,7 @@
             });
             setManualIntervalInputs(annotation.xMin, annotation.xMax);
             renderSelectionPreviews(); 
+            updateTrainingStepper();
         }
 
         function clearAllSelections() {
@@ -1943,6 +2107,7 @@
             // Also ensure date range error and display are hidden
             if (dateRangeError) dateRangeError.classList.add('hidden');
             // Removed: if (currentDateRangeDisplay) currentDateRangeDisplay.classList.add('hidden');
+            updateTrainingStepper();
         }
 
         let debounceTimer; // Declared outside, used by updateChartDataAndAxisBasedOnZoom
@@ -2195,6 +2360,7 @@
 
         function handleApplianceNameInput() {
             if (applianceNameError) applianceNameError.classList.add('hidden'); 
+            updateTrainingStepper();
         }
 
         async function handleCheckAllData() {
@@ -2226,6 +2392,7 @@
 
             trainingJobId = null;
             hideSendToTrainingServer();
+            updateTrainingStepper();
             startBusyProgress("Preparing training data...");
 
             try {
@@ -2279,6 +2446,7 @@
 
                     if (jobsUI) pendingJobEvents.push(ev), jobsUI.recordPrepared(ev.data);
                     else pendingJobEvents.push(ev);
+                    updateTrainingStepper();
                 }
 
                 const preparedSummary = supervisionMode === 'sensor'
@@ -2354,6 +2522,7 @@
 
                     if (jobsUI) pendingJobEvents.push(ev), jobsUI.recordSent(ev.data);
                     else pendingJobEvents.push(ev);
+                    updateTrainingStepper();
                 }
 
                 hideSendToTrainingServer();
@@ -2662,6 +2831,7 @@
             if (applianceNameInput) applianceNameInput.addEventListener('input', handleApplianceNameInput);
             if (applianceSensorSelect) {
                 applianceSensorSelect.addEventListener('change', async () => {
+                    updateTrainingStepper();
                     try {
                         await refreshApplianceSensorOverlay();
                     } catch (error) {
@@ -2866,6 +3036,7 @@
         saveTrainingServerUrlBtn = document.getElementById("saveTrainingServerUrlBtn");
         trainingServerConfigMeta = document.getElementById("trainingServerConfigMeta");
         retryTrainingServerStatusBtn = document.getElementById("retryTrainingServerStatusBtn");
+        trainingStepper = document.getElementById("trainingStepper");
 
         jobsTableBody = document.getElementById("jobsTableBody");
         noJobsMsg = document.getElementById("noJobsMsg");
@@ -2904,6 +3075,7 @@
         isSettingEndpoint = false;
         activeSelectionId = null;
         selectedWindows = [];
+        updateTrainingStepper();
 
         // Attach core UI event listeners immediately after DOM references are assigned
         attachChartEventListeners();
