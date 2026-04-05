@@ -179,20 +179,39 @@
         visibility: visible;
         opacity: 1;
     }
-    .accordion-content {
-        max-height: 0;
-        overflow: hidden;
-        transition: max-height 0.3s ease-out;
+    .training-help-btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 36px;
+        height: 36px;
+        border-radius: 999px;
+        border: 1px solid #bfdbfe;
+        background: rgba(239, 246, 255, 0.92);
+        color: #0369a1;
+        font-weight: 800;
+        font-size: 1rem;
+        box-shadow: 0 8px 18px rgba(14, 165, 233, 0.12);
+        transition: transform 0.18s ease, box-shadow 0.18s ease, background 0.18s ease;
+        cursor: pointer;
     }
-    .accordion-content.expanded {
-        max-height: 1000px;
-        transition: max-height 0.3s ease-in;
+
+    .training-help-btn:hover {
+        transform: translateY(-1px);
+        background: #dbeafe;
+        box-shadow: 0 10px 22px rgba(14, 165, 233, 0.16);
     }
-    .accordion-icon {
-        transition: transform 0.3s ease-in-out;
+
+    .training-help-list {
+        text-align: left;
+        color: #334155;
+        line-height: 1.55;
+        margin-top: 12px;
+        padding-left: 18px;
     }
-    .accordion-icon.rotated {
-        transform: rotate(180deg);
+
+    .training-help-list li + li {
+        margin-top: 8px;
     }
     .local-loading-spinner-container {
         position: absolute;
@@ -713,6 +732,7 @@
             <h1 class="text-3xl md:text-4xl font-bold text-gray-900 mt-3">Appliance Training Session</h1>
             <p class="panel-copy mt-3 max-w-2xl">Prepare NILM training data from mains history using interval supervision or a ground-truth appliance sensor.</p>
         </div>
+        <button id="trainingHelpBtn" class="training-help-btn" type="button" aria-label="How this training session works">?</button>
     </header>
 
     <div id="trainingStepper" class="training-stepper">
@@ -774,50 +794,6 @@
             <div id="trainingServerConfigMeta" class="training-server-config-meta hidden"></div>
         </div>
     </div>
-
-    <!-- How This Training Session Works Info Section (Accordion) -->
-    <div class="panel-surface mb-8" style="background: linear-gradient(180deg, rgba(224, 242, 254, 0.7), rgba(255, 255, 255, 0.95)); border-color: #bfdbfe;">
-        <button id="infoAccordionToggle" class="w-full text-left flex justify-between items-center text-xl font-semibold text-blue-800 focus:outline-none">
-            <span class="flex items-center">
-                <i class="fas fa-info-circle mr-2"></i> How This Training Session Works
-            </span>
-            <i id="accordionIcon" class="fas fa-chevron-down accordion-icon"></i>
-        </button>
-        <div id="infoAccordionContent" class="accordion-content pt-4">
-            <p class="text-gray-700 mb-3">
-                This page prepares an appliance model from the mains signal. Use the training server connection card first, then choose the supervision mode that matches the data you have.
-            </p>
-            <ol class="list-decimal list-inside text-gray-700 space-y-2 pl-4">
-                <li>
-                    In "<strong class="text-gray-900">Appliance for Training</strong>", enter the <strong class="text-gray-900">Appliance Name</strong> and choose a supervision mode:
-                    <span class="text-gray-900 font-semibold">ON intervals in mains</span> if you only know when the appliance was on, or
-                    <span class="text-gray-900 font-semibold">Ground-truth appliance power sensor</span> if you have a real appliance meter.
-                </li>
-                <li>
-                    Confirm that the <strong class="text-gray-900">Training Server Connection</strong> card shows the server as ready before spending time labeling data. If not, fix the connection first and use <strong class="text-gray-900">Retry</strong>.
-                </li>
-                <li>
-                    Choose the mains history range with <strong class="text-gray-900">Quick Range</strong> or <strong class="text-gray-900">Select Date Range</strong>. You can pan and zoom the chart, and the current visible window is mirrored in the time fields beside the chart.
-                </li>
-                <li>
-                    In <strong class="text-gray-900">ON intervals in mains</strong> mode, press <span class="bg-sky-600 text-white px-2 py-0.5 rounded-md text-sm inline-flex items-center"><i class="fas fa-plus-circle mr-1"></i>Draw Interval</span> and then tap or click once for the start and once for the end. You can also edit the <strong class="text-gray-900">Start</strong> and <strong class="text-gray-900">End</strong> fields manually and press <strong class="text-gray-900">Add Interval</strong>.
-                </li>
-                <li>
-                    In <strong class="text-gray-900">Ground-truth appliance power sensor</strong> mode, select the appliance sensor and verify its power trace against the mains chart over the same range. No interval drawing is needed in this mode.
-                </li>
-                <li>
-                    Review the <strong class="text-gray-900">Selected Windows Preview</strong> when using interval supervision. Make sure the windows cover the appliance activity you want the model to learn.
-                </li>
-                <li>
-                    When everything looks correct, click <strong class="text-gray-900">Check All Data</strong>. If preparation succeeds, the session creates a ready-to-send training package for the appliance name you entered.
-                </li>
-                <li>
-                    Then click <strong class="text-gray-900">Send to Training Server</strong> to launch training and follow progress in <strong class="text-gray-900">Training Jobs</strong>. Once training finishes, the new appliance model will appear on the main configuration page.
-                </li>
-            </ol>
-        </div>
-    </div>
-    <!-- End Info Section -->
 
     <main class="space-y-6">
         <!-- Appliance for Training Section -->
@@ -1037,6 +1013,27 @@
     </div>
 </div>
 
+<div id="trainingHelpModal" class="modal-overlay" style="display: none;">
+    <div class="modal-content" style="max-width: 720px; text-align: left;">
+        <h3 class="text-xl font-semibold text-blue-800 mb-4">How This Training Session Works</h3>
+        <p class="text-gray-700">
+            This page prepares an appliance model from the mains signal. Start by selecting a training server, then choose the supervision mode that matches the data you have.
+        </p>
+        <ol class="training-help-list">
+            <li>Enter the appliance name and choose either ON intervals in mains or a ground-truth appliance power sensor.</li>
+            <li>Confirm that the Training Server Connection card shows the server as ready before spending time labeling data.</li>
+            <li>Choose the mains history range with Quick Range or Select Date Range, then pan and zoom the chart as needed.</li>
+            <li>In interval mode, draw appliance ON windows on the mains chart or add them manually with the Start and End fields.</li>
+            <li>In sensor mode, select the appliance power sensor and compare it against the mains chart over the same range.</li>
+            <li>Review the Selected Windows Preview, then click Check All Data to build a training package.</li>
+            <li>When preparation succeeds, click Send to Training Server and follow progress in the Training Jobs table.</li>
+        </ol>
+        <div class="flex justify-end mt-6">
+            <button id="closeTrainingHelpModalBtn" class="action-btn action-primary" type="button">OK</button>
+        </div>
+    </div>
+</div>
+
 <script>
     // Module-scoped variables - declared once when the script is first parsed
     let powerChart; // Chart.js instance for the power chart
@@ -1113,10 +1110,9 @@
     let deleteJobConfirmMessage;
     let confirmDeleteJobBtn;
     let cancelDeleteJobBtn;
-
-    let infoAccordionToggle;
-    let infoAccordionContent;
-    let accordionIcon;
+    let trainingHelpBtn;
+    let trainingHelpModal;
+    let closeTrainingHelpModalBtn;
 
     // References to new elements that were causing ReferenceReferences if not found
     let selectionPreviewContainer; // Declared here, assigned in initializeTrainingUI
@@ -1136,7 +1132,9 @@
     let confirmClearHandler;
     let cancelClearHandler;
     let closeValidationResultHandler;
-    let infoAccordionToggleHandler;
+    let trainingHelpOpenHandler;
+    let trainingHelpCloseHandler;
+    let trainingHelpOverlayHandler;
     let quickRangeChangeHandler;
     let addManualIntervalHandler;
     let supervisionModeChangeHandler;
@@ -2882,15 +2880,15 @@
                 if (overlapModal) { overlapModal.style.display = 'none'; }
                 if (dateRangeError) dateRangeError.classList.add('hidden'); 
             };
-            infoAccordionToggleHandler = () => {
-                console.log("DEBUG: infoAccordionToggleHandler called."); 
-                const isExpanded = infoAccordionContent.classList.contains('expanded');
-                if (isExpanded) {
-                    infoAccordionContent.classList.remove('expanded');
-                    accordionIcon.classList.remove('rotated');
-                } else {
-                    infoAccordionContent.classList.add('expanded');
-                    accordionIcon.classList.add('rotated');
+            trainingHelpOpenHandler = () => {
+                if (trainingHelpModal) trainingHelpModal.style.display = 'flex';
+            };
+            trainingHelpCloseHandler = () => {
+                if (trainingHelpModal) trainingHelpModal.style.display = 'none';
+            };
+            trainingHelpOverlayHandler = (event) => {
+                if (event.target === trainingHelpModal) {
+                    trainingHelpCloseHandler();
                 }
             };
             
@@ -2908,10 +2906,9 @@
                 }
             };
             if (saveTrainingServerUrlBtn) saveTrainingServerUrlBtn.addEventListener('click', saveTrainingServerUrlHandler);
-
-            if (infoAccordionToggle && infoAccordionContent && accordionIcon) {
-                infoAccordionToggle.addEventListener('click', infoAccordionToggleHandler);
-            }
+            if (trainingHelpBtn) trainingHelpBtn.addEventListener('click', trainingHelpOpenHandler);
+            if (closeTrainingHelpModalBtn) closeTrainingHelpModalBtn.addEventListener('click', trainingHelpCloseHandler);
+            if (trainingHelpModal) trainingHelpModal.addEventListener('click', trainingHelpOverlayHandler);
             
             console.log("DEBUG: Event listeners attached for the training UI.");
         };
@@ -2951,7 +2948,9 @@
             if (closeValidationResultModalBtn && closeValidationResultHandler) closeValidationResultModalBtn.removeEventListener('click', closeValidationResultHandler);
             if (retryTrainingServerStatusBtn && retryTrainingServerStatusHandler) retryTrainingServerStatusBtn.removeEventListener('click', retryTrainingServerStatusHandler);
             if (saveTrainingServerUrlBtn && saveTrainingServerUrlHandler) saveTrainingServerUrlBtn.removeEventListener('click', saveTrainingServerUrlHandler);
-            if (infoAccordionToggle && infoAccordionToggleHandler) infoAccordionToggle.removeEventListener('click', infoAccordionToggleHandler);
+            if (trainingHelpBtn && trainingHelpOpenHandler) trainingHelpBtn.removeEventListener('click', trainingHelpOpenHandler);
+            if (closeTrainingHelpModalBtn && trainingHelpCloseHandler) closeTrainingHelpModalBtn.removeEventListener('click', trainingHelpCloseHandler);
+            if (trainingHelpModal && trainingHelpOverlayHandler) trainingHelpModal.removeEventListener('click', trainingHelpOverlayHandler);
             
             if (dateRangePickerInstance) {
                 dateRangePickerInstance.destroy();
@@ -3023,9 +3022,9 @@
         confirmDeleteJobBtn = document.getElementById('confirmDeleteJobBtn');
         cancelDeleteJobBtn = document.getElementById('cancelDeleteJobBtn');
 
-        infoAccordionToggle = document.getElementById('infoAccordionToggle');
-        infoAccordionContent = document.getElementById('infoAccordionContent');
-        accordionIcon = document.getElementById('accordionIcon');
+        trainingHelpBtn = document.getElementById('trainingHelpBtn');
+        trainingHelpModal = document.getElementById('trainingHelpModal');
+        closeTrainingHelpModalBtn = document.getElementById('closeTrainingHelpModalBtn');
 
         sendToTrainingServerBtn = document.getElementById("sendToTrainingServerBtn");
         trainingPrepStatus = document.getElementById("trainingPrepStatus");
@@ -3045,11 +3044,6 @@
         jobsPaginationInfo = document.getElementById("jobsPaginationInfo");
         jobsPrevPageBtn = document.getElementById("jobsPrevPageBtn");
         jobsNextPageBtn = document.getElementById("jobsNextPageBtn");
-
-
-        console.log("DEBUG: infoAccordionToggle element:", infoAccordionToggle); 
-        console.log("DEBUG: infoAccordionContent element:", infoAccordionContent); 
-        console.log("DEBUG: accordionIcon element:", accordionIcon); 
 
         selectionPreviewContainer = document.getElementById('selectionPreview');
         noPreviewsMessage = document.getElementById('noPreviews');
