@@ -220,7 +220,7 @@
     <div class="container-wrapper">
         <div class="nav-shell">
             <div class="nav-pills" role="tablist" aria-label="Main navigation">
-            <button id="showConfigBtn" class="tab-button focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-sky-500" role="tab" aria-selected="false">
+            <button id="showDashboardBtn" class="tab-button focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-sky-500" role="tab" aria-selected="false">
                 <span class="tab-icon"><i class="fas fa-sliders-h"></i></span>
                 <span class="tab-copy">
                     <span class="tab-title">Energy Dashboard</span>
@@ -238,7 +238,7 @@
         </div>
 
         <!-- Component Containers -->
-        <div id="configSection" class="content-section"></div>
+        <div id="dashboardSection" class="content-section"></div>
         <div id="trainingSection" class="content-section"></div>
     </div>
 
@@ -246,18 +246,18 @@
         const componentLoaders = {}; // Object to store functions to initialize component-specific logic
 
         document.addEventListener('DOMContentLoaded', function() {
-            const showConfigBtn = document.getElementById('showConfigBtn');
+            const showDashboardBtn = document.getElementById('showDashboardBtn');
             const showTrainingBtn = document.getElementById('showTrainingBtn');
             
-            const configSection = document.getElementById('configSection');
+            const dashboardSection = document.getElementById('dashboardSection');
             const trainingSection = document.getElementById('trainingSection');
             
             const allSections = {
-                'config': configSection,
+                'dashboard': dashboardSection,
                 'training': trainingSection,
             };
             const allButtons = {
-                'config': showConfigBtn,
+                'dashboard': showDashboardBtn,
                 'training': showTrainingBtn,
             };
 
@@ -316,7 +316,7 @@
             // Function to manage section visibility and component loading
             async function showSection(sectionToShow) {
                 // Call cleanup for ALL active components before switching
-                if (window.cleanupConfigUI) window.cleanupConfigUI();
+                if (window.cleanupDashboardUI) window.cleanupDashboardUI();
                 if (window.cleanupTrainingUI) window.cleanupTrainingUI(); // Assuming this already exists
                 // Add cleanup for any other components here (e.g., appliances)
                 // if (window.cleanupAppliancesUI) window.cleanupAppliancesUI();
@@ -333,12 +333,12 @@
                 allButtons[sectionToShow].classList.add('active');
                 allButtons[sectionToShow].setAttribute('aria-selected', 'true');
                 
-                if (sectionToShow === 'config') {
-                    await loadComponentContent('components/config.html', 'configSection');
-                    if (window.initializeConfigUI) {
-                        window.initializeConfigUI();
+                if (sectionToShow === 'dashboard') {
+                    await loadComponentContent('components/dashboard.html', 'dashboardSection');
+                    if (window.initializeDashboardUI) {
+                        window.initializeDashboardUI();
                     } else {
-                        console.warn("Config component did not expose 'initializeConfigUI' function.");
+                        console.warn("Dashboard component did not expose 'initializeDashboardUI' function.");
                     }
                 } else if (sectionToShow === 'training') {
                     await loadComponentContent('components/training.html', 'trainingSection');
@@ -352,11 +352,11 @@
             }
 
             // Event Listeners for the buttons
-            showConfigBtn.addEventListener('click', () => showSection('config'));
+            showDashboardBtn.addEventListener('click', () => showSection('dashboard'));
             showTrainingBtn.addEventListener('click', () => showSection('training'));
 
-            // Show the config section by default when the page loads
-            showSection('config'); 
+            // Show the dashboard section by default when the page loads
+            showSection('dashboard'); 
         });
     </script>
 </body>

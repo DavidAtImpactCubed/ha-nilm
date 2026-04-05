@@ -1,5 +1,5 @@
 <style>
-    .nilm-config {
+    .nilm-dashboard {
         background:
             radial-gradient(circle at top left, rgba(14, 165, 233, 0.18), transparent 30%),
             radial-gradient(circle at top right, rgba(16, 185, 129, 0.16), transparent 28%),
@@ -911,7 +911,7 @@
     }
 
     @media (max-width: 760px) {
-        .nilm-config {
+        .nilm-dashboard {
             padding: 18px;
             border-radius: 16px;
         }
@@ -1009,7 +1009,7 @@
     }
 
     @media (max-width: 480px) {
-        .nilm-config {
+        .nilm-dashboard {
             padding: 8px;
             border-radius: 10px;
             margin-inline: 0;
@@ -1135,7 +1135,7 @@
     }
 </style>
 
-<div class="nilm-config">
+<div class="nilm-dashboard">
     <div class="nilm-hero">
         <div>
             <h1 class="text-3xl font-bold text-slate-900 mt-3">Energy Dashboard</h1>
@@ -3098,7 +3098,7 @@
         }
     }
 
-    window.initializeConfigUI = function() {
+    window.initializeDashboardUI = function() {
         mainSensorSelect = document.getElementById("mainSensorSelect");
         historyRangeSelect = document.getElementById("historyRangeSelect");
         mainsSignalChartShell = document.getElementById("mainsSignalChartShell");
@@ -3321,7 +3321,7 @@
         refreshAll();
     };
 
-    window.cleanupConfigUI = function() {
+    window.cleanupDashboardUI = function() {
         if (previewAllEmbeddingsButton && previewAllEmbeddingsHandler) previewAllEmbeddingsButton.removeEventListener("click", previewAllEmbeddingsHandler);
         if (addApplianceButton && addApplianceButtonHandler) addApplianceButton.removeEventListener("click", addApplianceButtonHandler);
         if (embeddingsList && embeddingsListClickHandler) embeddingsList.removeEventListener("click", embeddingsListClickHandler);
