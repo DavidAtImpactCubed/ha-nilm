@@ -121,6 +121,10 @@
         margin-bottom: 18px;
     }
 
+    .models-stats-grid {
+        grid-template-columns: 1fr;
+    }
+
     .stat-card {
         background: linear-gradient(180deg, #ffffff, #f8fafc);
         border: 1px solid #e2e8f0;
@@ -939,6 +943,10 @@
             gap: 10px;
         }
 
+        .models-stats-grid {
+            grid-template-columns: 1fr;
+        }
+
         .prediction-share-wrap {
             grid-template-columns: 1fr;
         }
@@ -1061,6 +1069,10 @@
             grid-template-columns: repeat(2, minmax(0, 1fr));
             gap: 8px;
             margin-bottom: 14px;
+        }
+
+        .models-stats-grid {
+            grid-template-columns: 1fr;
         }
 
         .models-stat-row {
@@ -1211,7 +1223,7 @@
                 <button id="addApplianceButton" class="action-btn action-primary" type="button"><i class="fas fa-plus" aria-hidden="true"></i> Add</button>
             </div>
 
-            <div class="stats-grid">
+            <div class="stats-grid models-stats-grid">
                 <div class="stat-card">
                     <div class="stat-label">Models</div>
                     <div class="models-stat-row">
