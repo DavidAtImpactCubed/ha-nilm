@@ -532,6 +532,18 @@
         margin-top: 12px;
     }
 
+    .embedding-stats-actions {
+        display: flex;
+        align-items: stretch;
+        gap: 10px;
+        margin-top: 12px;
+    }
+
+    .embedding-stats-actions .embedding-stat {
+        flex: 1 1 auto;
+        min-width: 0;
+    }
+
     .embedding-entities {
         margin-top: 12px;
         padding: 10px 12px;
@@ -579,6 +591,12 @@
         transform: translateY(-1px);
         box-shadow: 0 10px 22px rgba(37, 99, 235, 0.14);
         background: #dbeafe;
+    }
+
+    .embedding-stats-actions .embedding-preview-btn {
+        flex: 0 0 auto;
+        align-self: stretch;
+        white-space: nowrap;
     }
 
     .embedding-stat {
@@ -2781,19 +2799,17 @@
                     Updated: <strong>${formatTimestamp(embedding.updated_at)}</strong>
                 </div>
                 ${liveOutputMarkup}
-                <div class="embedding-stats">
+                <div class="embedding-stats-actions">
                     <div class="embedding-stat">
                         <div class="embedding-stat-label">Training Quality (0-1)</div>
                         <div class="embedding-stat-value">${bestF1Text}</div>
                     </div>
-                </div>
-                ${realtimeEntitiesMarkup}
-                <div class="embedding-footer">
                     <button class="embedding-preview-btn" type="button" data-embedding-preview="${embedding.model_key}" data-embedding-label="${embedding.name}">
                         <i class="fas fa-chart-line" aria-hidden="true"></i>
                         Disaggregate
                     </button>
                 </div>
+                ${realtimeEntitiesMarkup}
                 ${embedding.deletable ? `
                     <div class="embedding-actions">
                         <button class="embedding-delete-btn" type="button" data-embedding-delete="${embedding.model_key}" data-embedding-label="${embedding.name}" title="Delete appliance model" aria-label="Delete appliance model">
