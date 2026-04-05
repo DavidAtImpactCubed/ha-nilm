@@ -21,6 +21,22 @@
         margin-bottom: 24px;
     }
 
+    .nilm-hero-copy {
+        min-width: 0;
+        flex: 1 1 auto;
+    }
+
+    .nilm-hero-title-row {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin-top: 12px;
+    }
+
+    .nilm-hero-title-row h1 {
+        margin-top: 0 !important;
+    }
+
     .nilm-badge {
         display: inline-flex;
         align-items: center;
@@ -587,10 +603,17 @@
         .nilm-hero {
             gap: 10px;
             margin-bottom: 16px;
+            align-items: flex-start;
+        }
+        .nilm-hero-title-row {
+            justify-content: space-between;
+            gap: 10px;
+            align-items: flex-start;
         }
         .nilm-hero h1 {
             font-size: 1.55rem;
             line-height: 1.15;
+            flex: 1 1 auto;
         }
         .training-stepper {
             grid-template-columns: 1fr;
@@ -732,12 +755,14 @@
 
 <div class="nilm-training">
     <header class="nilm-hero">
-        <div>
+        <div class="nilm-hero-copy">
             <div class="nilm-badge">Training</div>
-            <h1 class="text-3xl md:text-4xl font-bold text-gray-900 mt-3">Appliance Training Session</h1>
+            <div class="nilm-hero-title-row">
+                <h1 class="text-3xl md:text-4xl font-bold text-gray-900 mt-3">Appliance Training Session</h1>
+                <button id="trainingHelpBtn" class="training-help-btn" type="button" aria-label="How this training session works">?</button>
+            </div>
             <p class="panel-copy mt-3 max-w-2xl">Prepare NILM training data from mains history using interval supervision or a ground-truth appliance sensor.</p>
         </div>
-        <button id="trainingHelpBtn" class="training-help-btn" type="button" aria-label="How this training session works">?</button>
     </header>
 
     <div id="trainingStepper" class="training-stepper">
