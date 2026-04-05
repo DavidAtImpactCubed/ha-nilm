@@ -1,5 +1,5 @@
 name: "NILM"
-version: "1.0.77"
+version: "1.0.78"
 slug: "nilm"
 description: "Real-time load disaggregation for Home Assistant"
 homeassistant_api: true
