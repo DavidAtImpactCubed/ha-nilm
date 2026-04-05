@@ -61,7 +61,7 @@
 
     .control-row {
         display: grid;
-        grid-template-columns: minmax(0, 1fr) auto auto auto;
+        grid-template-columns: minmax(0, 1fr) auto;
         gap: 12px;
         align-items: end;
         margin-bottom: 16px;
@@ -1163,8 +1163,6 @@
                         <option value="7" selected>7d</option>
                     </select>
                 </div>
-                <button id="refreshSignalButton" class="action-btn action-secondary" type="button">Refresh Signal</button>
-                <button id="saveButton" class="action-btn action-primary" type="button">Save Sensor</button>
             </div>
 
             <div class="stats-grid">
@@ -1326,8 +1324,6 @@
 <script>
     let mainSensorSelect;
     let historyRangeSelect;
-    let refreshSignalButton;
-    let saveButton;
     let statusMessage;
     let mainsSignalChartShell;
     let addApplianceButton;
@@ -1391,10 +1387,8 @@
     let sensorsById = new Map();
     let allSensorsById = new Map();
 
-    let saveButtonHandler;
     let addApplianceButtonHandler;
     let previewAllEmbeddingsHandler;
-    let refreshSignalButtonHandler;
     let sensorChangeHandler;
     let rangeChangeHandler;
     let embeddingsListClickHandler;
@@ -3110,8 +3104,6 @@
     window.initializeConfigUI = function() {
         mainSensorSelect = document.getElementById("mainSensorSelect");
         historyRangeSelect = document.getElementById("historyRangeSelect");
-        refreshSignalButton = document.getElementById("refreshSignalButton");
-        saveButton = document.getElementById("saveButton");
         mainsSignalChartShell = document.getElementById("mainsSignalChartShell");
         addApplianceButton = document.getElementById("addApplianceButton");
         chartLoadingOverlay = document.getElementById("chartLoadingOverlay");
@@ -3160,15 +3152,6 @@
         embeddingsList = document.getElementById("embeddingsList");
         previewAllEmbeddingsButton = document.getElementById("previewAllEmbeddingsButton");
 
-        saveButtonHandler = async () => {
-            try {
-                await saveConfig();
-                await fetchAndRenderSignal();
-            } catch (error) {
-                console.error("Save failed:", error);
-                showMessage(error.message || "Failed to save configuration.", "error");
-            }
-        };
         addApplianceButtonHandler = () => {
             const trainingButton = document.getElementById("showTrainingBtn");
             if (trainingButton) {
@@ -3177,15 +3160,6 @@
         };
         previewAllEmbeddingsHandler = async () => {
             await openAllPredictionPreviews();
-        };
-        refreshSignalButtonHandler = async () => {
-            try {
-                await fetchAndRenderSignal();
-                showMessage("Mains signal refreshed.", "success");
-            } catch (error) {
-                console.error("Signal refresh failed:", error);
-                showMessage(error.message || "Failed to refresh mains signal.", "error");
-            }
         };
         embeddingsListClickHandler = async (event) => {
             const helpButton = event.target.closest("[data-realtime-help]");
@@ -3300,21 +3274,28 @@
         sensorChangeHandler = async () => {
             try {
                 if (activeInlinePredictions.length) clearInlinePrediction();
+                await saveConfig();
                 await fetchAndRenderSignal();
             } catch (error) {
                 console.error("Signal update after sensor change failed:", error);
+                showMessage(error.message || "Failed to save mains sensor.", "error");
+            }
+        };
+        rangeChangeHandler = async () => {
+            try {
+                if (activeInlinePredictions.length) clearInlinePrediction();
+                await fetchAndRenderSignal();
+            } catch (error) {
+                console.error("Signal update after range change failed:", error);
                 showMessage(error.message || "Failed to update mains signal.", "error");
             }
         };
-        rangeChangeHandler = sensorChangeHandler;
         latestPowerPollTickHandler = () => {
             refreshLatestPowerStat();
         };
 
         if (previewAllEmbeddingsButton) previewAllEmbeddingsButton.addEventListener("click", previewAllEmbeddingsHandler);
-        saveButton.addEventListener("click", saveButtonHandler);
         addApplianceButton.addEventListener("click", addApplianceButtonHandler);
-        refreshSignalButton.addEventListener("click", refreshSignalButtonHandler);
         embeddingsList.addEventListener("click", embeddingsListClickHandler);
         embeddingsList.addEventListener("change", embeddingsListChangeHandler);
         if (signalPredictionList) signalPredictionList.addEventListener("click", signalPredictionListHandler);
@@ -3345,9 +3326,7 @@
 
     window.cleanupConfigUI = function() {
         if (previewAllEmbeddingsButton && previewAllEmbeddingsHandler) previewAllEmbeddingsButton.removeEventListener("click", previewAllEmbeddingsHandler);
-        if (saveButton && saveButtonHandler) saveButton.removeEventListener("click", saveButtonHandler);
         if (addApplianceButton && addApplianceButtonHandler) addApplianceButton.removeEventListener("click", addApplianceButtonHandler);
-        if (refreshSignalButton && refreshSignalButtonHandler) refreshSignalButton.removeEventListener("click", refreshSignalButtonHandler);
         if (embeddingsList && embeddingsListClickHandler) embeddingsList.removeEventListener("click", embeddingsListClickHandler);
         if (embeddingsList && embeddingsListChangeHandler) embeddingsList.removeEventListener("change", embeddingsListChangeHandler);
         if (signalPredictionList && signalPredictionListHandler) signalPredictionList.removeEventListener("click", signalPredictionListHandler);
@@ -3402,8 +3381,6 @@
 
         mainSensorSelect = null;
         historyRangeSelect = null;
-        refreshSignalButton = null;
-        saveButton = null;
         mainsSignalChartShell = null;
         addApplianceButton = null;
         chartLoadingOverlay = null;
@@ -3449,10 +3426,8 @@
         fullSignalSeries = [];
         activeInlinePredictions = [];
         currentEmbeddings = [];
-        saveButtonHandler = null;
         addApplianceButtonHandler = null;
         previewAllEmbeddingsHandler = null;
-        refreshSignalButtonHandler = null;
         sensorChangeHandler = null;
         rangeChangeHandler = null;
         embeddingsListClickHandler = null;
