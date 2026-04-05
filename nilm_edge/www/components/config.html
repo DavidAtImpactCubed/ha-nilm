@@ -140,6 +140,25 @@
         font-weight: 800;
     }
 
+    .models-stat-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        margin-top: 8px;
+    }
+
+    .models-stat-row .stat-value {
+        min-width: 0;
+        flex: 1 1 auto;
+    }
+
+    .models-stat-button {
+        margin: 0;
+        flex: 0 0 auto;
+        white-space: nowrap;
+    }
+
     .chart-shell {
         position: relative;
         height: 360px;
@@ -932,6 +951,15 @@
             font-size: 1.05rem;
         }
 
+        .models-stat-row {
+            gap: 8px;
+        }
+
+        .models-stat-button {
+            padding: 7px 10px;
+            font-size: 0.82rem;
+        }
+
         .action-btn {
             width: 100%;
             min-height: 44px;
@@ -1033,6 +1061,16 @@
             grid-template-columns: repeat(2, minmax(0, 1fr));
             gap: 8px;
             margin-bottom: 14px;
+        }
+
+        .models-stat-row {
+            gap: 6px;
+        }
+
+        .models-stat-button {
+            padding: 6px 8px;
+            font-size: 0.74rem;
+            gap: 6px;
         }
 
         .prediction-share-wrap {
@@ -1176,9 +1214,9 @@
             <div class="stats-grid">
                 <div class="stat-card">
                     <div class="stat-label">Models</div>
-                    <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:8px;">
+                    <div class="models-stat-row">
                         <div id="embeddingsCountStat" class="stat-value">-</div>
-                        <button id="previewAllEmbeddingsButton" class="embedding-preview-btn" type="button" style="margin:0;white-space:nowrap;">
+                        <button id="previewAllEmbeddingsButton" class="embedding-preview-btn models-stat-button" type="button">
                             <i class="fas fa-layer-group" aria-hidden="true"></i>
                             Disaggregate All
                         </button>
