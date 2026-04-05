@@ -123,19 +123,7 @@ async def _fetch_preview_history_points_range(fetch_start_dt, end_dt):
     return points
 
 
-async def _build_preview_result(bundle_id, safe_name, start_dt, end_dt, provided_points=None):
-    bundle = get_bundle_by_id(app_state.model_bundles, bundle_id)
-    if bundle is None:
-        raise ValueError(f"Unknown bundle_id: {bundle_id}")
-
-    preview_disaggregator = RefQueryDisaggregator(
-        inference_dir=bundle.inference_dir,
-        embeddings_dir=bundle_models_dir(app_state.MODELS_ROOT, bundle_id),
-        num_threads=2,
-        history_fetcher=None,
-        top_k=None,
-    )
-
+async def _prepare_preview_points(preview_disaggregator, start_dt, end_dt, provided_points=None):
     lookback_s = preview_disaggregator.settings.sequence_length * preview_disaggregator.settings.frequency_s
     fetch_start_dt = start_dt - timedelta(seconds=lookback_s)
     if (end_dt.date() - fetch_start_dt.date()).days + 1 > 7:
@@ -162,24 +150,47 @@ async def _build_preview_result(bundle_id, safe_name, start_dt, end_dt, provided
             "processed": len(points),
             "total": len(points),
             "phase": "history_ready",
+            "points": points,
         }
-    else:
-        try:
-            async for history_update in _fetch_preview_history_points(fetch_start_dt, end_dt):
-                if history_update.get("phase") == "history_ready":
-                    points = history_update.get("points") or []
-                    yield {
-                        "processed": int(history_update.get("processed", 0)),
-                        "total": int(history_update.get("total", 0)),
-                        "phase": "history_ready",
-                    }
-                else:
-                    yield history_update
-        except asyncio.TimeoutError as exc:
-            raise RuntimeError(
-                f"Loading mains history took too long ({int(PREVIEW_HISTORY_TIMEOUT_S)}s). "
-                "Please reduce the selected range or check the Home Assistant connection."
-            ) from exc
+        return
+
+    try:
+        async for history_update in _fetch_preview_history_points(fetch_start_dt, end_dt):
+            if history_update.get("phase") == "history_ready":
+                history_update = dict(history_update)
+                history_update["points"] = history_update.get("points") or []
+            yield history_update
+    except asyncio.TimeoutError as exc:
+        raise RuntimeError(
+            f"Loading mains history took too long ({int(PREVIEW_HISTORY_TIMEOUT_S)}s). "
+            "Please reduce the selected range or check the Home Assistant connection."
+        ) from exc
+
+
+async def _build_preview_result(bundle_id, safe_name, start_dt, end_dt, provided_points=None):
+    bundle = get_bundle_by_id(app_state.model_bundles, bundle_id)
+    if bundle is None:
+        raise ValueError(f"Unknown bundle_id: {bundle_id}")
+
+    preview_disaggregator = RefQueryDisaggregator(
+        inference_dir=bundle.inference_dir,
+        embeddings_dir=bundle_models_dir(app_state.MODELS_ROOT, bundle_id),
+        num_threads=2,
+        history_fetcher=None,
+        top_k=None,
+    )
+
+    points = []
+    async for history_update in _prepare_preview_points(preview_disaggregator, start_dt, end_dt, provided_points=provided_points):
+        if history_update.get("phase") == "history_ready":
+            points = history_update.get("points") or []
+            yield {
+                "processed": int(history_update.get("processed", 0)),
+                "total": int(history_update.get("total", 0)),
+                "phase": "history_ready",
+            }
+        else:
+            yield history_update
 
     if not points:
         yield {
@@ -256,6 +267,141 @@ async def _build_preview_result(bundle_id, safe_name, start_dt, end_dt, provided
     }
 
 
+async def _build_preview_all_results(model_entries, start_dt, end_dt, provided_points=None):
+    if not model_entries:
+        yield {"done": True, "predictions": [], "processed": 0, "total": 0}
+        return
+
+    grouped_models = {}
+    for model_entry in model_entries:
+        bundle_id = str(model_entry.get("bundle_id") or "").strip()
+        safe_name = str(model_entry.get("appliance_name") or "").strip()
+        if not bundle_id or not safe_name:
+            continue
+        grouped_models.setdefault(bundle_id, []).append({
+            "model_key": make_model_key(bundle_id, safe_name),
+            "model_name": safe_name,
+            "safe_name": safe_name,
+        })
+
+    if not grouped_models:
+        yield {"done": True, "predictions": [], "processed": 0, "total": 0}
+        return
+
+    all_predictions = []
+
+    for bundle_id, bundle_models in grouped_models.items():
+        bundle = get_bundle_by_id(app_state.model_bundles, bundle_id)
+        if bundle is None:
+            continue
+
+        preview_disaggregator = RefQueryDisaggregator(
+            inference_dir=bundle.inference_dir,
+            embeddings_dir=bundle_models_dir(app_state.MODELS_ROOT, bundle_id),
+            num_threads=2,
+            history_fetcher=None,
+            top_k=None,
+        )
+
+        points = []
+        async for history_update in _prepare_preview_points(preview_disaggregator, start_dt, end_dt, provided_points=provided_points):
+            if history_update.get("phase") == "history_ready":
+                points = history_update.get("points") or []
+                yield {
+                    "processed": int(history_update.get("processed", 0)),
+                    "total": int(history_update.get("total", 0)),
+                    "phase": "history_ready",
+                }
+            else:
+                yield history_update
+
+        if not points:
+            continue
+
+        model_names = [item["safe_name"] for item in bundle_models]
+        prediction_map = {
+            item["safe_name"]: {
+                "model_key": item["model_key"],
+                "model_name": item["model_name"],
+                "power_series": [],
+                "baseload_series": [],
+                "preview_times_ms": [],
+            }
+            for item in bundle_models
+        }
+
+        processed = 0
+        total = len(points)
+        last_progress_emit = 0.0
+        yield {"processed": 0, "total": total, "phase": "inference"}
+
+        for ts, mains_power in points:
+            result = await preview_disaggregator.disaggregate_next(float(mains_power), float(ts), appliances=model_names)
+            processed += 1
+            now_mono = time.monotonic()
+            if processed == 1 or processed == total or now_mono - last_progress_emit >= 0.05:
+                yield {"processed": processed, "total": total, "phase": "inference"}
+                last_progress_emit = now_mono
+            if processed % 32 == 0:
+                await asyncio.sleep(0)
+            if not result:
+                continue
+
+            target_ts = float(result.get("timestamp", ts))
+            if target_ts < start_dt.timestamp() or target_ts > end_dt.timestamp():
+                continue
+
+            raw_window = preview_disaggregator.window.to_ordered_full()
+            baseload_value = float(np.min(raw_window)) if raw_window is not None and len(raw_window) else 0.0
+            target_ms = int(round(target_ts * 1000.0))
+            appliance_results = result.get("appliances") or {}
+
+            for safe_name, prediction in prediction_map.items():
+                appliance_result = appliance_results.get(safe_name)
+                if not appliance_result:
+                    continue
+                power_value = float(appliance_result.get("power", 0.0) or 0.0)
+                prediction["power_series"].append({"x": target_ms, "y": power_value})
+                prediction["baseload_series"].append({"x": target_ms, "y": max(0.0, baseload_value)})
+                prediction["preview_times_ms"].append(target_ms)
+
+        yield {"processed": total, "total": total, "phase": "postprocess"}
+
+        for prediction in prediction_map.values():
+            power_series = prediction["power_series"]
+            preview_times_ms = prediction["preview_times_ms"]
+            state_series = []
+            if power_series:
+                power_values = np.asarray([float(point["y"]) for point in power_series], dtype=np.float32)
+                on_mask = compute_on_mask(
+                    power_values,
+                    sample_period_s=float(preview_disaggregator.settings.frequency_s),
+                    threshold_watts=20.0,
+                    window_hours=24.0,
+                    min_on_s=60.0,
+                    min_off_s=300.0,
+                )
+                state_series = [
+                    {"x": int(preview_times_ms[i]), "y": int(on_mask[i] >= 1)}
+                    for i in range(min(len(preview_times_ms), len(on_mask)))
+                ]
+
+            all_predictions.append({
+                "model_key": prediction["model_key"],
+                "model_name": prediction["model_name"],
+                "power_series": power_series,
+                "baseload_series": prediction["baseload_series"],
+                "state_series": state_series,
+            })
+
+    yield {
+        "done": True,
+        "predictions": all_predictions,
+        "processed": len(all_predictions),
+        "total": len(all_predictions),
+    }
+
+
 async def _run_preview_job(app, job_id, bundle_id, safe_name, start_dt, end_dt, provided_points=None):
     try:
         await _set_preview_job(app, job_id, {
@@ -280,6 +426,64 @@ async def _run_preview_job(app, job_id, bundle_id, safe_name, start_dt, end_dt, 
                         "power_series": update.get("power_series", []),
                         "baseload_series": update.get("baseload_series", []),
                         "state_series": update.get("state_series", []),
+                    },
+                })
+                return
+
+            processed = int(update.get("processed", 0))
+            total = int(update.get("total", 0))
+            phase = str(update.get("phase") or "inference")
+            if total > 0:
+                if phase == "history":
+                    percent = max(5, min(24, int(round((processed / total) * 24))))
+                elif phase == "history_ready":
+                    percent = 25
+                elif phase == "postprocess":
+                    percent = 95
+                else:
+                    percent = max(26, min(92, 25 + int(round((processed / total) * 67))))
+            else:
+                percent = 5 if phase == "history" else 8
+            await _set_preview_job(app, job_id, {
+                "status": "running",
+                "phase": phase,
+                "updated_at": datetime.now(timezone.utc).isoformat(),
+                "processed": processed,
+                "total": total,
+                "percent": percent,
+            })
+            await asyncio.sleep(0)
+    except Exception as exc:
+        await _set_preview_job(app, job_id, {
+            "status": "error",
+            "phase": "error",
+            "updated_at": datetime.now(timezone.utc).isoformat(),
+            "message": str(exc),
+        })
+
+
+async def _run_preview_all_job(app, job_id, model_entries, start_dt, end_dt, provided_points=None):
+    try:
+        await _set_preview_job(app, job_id, {
+            "status": "running",
+            "phase": "history",
+            "updated_at": datetime.now(timezone.utc).isoformat(),
+            "processed": 0,
+            "total": 0,
+            "percent": 5,
+        })
+
+        async for update in _build_preview_all_results(model_entries, start_dt, end_dt, provided_points=provided_points):
+            if update.get("done"):
+                await _set_preview_job(app, job_id, {
+                    "status": "done",
+                    "phase": "done",
+                    "updated_at": datetime.now(timezone.utc).isoformat(),
+                    "processed": int(update.get("processed", 0)),
+                    "total": int(update.get("total", 0)),
+                    "percent": 100,
+                    "result": {
+                        "predictions": update.get("predictions", []),
                     },
                 })
                 return
@@ -475,6 +679,57 @@ async def start_preview_embedding_handler(request):
         return web.json_response({"status": "error", "message": f"Internal server error: {exc}"}, status=500)
 
 
+async def start_preview_all_embeddings_handler(request):
+    try:
+        data = await request.json()
+        if not isinstance(data, dict):
+            return web.json_response({"status": "error", "message": "Invalid JSON body"}, status=400)
+
+        start_raw = str(data.get("start") or "").strip()
+        end_raw = str(data.get("end") or "").strip()
+        provided_points = data.get("mains_points")
+        if not start_raw or not end_raw:
+            return web.json_response({"status": "error", "message": "Missing start/end query parameters"}, status=400)
+
+        start_dt = datetime.fromisoformat(start_raw.replace("Z", "+00:00")).astimezone(timezone.utc)
+        end_dt = datetime.fromisoformat(end_raw.replace("Z", "+00:00")).astimezone(timezone.utc)
+        if start_dt >= end_dt:
+            return web.json_response({"status": "error", "message": "start must be before end"}, status=400)
+
+        model_entries = []
+        for model_entry in list_saved_models(app_state.MODELS_ROOT):
+            bundle_id = model_entry["bundle_id"]
+            safe_name = model_entry["appliance_name"]
+            bundle = get_bundle_by_id(app_state.model_bundles, bundle_id)
+            if bundle is None:
+                continue
+            model_entries.append({
+                "bundle_id": bundle_id,
+                "appliance_name": safe_name,
+            })
+
+        if not model_entries:
+            return web.json_response({"status": "error", "message": "No appliance models found yet."}, status=400)
+
+        job_id = uuid.uuid4().hex
+        await _set_preview_job(request.app, job_id, {
+            "status": "queued",
+            "phase": "queued",
+            "updated_at": datetime.now(timezone.utc).isoformat(),
+            "processed": 0,
+            "total": 0,
+            "percent": 0,
+            "message": None,
+        })
+        asyncio.create_task(_run_preview_all_job(request.app, job_id, model_entries, start_dt, end_dt, provided_points=provided_points))
+        return web.json_response({"status": "accepted", "job_id": job_id})
+    except ValueError as exc:
+        return web.json_response({"status": "error", "message": str(exc)}, status=400)
+    except Exception as exc:
+        print(f"Error handling POST /embeddings/preview-all: {exc}")
+        return web.json_response({"status": "error", "message": f"Internal server error: {exc}"}, status=500)
+
+
 async def preview_embedding_status_handler(request):
     try:
         job_id = str(request.match_info.get("job_id") or "").strip()
@@ -504,6 +759,7 @@ def register_model_routes(app, ingress_url_base):
     app.router.add_get(ingress_url_base + "model-bundles", get_model_bundles_handler)
     app.router.add_get(ingress_url_base + "embeddings", get_embeddings_handler)
     app.router.add_post(ingress_url_base + "embeddings/{name}/preview", start_preview_embedding_handler)
+    app.router.add_post(ingress_url_base + "embeddings/preview-all", start_preview_all_embeddings_handler)
     app.router.add_get(ingress_url_base + "preview-jobs/{job_id}", preview_embedding_status_handler)
     app.router.add_patch(ingress_url_base + "embeddings/{name}", update_embedding_handler)
     app.router.add_post(ingress_url_base + "embeddings/{name}", update_embedding_handler)

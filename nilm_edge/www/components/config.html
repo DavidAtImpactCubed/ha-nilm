@@ -1159,6 +1159,10 @@
                 <div class="stat-card">
                     <div class="stat-label">Available Models</div>
                     <div id="embeddingsCountStat" class="stat-value">-</div>
+                    <button id="previewAllEmbeddingsButton" class="embedding-preview-btn" type="button" style="margin-top:12px;width:100%;">
+                        <i class="fas fa-layer-group" aria-hidden="true"></i>
+                        Disaggregate All
+                    </button>
                 </div>
             </div>
 
@@ -1263,6 +1267,7 @@
     let latestPowerStat;
     let embeddingsCountStat;
     let embeddingsList;
+    let previewAllEmbeddingsButton;
     let chartLoadingOverlay;
     let chartLoadingText;
     let signalPredictionPanel;
@@ -1302,6 +1307,7 @@
     let predictionIntervalsChart;
     let predictionOverlaySensors = [];
     let activeInlinePredictions = [];
+    let currentEmbeddings = [];
     let currentPreviewModelName = null;
     let currentPreviewBasePowerSeries = [];
     let currentPreviewStateSeries = [];
@@ -1317,6 +1323,7 @@
 
     let saveButtonHandler;
     let addApplianceButtonHandler;
+    let previewAllEmbeddingsHandler;
     let refreshSignalButtonHandler;
     let sensorChangeHandler;
     let rangeChangeHandler;
@@ -2228,27 +2235,95 @@
             const mainsSharePct = mainsEnergyWh > 1e-9 ? (energyWh / mainsEnergyWh) * 100 : NaN;
             currentPreviewBasePowerSeries = powerSeries;
             currentPreviewStateSeries = stateSeries;
-            const predictionColor = PREVIEW_OVERLAY_COLORS[
-                activeInlinePredictions.findIndex((prediction) => prediction.modelKey === modelKey) >= 0
-                    ? activeInlinePredictions.findIndex((prediction) => prediction.modelKey === modelKey) % PREVIEW_OVERLAY_COLORS.length
-                    : activeInlinePredictions.length % PREVIEW_OVERLAY_COLORS.length
-            ];
             const inlinePrediction = {
                 modelKey,
                 modelName,
                 powerSeries,
                 baseloadSeries,
                 stateSeries,
-                color: predictionColor,
+                color: colorForInlinePrediction(modelKey, activeInlinePredictions.length),
             };
-            activeInlinePredictions = activeInlinePredictions.filter((prediction) => prediction.modelKey !== modelKey);
-            activeInlinePredictions.push(inlinePrediction);
+            upsertInlinePrediction(inlinePrediction);
             renderInlinePredictionUi();
             renderSignalChart(fullSignalSeries);
             showMessage(`${modelName} prediction added to the mains chart. Energy: ${formatEnergy(energyWh)}. Share of mains: ${formatPercent(mainsSharePct)}.`, "success");
         } catch (error) {
             console.error("Prediction preview failed:", error);
             showMessage(error.message || "Failed to load prediction preview.", "error");
+        } finally {
+            hideChartLoading();
+        }
+    }
+
+    function colorForInlinePrediction(modelKey, fallbackIndex) {
+        const existingIndex = activeInlinePredictions.findIndex((prediction) => prediction.modelKey === modelKey);
+        const colorIndex = existingIndex >= 0 ? existingIndex : fallbackIndex;
+        return PREVIEW_OVERLAY_COLORS[colorIndex % PREVIEW_OVERLAY_COLORS.length];
+    }
+
+    function upsertInlinePrediction(inlinePrediction) {
+        activeInlinePredictions = activeInlinePredictions.filter((prediction) => prediction.modelKey !== inlinePrediction.modelKey);
+        activeInlinePredictions.push(inlinePrediction);
+    }
+
+    async function openAllPredictionPreviews() {
+        const { startUtc, endUtc } = getSelectedRangeBounds();
+        focusSignalChartOnMobile();
+        showChartLoading("Preparing predictions...");
+
+        try {
+            const response = await fetch("embeddings/preview-all", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    start: startUtc.toISOString(),
+                    end: endUtc.toISOString(),
+                    mains_points: fullSignalSeries,
+                }),
+            });
+            if (!response.ok) {
+                const errorPayload = await response.json().catch(() => ({}));
+                throw new Error(errorPayload.message || `Failed to load predictions: HTTP ${response.status}`);
+            }
+
+            const startPayload = await response.json().catch(() => ({}));
+            if (!startPayload.job_id) {
+                throw new Error("Prediction preview job did not start correctly.");
+            }
+
+            const payload = await waitForPredictionPreviewJob(startPayload.job_id);
+            const predictions = Array.isArray(payload.predictions) ? payload.predictions : [];
+            if (!predictions.length) {
+                showMessage("No prediction history is available for the selected range yet.", "error");
+                return;
+            }
+
+            const nextInlinePredictions = [];
+            predictions.forEach((prediction, index) => {
+                const modelKey = prediction.model_key;
+                const modelName = prediction.model_name || modelKey;
+                const powerSeries = Array.isArray(prediction.power_series) ? prediction.power_series : [];
+                const baseloadSeries = Array.isArray(prediction.baseload_series) ? prediction.baseload_series : [];
+                const stateSeries = Array.isArray(prediction.state_series) ? prediction.state_series : [];
+                if (!modelKey || (!powerSeries.length && !stateSeries.length)) return;
+                nextInlinePredictions.push({
+                    modelKey,
+                    modelName,
+                    powerSeries,
+                    baseloadSeries,
+                    stateSeries,
+                    color: colorForInlinePrediction(modelKey, index),
+                });
+            });
+
+            activeInlinePredictions = nextInlinePredictions;
+
+            renderInlinePredictionUi();
+            renderSignalChart(fullSignalSeries);
+            showMessage("All appliance predictions were added to the mains chart.", "success");
+        } catch (error) {
+            console.error("Disaggregate all failed:", error);
+            showMessage(error.message || "Failed to disaggregate all appliance models.", "error");
         } finally {
             hideChartLoading();
         }
@@ -2617,9 +2692,11 @@
 
     function renderEmbeddings(embeddings) {
         embeddingsList.innerHTML = "";
+        currentEmbeddings = Array.isArray(embeddings) ? embeddings : [];
 
         if (embeddings === null) {
             embeddingsCountStat.textContent = "-";
+            if (previewAllEmbeddingsButton) previewAllEmbeddingsButton.disabled = true;
             embeddingsList.innerHTML = `
                 <div class="empty-state">
                     Loading appliance models...
@@ -2637,6 +2714,7 @@
             });
 
         embeddingsCountStat.textContent = String(safeEmbeddings.length);
+        if (previewAllEmbeddingsButton) previewAllEmbeddingsButton.disabled = safeEmbeddings.length === 0;
 
         if (!safeEmbeddings.length) {
             embeddingsList.innerHTML = `
@@ -3012,6 +3090,7 @@
         latestPowerStat = document.getElementById("latestPowerStat");
         embeddingsCountStat = document.getElementById("embeddingsCountStat");
         embeddingsList = document.getElementById("embeddingsList");
+        previewAllEmbeddingsButton = document.getElementById("previewAllEmbeddingsButton");
 
         saveButtonHandler = async () => {
             try {
@@ -3027,6 +3106,9 @@
             if (trainingButton) {
                 trainingButton.click();
             }
+        };
+        previewAllEmbeddingsHandler = async () => {
+            await openAllPredictionPreviews();
         };
         refreshSignalButtonHandler = async () => {
             try {
@@ -3134,7 +3216,9 @@
             const modelKey = row.getAttribute("data-share-item");
             if (event.type === "click") return;
             highlightPredictionShareSlice(modelKey);
-            showPredictionShareTooltip(modelKey);
+            if (event.type === "mouseover" || event.type === "focusin") {
+                showPredictionShareTooltip(modelKey);
+            }
         };
         signalPredictionShareLeaveHandler = () => {
             highlightPredictionShareSlice(null);
@@ -3159,6 +3243,7 @@
             refreshLatestPowerStat();
         };
 
+        if (previewAllEmbeddingsButton) previewAllEmbeddingsButton.addEventListener("click", previewAllEmbeddingsHandler);
         saveButton.addEventListener("click", saveButtonHandler);
         addApplianceButton.addEventListener("click", addApplianceButtonHandler);
         refreshSignalButton.addEventListener("click", refreshSignalButtonHandler);
@@ -3191,6 +3276,7 @@
     };
 
     window.cleanupConfigUI = function() {
+        if (previewAllEmbeddingsButton && previewAllEmbeddingsHandler) previewAllEmbeddingsButton.removeEventListener("click", previewAllEmbeddingsHandler);
         if (saveButton && saveButtonHandler) saveButton.removeEventListener("click", saveButtonHandler);
         if (addApplianceButton && addApplianceButtonHandler) addApplianceButton.removeEventListener("click", addApplianceButtonHandler);
         if (refreshSignalButton && refreshSignalButtonHandler) refreshSignalButton.removeEventListener("click", refreshSignalButtonHandler);
@@ -3291,10 +3377,13 @@
         latestPowerStat = null;
         embeddingsCountStat = null;
         embeddingsList = null;
+        previewAllEmbeddingsButton = null;
         fullSignalSeries = [];
         activeInlinePredictions = [];
+        currentEmbeddings = [];
         saveButtonHandler = null;
         addApplianceButtonHandler = null;
+        previewAllEmbeddingsHandler = null;
         refreshSignalButtonHandler = null;
         sensorChangeHandler = null;
         rangeChangeHandler = null;
