@@ -159,6 +159,11 @@
         padding: 16px;
         overflow: auto;
     }
+
+    .modal-overlay-top {
+        align-items: flex-start;
+        padding-top: clamp(20px, 8vh, 72px);
+    }
     .modal-content {
         background-color: white;
         padding: 24px;
@@ -1013,7 +1018,7 @@
     </div>
 </div>
 
-<div id="trainingHelpModal" class="modal-overlay" style="display: none;">
+<div id="trainingHelpModal" class="modal-overlay modal-overlay-top" style="display: none;">
     <div class="modal-content" style="max-width: 720px; text-align: left;">
         <h3 class="text-xl font-semibold text-blue-800 mb-4">How This Training Session Works</h3>
         <p class="text-gray-700">
