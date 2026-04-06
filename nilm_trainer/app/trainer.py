@@ -206,7 +206,7 @@ def train_ref_embedding(
             pred_on = tf.reshape(outputs[onoff_idx], (-1,))
             reg_loss = mse_loss_fn(y_power_batch, pred_reg)
             cls_loss = bce_loss_fn(y_on_batch, pred_on)
-            total_loss = reg_loss + cls_loss
+            total_loss = reg_loss #+ cls_loss
         grads = tape.gradient(total_loss, [ref_emb])
         optimizer.apply_gradients(zip(grads, [ref_emb]))
         return total_loss, cls_loss, reg_loss
