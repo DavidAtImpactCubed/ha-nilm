@@ -2608,6 +2608,8 @@
                 const dataset = mainsSignalChart.data.datasets[index + 1];
                 if (!dataset) return;
                 dataset.data = decimateSeriesForRange(prediction.powerSeries, minX, maxX, 1200);
+                dataset.fullPredictionPowerSeries = prediction.powerSeries;
+                dataset.predictionStateSeries = prediction.stateSeries;
             });
             mainsSignalChart.update("none");
         }, 80);
@@ -2636,6 +2638,7 @@
         const predictionDatasets = activeInlinePredictions.map((prediction) => ({
             label: `${prediction.modelName} Prediction (W)`,
             data: prediction.powerSeries,
+            fullPredictionPowerSeries: prediction.powerSeries,
             predictionStateSeries: prediction.stateSeries,
             parsing: false,
             normalized: true,
@@ -2683,7 +2686,17 @@
                             label(ctx) {
                                 const lines = [`${ctx.dataset.label}: ${formatPower(ctx.parsed.y)}`];
                                 const timestamp = Number(ctx.parsed?.x);
-                                const onOffPoint = getSeriesPointAtTimestamp(ctx.dataset?.predictionStateSeries, timestamp);
+                                const predictionPowerPoint = getSeriesPointAtTimestamp(
+                                    ctx.dataset?.fullPredictionPowerSeries,
+                                    timestamp
+                                );
+                                const matchedTimestamp = predictionPowerPoint
+                                    ? Number(predictionPowerPoint.x)
+                                    : timestamp;
+                                const onOffPoint = getSeriesPointAtTimestamp(
+                                    ctx.dataset?.predictionStateSeries,
+                                    matchedTimestamp
+                                );
                                 if (onOffPoint) {
                                     const stateLabel = Number(onOffPoint.y) >= 1 ? "ON" : "OFF";
                                     const scoreText = Number.isFinite(Number(onOffPoint.score))
