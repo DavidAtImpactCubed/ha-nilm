@@ -5,6 +5,7 @@ import json
 import uuid
 import asyncio
 import traceback
+import gc
 import numpy as np
 from datetime import datetime, timezone
 from typing import Any, Dict, Optional
@@ -165,6 +166,15 @@ class TrainingServerServiceManager:
             data["_job"] = {**data["_job"], **patch}
             _atomic_write_json(path, data)
 
+    async def _prune_heavy_job_fields(self, job_id: str) -> None:
+        path = self._job_path(job_id)
+        async with self._io_lock:
+            data = self._read_unlocked(path)
+            for key in ("embeddings", "targets_on", "targets_power", "timestamps", "power_windows"):
+                if key in data:
+                    data.pop(key, None)
+            _atomic_write_json(path, data)
+
     async def create_job(self, prepared: Dict[str, Any]) -> str:
         job_id = uuid.uuid4().hex
         prepared["_job"] = {
@@ -276,6 +286,9 @@ class TrainingServerServiceManager:
             payload=training_server_payload,
             timeout_s=1120.0,
         )
+        del training_server_payload
+        del prepared
+        gc.collect()
 
         training_server_job_id = start["job_id"]
         print(
@@ -410,6 +423,9 @@ class TrainingServerServiceManager:
             deployment_onoff_f1 = trainer_onoff_f1
 
             edge_replay_metrics = None
+            prepared_embeddings = None
+            prepared_targets_on = None
+            scores = None
             try:
                 bundle = get_bundle_by_id(app_state.model_bundles, bundle_id)
                 prepared_embeddings = np.asarray(prepared_job.get("embeddings") or [], dtype=np.float32)
@@ -447,6 +463,11 @@ class TrainingServerServiceManager:
             except Exception as replay_exc:
                 print(f"Edge replay summary failed for appliance={appliance_name}: {replay_exc}", flush=True)
                 print(traceback.format_exc(), flush=True)
+            finally:
+                del prepared_embeddings
+                del prepared_targets_on
+                del scores
+                gc.collect()
 
             save_embedding_metadata(
                 bundle_dir,
@@ -501,6 +522,9 @@ class TrainingServerServiceManager:
                 },
                 "percent": 100,
             })
+            await self._prune_heavy_job_fields(job_id)
+            del prepared_job
+            gc.collect()
             print(
                 f"Training finalize done local_job_id={job_id} training_server_job_id={training_server_job_id} "
                 f"saved_path={saved_path}",
