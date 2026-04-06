@@ -183,6 +183,18 @@ class RefQueryDisaggregator:
         if len(self.hd_out) != 2:
             raise RuntimeError(f"Head expected 2 outputs, got {len(self.hd_out)}")
 
+        # Bind head inputs by tensor name instead of positional order. The exported
+        # TFLite model can expose query/ref tensors in a different order from the
+        # original Keras model input list.
+        self.hd_ref_in = self.hd_in[0]
+        self.hd_query_in = self.hd_in[1]
+        for detail in self.hd_in:
+            in_name = (detail.get("name", "") or "").lower()
+            if "ref_embedding" in in_name or in_name.endswith("ref_embedding"):
+                self.hd_ref_in = detail
+            elif "query_embedding" in in_name or in_name.endswith("query_embedding"):
+                self.hd_query_in = detail
+
         # ---- Preallocate extractor input tensor ----
         self._extractor_input = np.zeros(tuple(self.ex_in[0]["shape"]), dtype=self.ex_in[0]["dtype"])
 
@@ -409,8 +421,14 @@ class RefQueryDisaggregator:
         """
         Returns (power_watts, onoff, power_norm)
         """
-        self.head.set_tensor(self.hd_in[0]["index"], ref_emb.astype(self.hd_in[0]["dtype"], copy=False))
-        self.head.set_tensor(self.hd_in[1]["index"], query_emb.astype(self.hd_in[1]["dtype"], copy=False))
+        self.head.set_tensor(
+            self.hd_ref_in["index"],
+            ref_emb.astype(self.hd_ref_in["dtype"], copy=False),
+        )
+        self.head.set_tensor(
+            self.hd_query_in["index"],
+            query_emb.astype(self.hd_query_in["dtype"], copy=False),
+        )
         self.head.invoke()
 
         out0 = float(np.ravel(self.head.get_tensor(self.hd_out[0]["index"]))[0])
