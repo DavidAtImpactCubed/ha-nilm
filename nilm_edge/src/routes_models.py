@@ -179,14 +179,15 @@ def _build_offline_preview_inputs(points, *, inference_dir: str, num_threads: in
     parsed_points = parse_mains_points([{"x": float(ts) * 1000.0, "y": float(value)} for ts, value in (points or [])])
     if len(parsed_points) < 2:
         return {
-            "embeddings": np.zeros((0, 0), dtype=np.float32),
+            "windows": np.zeros((0, 0), dtype=np.float32),
             "label_times_ms": np.zeros((0,), dtype=np.int64),
             "mains_at_label": np.zeros((0,), dtype=np.float32),
             "baseload_at_label": np.zeros((0,), dtype=np.float32),
+            "inference_dir": inference_dir,
+            "num_threads": int(num_threads),
         }
 
     settings = load_model_settings(os.path.join(inference_dir, "model_settings.json"))
-    extractor = QueryExtractor(os.path.join(inference_dir, "extractor.tflite"), num_threads=num_threads)
 
     T = settings.sequence_length
     dt = settings.frequency_s
@@ -196,10 +197,12 @@ def _build_offline_preview_inputs(points, *, inference_dir: str, num_threads: in
     grid_t = build_uniform_grid(t_start, t_end, dt, align=align_grid)
     if grid_t.size < T:
         return {
-            "embeddings": np.zeros((0, 0), dtype=np.float32),
+            "windows": np.zeros((0, 0), dtype=np.float32),
             "label_times_ms": np.zeros((0,), dtype=np.int64),
             "mains_at_label": np.zeros((0,), dtype=np.float32),
             "baseload_at_label": np.zeros((0,), dtype=np.float32),
+            "inference_dir": inference_dir,
+            "num_threads": int(num_threads),
         }
 
     max_hold_s = float(max_hold_factor) * dt if max_hold_factor and max_hold_factor > 0 else None
@@ -236,24 +239,21 @@ def _build_offline_preview_inputs(points, *, inference_dir: str, num_threads: in
 
     if windows.shape[0] == 0:
         return {
-            "embeddings": np.zeros((0, 0), dtype=np.float32),
+            "windows": np.zeros((0, 0), dtype=np.float32),
             "label_times_ms": np.zeros((0,), dtype=np.int64),
             "mains_at_label": np.zeros((0,), dtype=np.float32),
             "baseload_at_label": np.zeros((0,), dtype=np.float32),
+            "inference_dir": inference_dir,
+            "num_threads": int(num_threads),
         }
 
-    X = extractor.build_input_batch(windows)
-    embs, mask = extractor.extract_embeddings(X, return_mask=True)
-    if mask is None:
-        raise RuntimeError("Internal error: preview extractor mask not returned")
-
     return {
-        "embeddings": embs,
-        "label_times_ms": np.round(grid_t_label[mask] * 1000.0).astype(np.int64),
-        "mains_at_label": mains_at_label[mask].astype(np.float32),
-        "baseload_at_label": baseload_per_window[mask].astype(np.float32),
         "windows": windows,
-        "extractor": extractor,
+        "label_times_ms": np.round(grid_t_label * 1000.0).astype(np.int64),
+        "mains_at_label": mains_at_label.astype(np.float32),
+        "baseload_at_label": baseload_per_window.astype(np.float32),
+        "inference_dir": inference_dir,
+        "num_threads": int(num_threads),
     }
 
 
@@ -354,12 +354,13 @@ def _summarize_state_series(state_series):
 
 async def _extract_preview_embeddings_with_progress(preview_inputs):
     windows = np.asarray(preview_inputs.get("windows"), dtype=np.float32)
-    extractor = preview_inputs.get("extractor")
+    inference_dir = str(preview_inputs.get("inference_dir") or "")
+    num_threads = int(preview_inputs.get("num_threads") or 2)
     label_times_ms = np.asarray(preview_inputs.get("label_times_ms"), dtype=np.int64)
     mains_at_label = np.asarray(preview_inputs.get("mains_at_label"), dtype=np.float32)
     baseload_at_label = np.asarray(preview_inputs.get("baseload_at_label"), dtype=np.float32)
 
-    if extractor is None or windows.ndim != 2 or windows.shape[0] == 0:
+    if not inference_dir or windows.ndim != 2 or windows.shape[0] == 0:
         yield {
             "phase": "embeddings",
             "processed": 0,
@@ -373,53 +374,57 @@ async def _extract_preview_embeddings_with_progress(preview_inputs):
         }
         return
 
-    X = extractor.build_input_batch(windows)
-    out_shape = tuple(extractor.out[0]["shape"])
-    D = int(np.prod(out_shape)) if len(out_shape) >= 1 else 0
-    if D <= 0:
-        extractor.interp.set_tensor(extractor.in_index, X[0].astype(extractor.in_dtype, copy=False))
-        extractor.interp.invoke()
-        D = int(np.asarray(extractor.interp.get_tensor(extractor.out_index)).size)
+    extractor = QueryExtractor(os.path.join(inference_dir, "extractor.tflite"), num_threads=num_threads)
+    try:
+        X = extractor.build_input_batch(windows)
+        out_shape = tuple(extractor.out[0]["shape"])
+        D = int(np.prod(out_shape)) if len(out_shape) >= 1 else 0
+        if D <= 0:
+            extractor.interp.set_tensor(extractor.in_index, X[0].astype(extractor.in_dtype, copy=False))
+            extractor.interp.invoke()
+            D = int(np.asarray(extractor.interp.get_tensor(extractor.out_index)).size)
 
-    N = int(X.shape[0])
-    embs = np.zeros((N, D), dtype=np.float32)
-    ok = np.zeros((N,), dtype=bool)
-    last_emit = 0.0
+        N = int(X.shape[0])
+        embs = np.zeros((N, D), dtype=np.float32)
+        ok = np.zeros((N,), dtype=bool)
+        last_emit = 0.0
 
-    yield {"phase": "embeddings", "processed": 0, "total": N}
+        yield {"phase": "embeddings", "processed": 0, "total": N}
 
-    for i in range(N):
-        try:
-            xi = X[i]
-            if np.all(np.isfinite(xi)):
-                extractor.interp.set_tensor(extractor.in_index, xi.astype(extractor.in_dtype, copy=False))
-                extractor.interp.invoke()
-                emb = np.asarray(extractor.interp.get_tensor(extractor.out_index), dtype=np.float32).reshape(-1)
-                if np.linalg.norm(emb) < 1e-9:
-                    emb = emb + extractor.eps
-                embs[i, :] = emb
-                ok[i] = True
-        except Exception:
-            pass
+        for i in range(N):
+            try:
+                xi = X[i]
+                if np.all(np.isfinite(xi)):
+                    extractor.interp.set_tensor(extractor.in_index, xi.astype(extractor.in_dtype, copy=False))
+                    extractor.interp.invoke()
+                    emb = np.asarray(extractor.interp.get_tensor(extractor.out_index), dtype=np.float32).reshape(-1)
+                    if np.linalg.norm(emb) < 1e-9:
+                        emb = emb + extractor.eps
+                    embs[i, :] = emb
+                    ok[i] = True
+            except Exception:
+                pass
 
-        now_mono = time.monotonic()
-        if i == 0 or i == N - 1 or now_mono - last_emit >= 0.05:
-            yield {"phase": "embeddings", "processed": i + 1, "total": N}
-            last_emit = now_mono
-        if (i + 1) % 32 == 0:
-            await asyncio.sleep(0)
+            now_mono = time.monotonic()
+            if i == 0 or i == N - 1 or now_mono - last_emit >= 0.05:
+                yield {"phase": "embeddings", "processed": i + 1, "total": N}
+                last_emit = now_mono
+            if (i + 1) % 32 == 0:
+                await asyncio.sleep(0)
 
-    yield {
-        "phase": "embeddings_ready",
-        "processed": int(np.sum(ok)),
-        "total": N,
-        "preview_inputs": {
-            "embeddings": embs[ok],
-            "label_times_ms": label_times_ms[ok],
-            "mains_at_label": mains_at_label[ok],
-            "baseload_at_label": baseload_at_label[ok],
-        },
-    }
+        yield {
+            "phase": "embeddings_ready",
+            "processed": int(np.sum(ok)),
+            "total": N,
+            "preview_inputs": {
+                "embeddings": embs[ok],
+                "label_times_ms": label_times_ms[ok],
+                "mains_at_label": mains_at_label[ok],
+                "baseload_at_label": baseload_at_label[ok],
+            },
+        }
+    finally:
+        gc.collect()
 
 
 async def _score_preview_embeddings_with_progress(preview_disaggregator, safe_names, preview_inputs):
