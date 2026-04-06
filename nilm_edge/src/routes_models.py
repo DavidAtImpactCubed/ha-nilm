@@ -375,6 +375,9 @@ async def _extract_preview_embeddings_with_progress(preview_inputs):
         return
 
     extractor = QueryExtractor(os.path.join(inference_dir, "extractor.tflite"), num_threads=num_threads)
+    X = None
+    embs = None
+    ok = None
     try:
         X = extractor.build_input_batch(windows)
         out_shape = tuple(extractor.out[0]["shape"])
@@ -424,6 +427,10 @@ async def _extract_preview_embeddings_with_progress(preview_inputs):
             },
         }
     finally:
+        del X
+        del embs
+        del ok
+        del extractor
         gc.collect()
 
 
@@ -452,51 +459,55 @@ async def _score_preview_embeddings_with_progress(preview_disaggregator, safe_na
         return
 
     model_state = {}
-    for safe_name in safe_names:
-        ref = preview_disaggregator._load_embedding(safe_name)
-        params = preview_disaggregator._load_appliance_params(safe_name)
-        model_state[safe_name] = (ref, float(params.get("onoff_threshold", 0.5)))
-
-    N = int(embeddings.shape[0])
-    last_emit = 0.0
-    yield {"phase": "inference", "processed": 0, "total": N}
-
-    for idx in range(N):
-        query_emb = np.asarray(embeddings[idx], dtype=np.float32).reshape(1, -1)
-        target_ms = int(label_times_ms[idx])
-        baseload_value = float(max(0.0, baseload_at_label[idx])) if idx < baseload_at_label.size else 0.0
-        available_appliance_power = float(max(0.0, float(mains_at_label[idx]) - baseload_value)) if idx < mains_at_label.size else 0.0
-
+    try:
         for safe_name in safe_names:
-            ref, onoff_threshold = model_state[safe_name]
-            power_w, onoff_value, _power_norm = preview_disaggregator._run_head(ref, query_emb)
-            power_w = float(max(0.0, power_w))
-            power_w = float(min(power_w, available_appliance_power))
-            if onoff_value < onoff_threshold:
-                power_w = 0.0
+            ref = preview_disaggregator._load_embedding(safe_name)
+            params = preview_disaggregator._load_appliance_params(safe_name)
+            model_state[safe_name] = (ref, float(params.get("onoff_threshold", 0.5)))
 
-            prediction_map[safe_name]["power_series"].append({"x": target_ms, "y": power_w})
-            prediction_map[safe_name]["baseload_series"].append({"x": target_ms, "y": baseload_value})
-            prediction_map[safe_name]["state_series"].append({
-                "x": target_ms,
-                "y": int(onoff_value >= onoff_threshold),
-                "score": float(onoff_value),
-                "threshold": float(onoff_threshold),
-            })
+        N = int(embeddings.shape[0])
+        last_emit = 0.0
+        yield {"phase": "inference", "processed": 0, "total": N}
 
-        now_mono = time.monotonic()
-        if idx == 0 or idx == N - 1 or now_mono - last_emit >= 0.05:
-            yield {"phase": "inference", "processed": idx + 1, "total": N}
-            last_emit = now_mono
-        if (idx + 1) % 32 == 0:
-            await asyncio.sleep(0)
+        for idx in range(N):
+            query_emb = np.asarray(embeddings[idx], dtype=np.float32).reshape(1, -1)
+            target_ms = int(label_times_ms[idx])
+            baseload_value = float(max(0.0, baseload_at_label[idx])) if idx < baseload_at_label.size else 0.0
+            available_appliance_power = float(max(0.0, float(mains_at_label[idx]) - baseload_value)) if idx < mains_at_label.size else 0.0
 
-    yield {
-        "phase": "inference_done",
-        "processed": N,
-        "total": N,
-        "prediction_map": prediction_map,
-    }
+            for safe_name in safe_names:
+                ref, onoff_threshold = model_state[safe_name]
+                power_w, onoff_value, _power_norm = preview_disaggregator._run_head(ref, query_emb)
+                power_w = float(max(0.0, power_w))
+                power_w = float(min(power_w, available_appliance_power))
+                if onoff_value < onoff_threshold:
+                    power_w = 0.0
+
+                prediction_map[safe_name]["power_series"].append({"x": target_ms, "y": power_w})
+                prediction_map[safe_name]["baseload_series"].append({"x": target_ms, "y": baseload_value})
+                prediction_map[safe_name]["state_series"].append({
+                    "x": target_ms,
+                    "y": int(onoff_value >= onoff_threshold),
+                    "score": float(onoff_value),
+                    "threshold": float(onoff_threshold),
+                })
+
+            now_mono = time.monotonic()
+            if idx == 0 or idx == N - 1 or now_mono - last_emit >= 0.05:
+                yield {"phase": "inference", "processed": idx + 1, "total": N}
+                last_emit = now_mono
+            if (idx + 1) % 32 == 0:
+                await asyncio.sleep(0)
+
+        yield {
+            "phase": "inference_done",
+            "processed": N,
+            "total": N,
+            "prediction_map": prediction_map,
+        }
+    finally:
+        del model_state
+        gc.collect()
 
 
 async def _build_preview_result(bundle_id, safe_name, start_dt, end_dt, provided_points=None):
@@ -504,93 +515,103 @@ async def _build_preview_result(bundle_id, safe_name, start_dt, end_dt, provided
     if bundle is None:
         raise ValueError(f"Unknown bundle_id: {bundle_id}")
 
-    preview_disaggregator = RefQueryDisaggregator(
-        inference_dir=bundle.inference_dir,
-        embeddings_dir=bundle_models_dir(app_state.MODELS_ROOT, bundle_id),
-        num_threads=2,
-        history_fetcher=None,
-        top_k=None,
-    )
-
+    preview_disaggregator = None
     points = []
-    async for history_update in _load_preview_points(start_dt, end_dt, provided_points=provided_points):
-        if history_update.get("phase") == "history_ready":
-            points = history_update.get("points") or []
-            yield {
-                "processed": int(history_update.get("processed", 0)),
-                "total": int(history_update.get("total", 0)),
-                "phase": "history_ready",
-            }
-        else:
-            yield history_update
-
-    if not points:
-        yield {
-            "done": True,
-            "power_series": [],
-            "state_series": [],
-            "processed": 0,
-            "total": 0,
-        }
-        return
-
-    preview_inputs = _build_offline_preview_inputs(points, inference_dir=bundle.inference_dir, num_threads=2, align_grid="start", max_hold_factor=5.0)
+    preview_inputs = None
     extracted_preview_inputs = None
-    async for update in _extract_preview_embeddings_with_progress(preview_inputs):
-        if update.get("phase") == "embeddings_ready":
-            extracted_preview_inputs = update.get("preview_inputs") or {}
-        else:
+    prediction_map = None
+    try:
+        preview_disaggregator = RefQueryDisaggregator(
+            inference_dir=bundle.inference_dir,
+            embeddings_dir=bundle_models_dir(app_state.MODELS_ROOT, bundle_id),
+            num_threads=2,
+            history_fetcher=None,
+            top_k=None,
+        )
+
+        async for history_update in _load_preview_points(start_dt, end_dt, provided_points=provided_points):
+            if history_update.get("phase") == "history_ready":
+                points = history_update.get("points") or []
+                yield {
+                    "processed": int(history_update.get("processed", 0)),
+                    "total": int(history_update.get("total", 0)),
+                    "phase": "history_ready",
+                }
+            else:
+                yield history_update
+
+        if not points:
             yield {
-                "processed": int(update.get("processed", 0)),
-                "total": int(update.get("total", 0)),
-                "phase": "embeddings",
+                "done": True,
+                "power_series": [],
+                "state_series": [],
+                "processed": 0,
+                "total": 0,
             }
-    preview_inputs = extracted_preview_inputs or {}
-    embeddings = np.asarray(preview_inputs.get("embeddings"), dtype=np.float32)
-    total = int(embeddings.shape[0])
-    if total <= 0:
+            return
+
+        preview_inputs = _build_offline_preview_inputs(points, inference_dir=bundle.inference_dir, num_threads=2, align_grid="start", max_hold_factor=5.0)
+        async for update in _extract_preview_embeddings_with_progress(preview_inputs):
+            if update.get("phase") == "embeddings_ready":
+                extracted_preview_inputs = update.get("preview_inputs") or {}
+            else:
+                yield {
+                    "processed": int(update.get("processed", 0)),
+                    "total": int(update.get("total", 0)),
+                    "phase": "embeddings",
+                }
+        preview_inputs = extracted_preview_inputs or {}
+        embeddings = np.asarray(preview_inputs.get("embeddings"), dtype=np.float32)
+        total = int(embeddings.shape[0])
+        if total <= 0:
+            yield {
+                "done": True,
+                "power_series": [],
+                "baseload_series": [],
+                "state_series": [],
+                "processed": 0,
+                "total": 0,
+            }
+            return
+
+        async for update in _score_preview_embeddings_with_progress(preview_disaggregator, [safe_name], preview_inputs):
+            if update.get("phase") == "inference_done":
+                prediction_map = update.get("prediction_map") or {}
+            else:
+                yield {
+                    "processed": int(update.get("processed", 0)),
+                    "total": int(update.get("total", 0)),
+                    "phase": "inference",
+                }
+        prediction_map = prediction_map or {}
+        prediction = prediction_map.get(safe_name) or {}
+        state_summary = _summarize_state_series(prediction.get("state_series", []))
+        print(
+            f"Preview summary appliance={safe_name} "
+            f"n_points={state_summary.get('n_points')} "
+            f"max_score={state_summary.get('max_score')} "
+            f"mean_score={state_summary.get('mean_score')} "
+            f"threshold={state_summary.get('threshold')} "
+            f"n_above_threshold={state_summary.get('n_above_threshold')}",
+            flush=True,
+        )
+
         yield {
             "done": True,
-            "power_series": [],
-            "baseload_series": [],
-            "state_series": [],
-            "processed": 0,
-            "total": 0,
+            "power_series": prediction.get("power_series", []),
+            "baseload_series": prediction.get("baseload_series", []),
+            "state_series": prediction.get("state_series", []),
+            "state_summary": state_summary,
+            "processed": total,
+            "total": total,
         }
-        return
-
-    prediction_map = None
-    async for update in _score_preview_embeddings_with_progress(preview_disaggregator, [safe_name], preview_inputs):
-        if update.get("phase") == "inference_done":
-            prediction_map = update.get("prediction_map") or {}
-        else:
-            yield {
-                "processed": int(update.get("processed", 0)),
-                "total": int(update.get("total", 0)),
-                "phase": "inference",
-            }
-    prediction_map = prediction_map or {}
-    prediction = prediction_map.get(safe_name) or {}
-    state_summary = _summarize_state_series(prediction.get("state_series", []))
-    print(
-        f"Preview summary appliance={safe_name} "
-        f"n_points={state_summary.get('n_points')} "
-        f"max_score={state_summary.get('max_score')} "
-        f"mean_score={state_summary.get('mean_score')} "
-        f"threshold={state_summary.get('threshold')} "
-        f"n_above_threshold={state_summary.get('n_above_threshold')}",
-        flush=True,
-    )
-
-    yield {
-        "done": True,
-        "power_series": prediction.get("power_series", []),
-        "baseload_series": prediction.get("baseload_series", []),
-        "state_series": prediction.get("state_series", []),
-        "state_summary": state_summary,
-        "processed": total,
-        "total": total,
-    }
+    finally:
+        del points
+        del preview_inputs
+        del extracted_preview_inputs
+        del prediction_map
+        del preview_disaggregator
+        gc.collect()
 
 
 async def _build_preview_all_results(model_entries, start_dt, end_dt, provided_points=None):
@@ -616,85 +637,99 @@ async def _build_preview_all_results(model_entries, start_dt, end_dt, provided_p
 
     all_predictions = []
 
-    for bundle_id, bundle_models in grouped_models.items():
-        bundle = get_bundle_by_id(app_state.model_bundles, bundle_id)
-        if bundle is None:
-            continue
+    try:
+        for bundle_id, bundle_models in grouped_models.items():
+            bundle = get_bundle_by_id(app_state.model_bundles, bundle_id)
+            if bundle is None:
+                continue
 
-        preview_disaggregator = RefQueryDisaggregator(
-            inference_dir=bundle.inference_dir,
-            embeddings_dir=bundle_models_dir(app_state.MODELS_ROOT, bundle_id),
-            num_threads=2,
-            history_fetcher=None,
-            top_k=None,
-        )
+            preview_disaggregator = None
+            points = []
+            preview_inputs = None
+            extracted_preview_inputs = None
+            scored_predictions = None
+            try:
+                preview_disaggregator = RefQueryDisaggregator(
+                    inference_dir=bundle.inference_dir,
+                    embeddings_dir=bundle_models_dir(app_state.MODELS_ROOT, bundle_id),
+                    num_threads=2,
+                    history_fetcher=None,
+                    top_k=None,
+                )
 
-        points = []
-        async for history_update in _load_preview_points(start_dt, end_dt, provided_points=provided_points):
-            if history_update.get("phase") == "history_ready":
-                points = history_update.get("points") or []
-                yield {
-                    "processed": int(history_update.get("processed", 0)),
-                    "total": int(history_update.get("total", 0)),
-                    "phase": "history_ready",
-                }
-            else:
-                yield history_update
+                async for history_update in _load_preview_points(start_dt, end_dt, provided_points=provided_points):
+                    if history_update.get("phase") == "history_ready":
+                        points = history_update.get("points") or []
+                        yield {
+                            "processed": int(history_update.get("processed", 0)),
+                            "total": int(history_update.get("total", 0)),
+                            "phase": "history_ready",
+                        }
+                    else:
+                        yield history_update
 
-        if not points:
-            continue
+                if not points:
+                    continue
 
-        model_names = [item["safe_name"] for item in bundle_models]
-        preview_inputs = _build_offline_preview_inputs(points, inference_dir=bundle.inference_dir, num_threads=2, align_grid="start", max_hold_factor=5.0)
-        extracted_preview_inputs = None
-        async for update in _extract_preview_embeddings_with_progress(preview_inputs):
-            if update.get("phase") == "embeddings_ready":
-                extracted_preview_inputs = update.get("preview_inputs") or {}
-            else:
-                yield {
-                    "processed": int(update.get("processed", 0)),
-                    "total": int(update.get("total", 0)),
-                    "phase": "embeddings",
-                }
-        preview_inputs = extracted_preview_inputs or {}
-        embeddings = np.asarray(preview_inputs.get("embeddings"), dtype=np.float32)
-        total = int(embeddings.shape[0])
-        if total <= 0:
-            continue
+                model_names = [item["safe_name"] for item in bundle_models]
+                preview_inputs = _build_offline_preview_inputs(points, inference_dir=bundle.inference_dir, num_threads=2, align_grid="start", max_hold_factor=5.0)
+                async for update in _extract_preview_embeddings_with_progress(preview_inputs):
+                    if update.get("phase") == "embeddings_ready":
+                        extracted_preview_inputs = update.get("preview_inputs") or {}
+                    else:
+                        yield {
+                            "processed": int(update.get("processed", 0)),
+                            "total": int(update.get("total", 0)),
+                            "phase": "embeddings",
+                        }
+                preview_inputs = extracted_preview_inputs or {}
+                embeddings = np.asarray(preview_inputs.get("embeddings"), dtype=np.float32)
+                total = int(embeddings.shape[0])
+                if total <= 0:
+                    continue
 
-        scored_predictions = None
-        async for update in _score_preview_embeddings_with_progress(preview_disaggregator, model_names, preview_inputs):
-            if update.get("phase") == "inference_done":
-                scored_predictions = update.get("prediction_map") or {}
-            else:
-                yield {
-                    "processed": int(update.get("processed", 0)),
-                    "total": int(update.get("total", 0)),
-                    "phase": "inference",
-                }
-        scored_predictions = scored_predictions or {}
+                async for update in _score_preview_embeddings_with_progress(preview_disaggregator, model_names, preview_inputs):
+                    if update.get("phase") == "inference_done":
+                        scored_predictions = update.get("prediction_map") or {}
+                    else:
+                        yield {
+                            "processed": int(update.get("processed", 0)),
+                            "total": int(update.get("total", 0)),
+                            "phase": "inference",
+                        }
+                scored_predictions = scored_predictions or {}
 
-        for item in bundle_models:
-            prediction = scored_predictions.get(item["safe_name"]) or {}
-            power_series = prediction.get("power_series", [])
-            state_series = prediction.get("state_series", [])
-            state_summary = _summarize_state_series(state_series)
+                for item in bundle_models:
+                    prediction = scored_predictions.get(item["safe_name"]) or {}
+                    power_series = prediction.get("power_series", [])
+                    state_series = prediction.get("state_series", [])
+                    state_summary = _summarize_state_series(state_series)
 
-            all_predictions.append({
-                "model_key": item["model_key"],
-                "model_name": item["model_name"],
-                "power_series": power_series,
-                "baseload_series": prediction.get("baseload_series", []),
-                "state_series": state_series,
-                "state_summary": state_summary,
-            })
+                    all_predictions.append({
+                        "model_key": item["model_key"],
+                        "model_name": item["model_name"],
+                        "power_series": power_series,
+                        "baseload_series": prediction.get("baseload_series", []),
+                        "state_series": state_series,
+                        "state_summary": state_summary,
+                    })
+            finally:
+                del points
+                del preview_inputs
+                del extracted_preview_inputs
+                del scored_predictions
+                del preview_disaggregator
+                gc.collect()
 
-    yield {
-        "done": True,
-        "predictions": all_predictions,
-        "processed": len(all_predictions),
-        "total": len(all_predictions),
-    }
+        yield {
+            "done": True,
+            "predictions": all_predictions,
+            "processed": len(all_predictions),
+            "total": len(all_predictions),
+        }
+    finally:
+        del all_predictions
+        gc.collect()
 
 
 async def _run_preview_job(app, job_id, bundle_id, safe_name, start_dt, end_dt, provided_points=None):
