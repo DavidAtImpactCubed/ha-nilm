@@ -301,6 +301,51 @@ def _score_preview_embeddings(preview_disaggregator, safe_names, preview_inputs)
     return prediction_map
 
 
+def _summarize_state_series(state_series):
+    series = list(state_series or [])
+    if not series:
+        return {
+            "n_points": 0,
+            "max_score": None,
+            "min_score": None,
+            "mean_score": None,
+            "threshold": None,
+            "n_above_threshold": 0,
+        }
+
+    scores = []
+    thresholds = []
+    n_above = 0
+    for point in series:
+        score = point.get("score")
+        threshold = point.get("threshold")
+        if isinstance(score, (int, float)) and np.isfinite(score):
+            scores.append(float(score))
+        if isinstance(threshold, (int, float)) and np.isfinite(threshold):
+            thresholds.append(float(threshold))
+            if isinstance(score, (int, float)) and np.isfinite(score) and float(score) >= float(threshold):
+                n_above += 1
+
+    if not scores:
+        return {
+            "n_points": len(series),
+            "max_score": None,
+            "min_score": None,
+            "mean_score": None,
+            "threshold": float(thresholds[0]) if thresholds else None,
+            "n_above_threshold": n_above,
+        }
+
+    return {
+        "n_points": len(series),
+        "max_score": float(np.max(scores)),
+        "min_score": float(np.min(scores)),
+        "mean_score": float(np.mean(scores)),
+        "threshold": float(thresholds[0]) if thresholds else None,
+        "n_above_threshold": int(n_above),
+    }
+
+
 async def _extract_preview_embeddings_with_progress(preview_inputs):
     windows = np.asarray(preview_inputs.get("windows"), dtype=np.float32)
     extractor = preview_inputs.get("extractor")
@@ -515,12 +560,23 @@ async def _build_preview_result(bundle_id, safe_name, start_dt, end_dt, provided
             }
     prediction_map = prediction_map or {}
     prediction = prediction_map.get(safe_name) or {}
+    state_summary = _summarize_state_series(prediction.get("state_series", []))
+    print(
+        f"Preview summary appliance={safe_name} "
+        f"n_points={state_summary.get('n_points')} "
+        f"max_score={state_summary.get('max_score')} "
+        f"mean_score={state_summary.get('mean_score')} "
+        f"threshold={state_summary.get('threshold')} "
+        f"n_above_threshold={state_summary.get('n_above_threshold')}",
+        flush=True,
+    )
 
     yield {
         "done": True,
         "power_series": prediction.get("power_series", []),
         "baseload_series": prediction.get("baseload_series", []),
         "state_series": prediction.get("state_series", []),
+        "state_summary": state_summary,
         "processed": total,
         "total": total,
     }
@@ -611,6 +667,7 @@ async def _build_preview_all_results(model_entries, start_dt, end_dt, provided_p
             prediction = scored_predictions.get(item["safe_name"]) or {}
             power_series = prediction.get("power_series", [])
             state_series = prediction.get("state_series", [])
+            state_summary = _summarize_state_series(state_series)
 
             all_predictions.append({
                 "model_key": item["model_key"],
@@ -618,6 +675,7 @@ async def _build_preview_all_results(model_entries, start_dt, end_dt, provided_p
                 "power_series": power_series,
                 "baseload_series": prediction.get("baseload_series", []),
                 "state_series": state_series,
+                "state_summary": state_summary,
             })
 
     yield {
@@ -652,6 +710,7 @@ async def _run_preview_job(app, job_id, bundle_id, safe_name, start_dt, end_dt, 
                         "power_series": update.get("power_series", []),
                         "baseload_series": update.get("baseload_series", []),
                         "state_series": update.get("state_series", []),
+                        "state_summary": update.get("state_summary", {}),
                     },
                 })
                 return

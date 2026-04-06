@@ -2287,6 +2287,9 @@
             const powerSeries = Array.isArray(payload.power_series) ? payload.power_series : [];
             const baseloadSeries = Array.isArray(payload.baseload_series) ? payload.baseload_series : [];
             const stateSeries = Array.isArray(payload.state_series) ? payload.state_series : [];
+            const stateSummary = payload.state_summary && typeof payload.state_summary === "object"
+                ? payload.state_summary
+                : null;
 
             if (!powerSeries.length && !stateSeries.length) {
                 showMessage("No prediction history is available for the selected range yet.", "error");
@@ -2309,6 +2312,9 @@
             upsertInlinePrediction(inlinePrediction);
             renderInlinePredictionUi();
             renderSignalChart(fullSignalSeries);
+            if (stateSummary) {
+                console.log("Prediction preview state summary", modelKey, stateSummary);
+            }
             showMessage(`${modelName} prediction added to the mains chart. Energy: ${formatEnergy(energyWh)}. Share of mains: ${formatPercent(mainsSharePct)}.`, "success");
         } catch (error) {
             console.error("Prediction preview failed:", error);
