@@ -6,7 +6,90 @@ from aiohttp import web
 import app_state
 from app_state import maybe_await
 from model_registry import get_bundle_by_id, get_latest_bundle_for_mode
-from prepare_training_data import build_embeddings_training_payload
+from prepare_training_data import (
+    build_embeddings_training_payload,
+    build_uniform_grid,
+    compute_on_mask,
+    load_model_settings,
+    parse_mains_points,
+    parse_power_points,
+    zoh_resample_to_grid,
+)
+
+
+def _build_sensor_supervision_intervals(
+    *,
+    full_history,
+    appliance_sensor_history,
+    inference_dir: str,
+    align_grid: str = "start",
+    max_hold_factor: float = 5.0,
+    on_threshold_w: float = 20.0,
+    min_on_s: float = 60.0,
+    min_off_s: float = 300.0,
+):
+    settings = load_model_settings(f"{inference_dir}/model_settings.json")
+    pts = parse_mains_points(full_history)
+    gt_pts = parse_power_points(appliance_sensor_history)
+
+    if len(pts) < 2:
+        raise ValueError("Not enough valid mains points after cleaning.")
+    if len(gt_pts) < 2:
+        raise ValueError("applianceSensorHistoryData must contain at least two valid points for sensor supervision.")
+
+    dt = settings.frequency_s
+    t_start = pts[0][0]
+    t_end = pts[-1][0]
+    grid_t = build_uniform_grid(t_start, t_end, dt, align=align_grid)
+    if grid_t.size == 0:
+        return []
+
+    max_hold_s = float(max_hold_factor) * dt if max_hold_factor and max_hold_factor > 0 else None
+    gt_grid = zoh_resample_to_grid(gt_pts, grid_t, max_hold_s=max_hold_s, fill_value=0.0)
+    gt_grid = gt_grid.astype("float32")
+    gt_grid[gt_grid < 0.0] = 0.0
+
+    gt_on_mask = compute_on_mask(
+        gt_grid,
+        sample_period_s=dt,
+        threshold_watts=float(on_threshold_w),
+        window_hours=24.0,
+        min_on_s=float(min_on_s),
+        min_off_s=float(min_off_s),
+    )
+
+    intervals = []
+    run_start = None
+    dt_ms = int(round(float(dt) * 1000.0))
+    for idx, bit in enumerate(gt_on_mask.tolist()):
+        if bit == 1 and run_start is None:
+            run_start = idx
+        elif bit == 0 and run_start is not None:
+            start_ms = int(round(float(grid_t[run_start]) * 1000.0))
+            end_ms = int(round(float(grid_t[idx - 1]) * 1000.0)) + dt_ms
+            if end_ms > start_ms:
+                intervals.append(
+                    {
+                        "id": f"sensor_interval_{start_ms}_{end_ms}",
+                        "start": start_ms,
+                        "end": end_ms,
+                    }
+                )
+            run_start = None
+
+    if run_start is not None:
+        start_ms = int(round(float(grid_t[run_start]) * 1000.0))
+        end_ms = int(round(float(grid_t[-1]) * 1000.0)) + dt_ms
+        if end_ms > start_ms:
+            intervals.append(
+                {
+                    "id": f"sensor_interval_{start_ms}_{end_ms}",
+                    "start": start_ms,
+                    "end": end_ms,
+                }
+            )
+
+    return intervals
 
 
 async def receive_training_data_handler(request: web.Request) -> web.Response:
@@ -16,9 +99,9 @@ async def receive_training_data_handler(request: web.Request) -> web.Response:
             return web.json_response({"status": "error", "message": "training_server_manager not configured"}, status=500)
 
         action = (request.query.get("action") or "").strip().lower()
-        if action not in ("prepare", "send", "status", "training_server_status", "training_server_detect"):
+        if action not in ("prepare", "send", "status", "training_server_status", "training_server_detect", "sensor_intervals"):
             return web.json_response(
-                {"status": "error", "message": "Missing/invalid action. Use ?action=prepare|send|status|training_server_status|training_server_detect"},
+                {"status": "error", "message": "Missing/invalid action. Use ?action=prepare|send|status|training_server_status|training_server_detect|sensor_intervals"},
                 status=400,
             )
 
@@ -164,6 +247,54 @@ async def receive_training_data_handler(request: web.Request) -> web.Response:
                 print(traceback.format_exc(), flush=True)
                 return web.json_response({"status": "error", "message": f"Failed to detect training server: {exc}"}, status=500)
             return web.json_response(detect_payload, status=200)
+
+        if action == "sensor_intervals":
+            data = await request.json()
+            if not isinstance(data, dict) or not data:
+                return web.json_response({"status": "error", "message": "No JSON body received"}, status=400)
+
+            full_history = data.get("fullSensorHistoryData")
+            appliance_sensor_history = data.get("applianceSensorHistoryData")
+            bundle_id = str(data.get("bundle_id") or "").strip() or None
+            bundle_mode = str(data.get("bundle_mode") or "online").strip().lower()
+
+            if not isinstance(full_history, list) or len(full_history) == 0:
+                return web.json_response({"status": "error", "message": "fullSensorHistoryData must be a non-empty list"}, status=400)
+            if not isinstance(appliance_sensor_history, list) or len(appliance_sensor_history) == 0:
+                return web.json_response({"status": "error", "message": "applianceSensorHistoryData must be a non-empty list"}, status=400)
+
+            selected_bundle = None
+            if bundle_id:
+                selected_bundle = get_bundle_by_id(app_state.model_bundles, bundle_id)
+                if selected_bundle is None:
+                    return web.json_response({"status": "error", "message": f"Unknown bundle_id: {bundle_id}"}, status=400)
+            else:
+                selected_bundle = get_latest_bundle_for_mode(app_state.model_bundles, bundle_mode)
+
+            if selected_bundle is None:
+                return web.json_response({"status": "error", "message": f"No {bundle_mode} model bundle is available for training"}, status=400)
+
+            try:
+                intervals = _build_sensor_supervision_intervals(
+                    full_history=full_history,
+                    appliance_sensor_history=appliance_sensor_history,
+                    inference_dir=selected_bundle.inference_dir,
+                    align_grid="start",
+                    max_hold_factor=5.0,
+                )
+            except Exception as exc:
+                print(f"Training sensor interval derivation failed: {exc}", flush=True)
+                print(traceback.format_exc(), flush=True)
+                return web.json_response({"status": "error", "message": f"Failed to derive sensor intervals: {exc}"}, status=500)
+
+            return web.json_response(
+                {
+                    "status": "success",
+                    "intervals": intervals,
+                    "count": len(intervals),
+                },
+                status=200,
+            )
 
         job_id = (request.query.get("job_id") or "").strip()
         if not job_id:

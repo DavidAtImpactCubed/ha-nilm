@@ -1673,10 +1673,20 @@
                     lastTimestamp
                 );
                 applianceSensorHistoryData = buildTrainingAlignedOverlaySeries(rawApplianceSeries, fullSensorHistoryData);
-                sensorDerivedWindows = computeSensorDerivedOnIntervals(
-                    applianceSensorHistoryData,
-                    estimateNominalStepMs(applianceSensorHistoryData)
-                );
+                const intervalResp = await fetch(`training?action=sensor_intervals`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        fullSensorHistoryData: fullSensorHistoryData,
+                        applianceSensorHistoryData: rawApplianceSeries
+                    })
+                });
+                if (!intervalResp.ok) {
+                    const err = await intervalResp.json().catch(() => ({ message: "Unknown error" }));
+                    throw new Error(err.message || `HTTP ${intervalResp.status}`);
+                }
+                const intervalResult = await intervalResp.json();
+                sensorDerivedWindows = Array.isArray(intervalResult.intervals) ? intervalResult.intervals : [];
                 if (powerChart) initializePowerChart(fullSensorHistoryData, firstTimestamp, lastTimestamp);
             } finally {
                 hideLoadingIndicator();
@@ -1763,112 +1773,6 @@
             }
 
             return out;
-        }
-
-        function computeSensorDerivedOnIntervals(series, samplePeriodMs) {
-            const x = (Array.isArray(series) ? series : [])
-                .map((point) => Math.max(0, Number(point?.y)))
-                .filter((value) => Number.isFinite(value));
-            if (!x.length) return [];
-
-            const dtMs = Number.isFinite(samplePeriodMs) && samplePeriodMs > 0 ? samplePeriodMs : 8000;
-            const dtS = dtMs / 1000;
-            const thresholdWatts = 20.0;
-            const windowHours = 24.0;
-            const minOnS = 60.0;
-            const minOffS = 300.0;
-
-            const n = x.length;
-            const winRaw = Math.max(1, Math.round((windowHours * 3600) / dtS));
-            const win = winRaw % 2 === 0 ? winRaw + 1 : winRaw;
-            const pad = Math.floor(win / 2);
-
-            const padded = [];
-            for (let i = 0; i < pad; i += 1) padded.push(x[0]);
-            for (const value of x) padded.push(value);
-            for (let i = 0; i < pad; i += 1) padded.push(x[x.length - 1]);
-
-            const dequeIdx = [];
-            const baseline = new Array(n);
-            for (let i = 0; i < padded.length; i += 1) {
-                while (dequeIdx.length && padded[dequeIdx[dequeIdx.length - 1]] >= padded[i]) {
-                    dequeIdx.pop();
-                }
-                dequeIdx.push(i);
-                if (dequeIdx[0] <= i - win) {
-                    dequeIdx.shift();
-                }
-                if (i >= win - 1) {
-                    baseline[i - (win - 1)] = padded[dequeIdx[0]];
-                }
-            }
-
-            const mask = new Array(n).fill(0);
-            for (let i = 0; i < n; i += 1) {
-                const detrended = Math.max(0, x[i] - baseline[i]);
-                mask[i] = detrended > thresholdWatts ? 1 : 0;
-            }
-
-            const toSamplesGe1 = (seconds) => Math.max(1, Math.round(seconds / dtS));
-            const minOnSamples = toSamplesGe1(minOnS);
-            const bridgeOffSamples = toSamplesGe1(minOffS);
-
-            const getRuns = (bits) => {
-                const runs = [];
-                let i = 0;
-                while (i < bits.length) {
-                    const v = bits[i];
-                    let j = i + 1;
-                    while (j < bits.length && bits[j] === v) j += 1;
-                    runs.push({ value: v, start: i, end: j });
-                    i = j;
-                }
-                return runs;
-            };
-
-            if (minOnSamples > 1) {
-                for (const run of getRuns(mask)) {
-                    if (run.value === 1 && (run.end - run.start) < minOnSamples) {
-                        for (let i = run.start; i < run.end; i += 1) mask[i] = 0;
-                    }
-                }
-            }
-
-            if (bridgeOffSamples > 0) {
-                for (const run of getRuns(mask)) {
-                    if (run.value === 0 && (run.end - run.start) < bridgeOffSamples) {
-                        const leftOn = run.start > 0 && mask[run.start - 1] === 1;
-                        const rightOn = run.end < mask.length && mask[run.end] === 1;
-                        if (leftOn && rightOn) {
-                            for (let i = run.start; i < run.end; i += 1) mask[i] = 1;
-                        }
-                    }
-                }
-            }
-
-            const intervals = [];
-            let runStart = null;
-            for (let i = 0; i < mask.length; i += 1) {
-                if (mask[i] === 1 && runStart === null) {
-                    runStart = i;
-                } else if (mask[i] === 0 && runStart !== null) {
-                    const start = Number(series[runStart]?.x);
-                    const end = Number(series[Math.max(runStart, i - 1)]?.x) + dtMs;
-                    if (Number.isFinite(start) && Number.isFinite(end) && end > start) {
-                        intervals.push({ id: `sensor_interval_${start}_${end}`, start, end });
-                    }
-                    runStart = null;
-                }
-            }
-            if (runStart !== null) {
-                const start = Number(series[runStart]?.x);
-                const end = Number(series[series.length - 1]?.x) + dtMs;
-                if (Number.isFinite(start) && Number.isFinite(end) && end > start) {
-                    intervals.push({ id: `sensor_interval_${start}_${end}`, start, end });
-                }
-            }
-
-            return intervals;
         }
 
         function buildChartAnnotations() {
