@@ -3,6 +3,9 @@ import time
 import uuid
 import asyncio
 import gc
+import json
+import sys
+import tempfile
 from datetime import datetime, timedelta, timezone
 
 import numpy as np
@@ -40,6 +43,49 @@ async def _get_preview_job(app, job_id):
 async def _pop_preview_job(app, job_id):
     async with app["preview_jobs_lock"]:
         return dict(app["preview_jobs"].pop(job_id, {}) or {})
+
+
+async def _stream_preview_worker(payload):
+    fd, input_path = tempfile.mkstemp(prefix="nilm_preview_", suffix=".json")
+    os.close(fd)
+    worker_path = os.path.join(os.path.dirname(__file__), "edge_preview_worker.py")
+    try:
+        with open(input_path, "w", encoding="utf-8") as f:
+            json.dump(payload, f, ensure_ascii=False)
+
+        proc = await asyncio.create_subprocess_exec(
+            sys.executable,
+            worker_path,
+            input_path,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+
+        assert proc.stdout is not None
+        while True:
+            line = await proc.stdout.readline()
+            if not line:
+                break
+            raw = line.decode("utf-8", errors="replace").strip()
+            if not raw:
+                continue
+            try:
+                update = json.loads(raw)
+            except Exception:
+                continue
+            if isinstance(update, dict):
+                yield update
+
+        stderr_bytes = await proc.stderr.read() if proc.stderr is not None else b""
+        rc = await proc.wait()
+        if rc != 0:
+            raise RuntimeError(
+                f"preview worker failed with code {rc}: "
+                f"{stderr_bytes.decode('utf-8', errors='replace').strip()}"
+            )
+    finally:
+        if os.path.exists(input_path):
+            os.remove(input_path)
 
 
 async def _fetch_preview_history_points(fetch_start_dt, end_dt):
@@ -734,6 +780,10 @@ async def _build_preview_all_results(model_entries, start_dt, end_dt, provided_p
 
 async def _run_preview_job(app, job_id, bundle_id, safe_name, start_dt, end_dt, provided_points=None):
     try:
+        bundle = get_bundle_by_id(app_state.model_bundles, bundle_id)
+        if bundle is None:
+            raise ValueError(f"Unknown bundle_id: {bundle_id}")
+
         await _set_preview_job(app, job_id, {
             "status": "running",
             "phase": "history",
@@ -743,20 +793,85 @@ async def _run_preview_job(app, job_id, bundle_id, safe_name, start_dt, end_dt, 
             "percent": 5,
         })
 
-        async for update in _build_preview_result(bundle_id, safe_name, start_dt, end_dt, provided_points=provided_points):
+        points = []
+        async for history_update in _load_preview_points(start_dt, end_dt, provided_points=provided_points):
+            if history_update.get("phase") == "history_ready":
+                points = history_update.get("points") or []
+                processed = int(history_update.get("processed", 0))
+                total = int(history_update.get("total", 0))
+                phase = "history_ready"
+                percent = 25
+            else:
+                processed = int(history_update.get("processed", 0))
+                total = int(history_update.get("total", 0))
+                phase = "history"
+                percent = max(5, min(24, int(round((processed / total) * 24)))) if total > 0 else 5
+
+            await _set_preview_job(app, job_id, {
+                "status": "running",
+                "phase": phase,
+                "updated_at": datetime.now(timezone.utc).isoformat(),
+                "processed": processed,
+                "total": total,
+                "percent": percent,
+            })
+            await asyncio.sleep(0)
+
+        if not points:
+            await _set_preview_job(app, job_id, {
+                "status": "done",
+                "phase": "done",
+                "updated_at": datetime.now(timezone.utc).isoformat(),
+                "processed": 0,
+                "total": 0,
+                "percent": 100,
+                "result": {
+                    "power_series": [],
+                    "baseload_series": [],
+                    "state_series": [],
+                    "state_summary": {},
+                },
+            })
+            return
+
+        payload = {
+            "mode": "single",
+            "points": points,
+            "models": [{
+                "bundle_id": bundle_id,
+                "safe_name": safe_name,
+                "model_name": safe_name,
+                "model_key": make_model_key(bundle_id, safe_name),
+                "inference_dir": bundle.inference_dir,
+                "embeddings_dir": bundle_models_dir(app_state.MODELS_ROOT, bundle_id),
+            }],
+        }
+
+        async for update in _stream_preview_worker(payload):
             if update.get("done"):
+                result = dict(update.get("result") or {})
+                state_summary = result.get("state_summary") or {}
+                print(
+                    f"Preview summary appliance={safe_name} "
+                    f"n_points={state_summary.get('n_points')} "
+                    f"max_score={state_summary.get('max_score')} "
+                    f"mean_score={state_summary.get('mean_score')} "
+                    f"threshold={state_summary.get('threshold')} "
+                    f"n_above_threshold={state_summary.get('n_above_threshold')}",
+                    flush=True,
+                )
                 await _set_preview_job(app, job_id, {
                     "status": "done",
                     "phase": "done",
                     "updated_at": datetime.now(timezone.utc).isoformat(),
-                    "processed": int(update.get("processed", 0)),
-                    "total": int(update.get("total", 0)),
+                    "processed": int(state_summary.get("n_points") or 0),
+                    "total": int(state_summary.get("n_points") or 0),
                     "percent": 100,
                     "result": {
-                        "power_series": update.get("power_series", []),
-                        "baseload_series": update.get("baseload_series", []),
-                        "state_series": update.get("state_series", []),
-                        "state_summary": update.get("state_summary", {}),
+                        "power_series": result.get("power_series", []),
+                        "baseload_series": result.get("baseload_series", []),
+                        "state_series": result.get("state_series", []),
+                        "state_summary": state_summary,
                     },
                 })
                 return
@@ -765,16 +880,15 @@ async def _run_preview_job(app, job_id, bundle_id, safe_name, start_dt, end_dt, 
             total = int(update.get("total", 0))
             phase = str(update.get("phase") or "inference")
             if total > 0:
-                if phase == "history":
-                    percent = max(5, min(24, int(round((processed / total) * 24))))
-                elif phase == "history_ready":
-                    percent = 25
-                elif phase == "postprocess":
-                    percent = 95
+                if phase == "embeddings":
+                    percent = max(26, min(55, 25 + int(round((processed / total) * 30))))
+                elif phase == "inference":
+                    percent = max(56, min(92, 55 + int(round((processed / total) * 37))))
                 else:
                     percent = max(26, min(92, 25 + int(round((processed / total) * 67))))
             else:
-                percent = 5 if phase == "history" else 8
+                percent = 30
+
             await _set_preview_job(app, job_id, {
                 "status": "running",
                 "phase": phase,
@@ -806,17 +920,75 @@ async def _run_preview_all_job(app, job_id, model_entries, start_dt, end_dt, pro
             "percent": 5,
         })
 
-        async for update in _build_preview_all_results(model_entries, start_dt, end_dt, provided_points=provided_points):
+        points = []
+        async for history_update in _load_preview_points(start_dt, end_dt, provided_points=provided_points):
+            if history_update.get("phase") == "history_ready":
+                points = history_update.get("points") or []
+                processed = int(history_update.get("processed", 0))
+                total = int(history_update.get("total", 0))
+                phase = "history_ready"
+                percent = 25
+            else:
+                processed = int(history_update.get("processed", 0))
+                total = int(history_update.get("total", 0))
+                phase = "history"
+                percent = max(5, min(24, int(round((processed / total) * 24)))) if total > 0 else 5
+            await _set_preview_job(app, job_id, {
+                "status": "running",
+                "phase": phase,
+                "updated_at": datetime.now(timezone.utc).isoformat(),
+                "processed": processed,
+                "total": total,
+                "percent": percent,
+            })
+            await asyncio.sleep(0)
+
+        if not points:
+            await _set_preview_job(app, job_id, {
+                "status": "done",
+                "phase": "done",
+                "updated_at": datetime.now(timezone.utc).isoformat(),
+                "processed": 0,
+                "total": 0,
+                "percent": 100,
+                "result": {
+                    "predictions": [],
+                },
+            })
+            return
+
+        payload_models = []
+        for model_entry in model_entries:
+            bundle_id = str(model_entry.get("bundle_id") or "").strip()
+            safe_name = str(model_entry.get("appliance_name") or "").strip()
+            bundle = get_bundle_by_id(app_state.model_bundles, bundle_id)
+            if bundle is None or not safe_name:
+                continue
+            payload_models.append({
+                "bundle_id": bundle_id,
+                "safe_name": safe_name,
+                "model_name": safe_name,
+                "model_key": make_model_key(bundle_id, safe_name),
+                "inference_dir": bundle.inference_dir,
+                "embeddings_dir": bundle_models_dir(app_state.MODELS_ROOT, bundle_id),
+            })
+
+        async for update in _stream_preview_worker({
+            "mode": "all",
+            "points": points,
+            "models": payload_models,
+        }):
             if update.get("done"):
+                predictions = list(update.get("predictions") or [])
                 await _set_preview_job(app, job_id, {
                     "status": "done",
                     "phase": "done",
                     "updated_at": datetime.now(timezone.utc).isoformat(),
-                    "processed": int(update.get("processed", 0)),
-                    "total": int(update.get("total", 0)),
+                    "processed": len(predictions),
+                    "total": len(predictions),
                     "percent": 100,
                     "result": {
-                        "predictions": update.get("predictions", []),
+                        "predictions": predictions,
                     },
                 })
                 return
@@ -825,16 +997,14 @@ async def _run_preview_all_job(app, job_id, model_entries, start_dt, end_dt, pro
             total = int(update.get("total", 0))
             phase = str(update.get("phase") or "inference")
             if total > 0:
-                if phase == "history":
-                    percent = max(5, min(24, int(round((processed / total) * 24))))
-                elif phase == "history_ready":
-                    percent = 25
-                elif phase == "postprocess":
-                    percent = 95
+                if phase == "embeddings":
+                    percent = max(26, min(55, 25 + int(round((processed / total) * 30))))
+                elif phase == "inference":
+                    percent = max(56, min(92, 55 + int(round((processed / total) * 37))))
                 else:
                     percent = max(26, min(92, 25 + int(round((processed / total) * 67))))
             else:
-                percent = 5 if phase == "history" else 8
+                percent = 30
             await _set_preview_job(app, job_id, {
                 "status": "running",
                 "phase": phase,
