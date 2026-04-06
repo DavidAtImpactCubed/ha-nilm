@@ -6,6 +6,7 @@ import uuid
 import asyncio
 import traceback
 import gc
+import ctypes
 import numpy as np
 from datetime import datetime, timezone
 from typing import Any, Dict, Optional
@@ -35,6 +36,17 @@ def _atomic_write_json(path: str, data: Dict[str, Any]) -> None:
     with open(tmp, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False)
     os.replace(tmp, path)
+
+
+def _release_process_memory() -> None:
+    gc.collect()
+    try:
+        libc = ctypes.CDLL("libc.so.6")
+        malloc_trim = getattr(libc, "malloc_trim", None)
+        if malloc_trim is not None:
+            malloc_trim(0)
+    except Exception:
+        pass
 
 
 def _percent_from_progress(p: Optional[Dict[str, Any]]) -> Optional[int]:
@@ -288,7 +300,7 @@ class TrainingServerServiceManager:
         )
         del training_server_payload
         del prepared
-        gc.collect()
+        _release_process_memory()
 
         training_server_job_id = start["job_id"]
         print(
@@ -467,7 +479,7 @@ class TrainingServerServiceManager:
                 del prepared_embeddings
                 del prepared_targets_on
                 del scores
-                gc.collect()
+                _release_process_memory()
 
             save_embedding_metadata(
                 bundle_dir,
@@ -524,7 +536,7 @@ class TrainingServerServiceManager:
             })
             await self._prune_heavy_job_fields(job_id)
             del prepared_job
-            gc.collect()
+            _release_process_memory()
             print(
                 f"Training finalize done local_job_id={job_id} training_server_job_id={training_server_job_id} "
                 f"saved_path={saved_path}",
@@ -543,3 +555,4 @@ class TrainingServerServiceManager:
                 "error": str(e),
                 "progress": {"phase": "error"},
             })
+            _release_process_memory()
