@@ -7,6 +7,7 @@ import asyncio
 import traceback
 import gc
 import ctypes
+import sys
 import numpy as np
 from datetime import datetime, timezone
 from typing import Any, Dict, Optional
@@ -20,11 +21,10 @@ from training_server_client import (
     poll_training_result,
     fetch_training_status,
 )
-from embedding_store import bundle_models_dir, load_embedding_metadata, sanitize_name
+from embedding_store import bundle_models_dir, load_embedding_metadata
 from training_payload import training_server_payload_from_prepared, summarize_training_server_payload
 from embedding_store import save_embedding_metadata
 from model_registry import get_bundle_by_id
-from refquery import RefQueryDisaggregator
 
 
 def _utc_now_iso() -> str:
@@ -156,6 +156,9 @@ class TrainingServerServiceManager:
     def _job_path(self, job_id: str) -> str:
         return os.path.join(self.jobs_dir, f"{job_id}.json")
 
+    def _replay_input_path(self, job_id: str) -> str:
+        return os.path.join(self.jobs_dir, f"{job_id}.replay.json")
+
     def _read_unlocked(self, path: str) -> Dict[str, Any]:
         with open(path, "r", encoding="utf-8") as f:
             return json.load(f)
@@ -186,6 +189,42 @@ class TrainingServerServiceManager:
                 if key in data:
                     data.pop(key, None)
             _atomic_write_json(path, data)
+
+    async def _write_replay_input(self, job_id: str, data: Dict[str, Any]) -> None:
+        path = self._replay_input_path(job_id)
+        async with self._io_lock:
+            _atomic_write_json(path, data)
+
+    async def _delete_replay_input(self, job_id: str) -> None:
+        path = self._replay_input_path(job_id)
+        async with self._io_lock:
+            if os.path.exists(path):
+                os.remove(path)
+
+    async def _run_edge_replay_worker(self, job_id: str) -> Optional[Dict[str, Any]]:
+        worker_path = os.path.join(os.path.dirname(__file__), "edge_replay_worker.py")
+        replay_input_path = self._replay_input_path(job_id)
+        if not os.path.exists(worker_path) or not os.path.exists(replay_input_path):
+            return None
+
+        proc = await asyncio.create_subprocess_exec(
+            sys.executable,
+            worker_path,
+            replay_input_path,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        stdout, stderr = await proc.communicate()
+        if proc.returncode != 0:
+            raise RuntimeError(
+                f"edge replay worker failed with code {proc.returncode}: "
+                f"{stderr.decode('utf-8', errors='replace').strip()}"
+            )
+        try:
+            payload = json.loads(stdout.decode("utf-8"))
+        except Exception as exc:
+            raise RuntimeError(f"edge replay worker returned invalid JSON: {exc}") from exc
+        return payload if isinstance(payload, dict) else None
 
     async def create_job(self, prepared: Dict[str, Any]) -> str:
         job_id = uuid.uuid4().hex
@@ -308,6 +347,21 @@ class TrainingServerServiceManager:
             flush=True,
         )
 
+        replay_input = None
+        bundle_id = str(prepared.get("bundle_id") or "").strip()
+        bundle = get_bundle_by_id(app_state.model_bundles, bundle_id) if bundle_id else None
+        if bundle is not None:
+            replay_input = {
+                "job_id": job_id,
+                "appliance_name": str(prepared.get("appliance_name") or ""),
+                "bundle_id": bundle_id,
+                "inference_dir": bundle.inference_dir,
+                "embeddings_dir": bundle_models_dir(self.models_root, bundle_id),
+                "embeddings": prepared.get("embeddings") or [],
+                "targets_on": prepared.get("targets_on") or [],
+            }
+            await self._write_replay_input(job_id, replay_input)
+
         await self._patch_job(job_id, {
             "training_server_job_id": training_server_job_id,
             "training_server_url": training_server_url,
@@ -324,10 +378,12 @@ class TrainingServerServiceManager:
             },
             "percent": None,
         })
+        await self._prune_heavy_job_fields(job_id)
 
         # background poller updates progress + finalizes
         asyncio.create_task(self._poll_and_finalize(job_id, training_server_job_id, training_server_url, training_server_api_key))
 
+        del replay_input
         return {"status": "success", "job_id": job_id, "training_server_job_id": training_server_job_id}
 
     async def _merge_training_server_status(self, job_id: str, st: Dict[str, Any]) -> None:
@@ -435,29 +491,11 @@ class TrainingServerServiceManager:
             deployment_onoff_f1 = trainer_onoff_f1
 
             edge_replay_metrics = None
-            prepared_embeddings = None
-            prepared_targets_on = None
-            scores = None
             try:
-                bundle = get_bundle_by_id(app_state.model_bundles, bundle_id)
-                prepared_embeddings = np.asarray(prepared_job.get("embeddings") or [], dtype=np.float32)
-                prepared_targets_on = np.asarray(prepared_job.get("targets_on") or [], dtype=np.int32)
-                if bundle is not None and prepared_embeddings.ndim == 2 and prepared_embeddings.shape[0] > 0 and prepared_embeddings.shape[0] == prepared_targets_on.size:
-                    replay_disaggregator = RefQueryDisaggregator(
-                        inference_dir=bundle.inference_dir,
-                        embeddings_dir=bundle_models_dir(self.models_root, bundle_id),
-                        num_threads=2,
-                        history_fetcher=None,
-                        top_k=None,
-                    )
-                    ref = replay_disaggregator._load_embedding(sanitize_name(str(appliance_name)))
-                    scores = np.zeros((prepared_embeddings.shape[0],), dtype=np.float32)
-                    for idx in range(prepared_embeddings.shape[0]):
-                        query_emb = np.asarray(prepared_embeddings[idx], dtype=np.float32).reshape(1, -1)
-                        _power_w, onoff_value, _power_norm = replay_disaggregator._run_head(ref, query_emb)
-                        scores[idx] = float(onoff_value)
-                    deployment_onoff_threshold, deployment_onoff_f1 = _best_prob_threshold(prepared_targets_on, scores)
-                    edge_replay_metrics = _summarize_scores(scores, deployment_onoff_threshold, prepared_targets_on)
+                edge_replay_metrics = await self._run_edge_replay_worker(job_id)
+                if edge_replay_metrics:
+                    deployment_onoff_threshold = float(edge_replay_metrics.get("threshold", trainer_onoff_threshold))
+                    deployment_onoff_f1 = float(edge_replay_metrics.get("f1_at_threshold", trainer_onoff_f1 or 0.0))
                     edge_replay_metrics["trainer_threshold"] = float(trainer_onoff_threshold)
                     edge_replay_metrics["trainer_onoff_f1"] = None if trainer_onoff_f1 is None else float(trainer_onoff_f1)
                     edge_replay_metrics["deployment_threshold"] = float(deployment_onoff_threshold)
@@ -476,9 +514,7 @@ class TrainingServerServiceManager:
                 print(f"Edge replay summary failed for appliance={appliance_name}: {replay_exc}", flush=True)
                 print(traceback.format_exc(), flush=True)
             finally:
-                del prepared_embeddings
-                del prepared_targets_on
-                del scores
+                await self._delete_replay_input(job_id)
                 _release_process_memory()
 
             save_embedding_metadata(
