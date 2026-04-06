@@ -285,11 +285,6 @@ def compute_on_mask(
             yield int(v), i, j
             i = j
 
-    if min_on_samples > 1:
-        for v, s, e in list(rle_runs(mask)):
-            if v == 1 and (e - s) < min_on_samples:
-                mask[s:e] = 0
-
     if bridge_off_samples > 0:
         for v, s, e in list(rle_runs(mask)):
             if v == 0 and (e - s) < bridge_off_samples:
@@ -297,6 +292,11 @@ def compute_on_mask(
                 right_on = (e < n) and (mask[e] == 1)
                 if left_on and right_on:
                     mask[s:e] = 1
+
+    if min_on_samples > 1:
+        for v, s, e in list(rle_runs(mask)):
+            if v == 1 and (e - s) < min_on_samples:
+                mask[s:e] = 0
 
     return mask.astype(np.uint8)
 
