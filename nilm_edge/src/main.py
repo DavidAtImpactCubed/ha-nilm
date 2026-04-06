@@ -90,6 +90,10 @@ async def publish_disaggregation_dl(
             onoff = float(values.get("onoff"))
         except Exception:
             continue
+        try:
+            onoff_threshold = float(values.get("onoff_threshold", 0.5))
+        except Exception:
+            onoff_threshold = 0.5
 
         display_name = str(values.get("appliance_name") or appliance_name)
         bundle_id = str(values.get("bundle_id") or "").strip()
@@ -126,11 +130,13 @@ async def publish_disaggregation_dl(
                 "bundle_id": bundle_id or None,
                 "icon": "mdi:power-socket-eu",
                 "source": "dl",
+                "onoff_score": round(onoff, 4),
+                "onoff_threshold": round(onoff_threshold, 4),
             },
         }
         publish_tasks.append(post_state(power_entity_id, power_data))
 
-        is_on = onoff >= 0.5
+        is_on = onoff >= onoff_threshold
         on_entity_id = f"binary_sensor.nilm_{slug}_on"
         on_data = {
             "state": "on" if is_on else "off",
@@ -146,6 +152,7 @@ async def publish_disaggregation_dl(
                 "icon": "mdi:toggle-switch" if is_on else "mdi:toggle-switch-off",
                 "source": "dl",
                 "onoff_score": round(onoff, 4),
+                "onoff_threshold": round(onoff_threshold, 4),
             },
         }
         publish_tasks.append(post_state(on_entity_id, on_data))
