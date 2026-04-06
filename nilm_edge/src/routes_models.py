@@ -11,6 +11,13 @@ import app_state
 from embedding_store import bundle_models_dir, delete_embedding_files, list_saved_models, load_embedding_metadata, save_embedding_metadata
 from ha_client import HistoryQuery, fetch_history_points
 from model_registry import get_bundle_by_id, make_model_key, parse_model_key
+from prepare_training_data import (
+    QueryExtractor,
+    build_uniform_grid,
+    load_model_settings,
+    parse_mains_points,
+    zoh_resample_to_grid,
+)
 from refquery import RefQueryDisaggregator
 
 PREVIEW_HISTORY_TIMEOUT_S = 30.0
@@ -122,29 +129,21 @@ async def _fetch_preview_history_points_range(fetch_start_dt, end_dt):
     return points
 
 
-async def _prepare_preview_points(preview_disaggregator, start_dt, end_dt, provided_points=None):
-    lookback_s = preview_disaggregator.settings.sequence_length * preview_disaggregator.settings.frequency_s
-    fetch_start_dt = start_dt - timedelta(seconds=lookback_s)
-    if (end_dt.date() - fetch_start_dt.date()).days + 1 > 7:
-        fetch_start_dt = start_dt
+def _filter_points_to_range(points, start_ts, end_ts):
+    return [
+        (float(ts), float(value))
+        for ts, value in (points or [])
+        if float(ts) >= start_ts and float(ts) <= end_ts
+    ]
 
-    points = _normalize_preview_points(provided_points)
+
+async def _load_preview_points(start_dt, end_dt, provided_points=None):
+    points = _filter_points_to_range(
+        _normalize_preview_points(provided_points),
+        start_dt.timestamp(),
+        end_dt.timestamp(),
+    )
     if points:
-        earliest_ts = points[0][0]
-        required_start_ts = fetch_start_dt.timestamp()
-        if earliest_ts > required_start_ts + 1e-6:
-            missing_end_dt = datetime.fromtimestamp(earliest_ts, tz=timezone.utc)
-            try:
-                missing_points = await _fetch_preview_history_points_range(fetch_start_dt, missing_end_dt)
-            except asyncio.TimeoutError as exc:
-                raise RuntimeError(
-                    f"Loading mains history took too long ({int(PREVIEW_HISTORY_TIMEOUT_S)}s). "
-                    "Please reduce the selected range or check the Home Assistant connection."
-                ) from exc
-            points = _normalize_preview_points(
-                [{"x": ts, "y": value} for ts, value in missing_points] +
-                [{"x": ts, "y": value} for ts, value in points]
-            )
         yield {
             "processed": len(points),
             "total": len(points),
@@ -154,16 +153,150 @@ async def _prepare_preview_points(preview_disaggregator, start_dt, end_dt, provi
         return
 
     try:
-        async for history_update in _fetch_preview_history_points(fetch_start_dt, end_dt):
+        async for history_update in _fetch_preview_history_points(start_dt, end_dt):
             if history_update.get("phase") == "history_ready":
                 history_update = dict(history_update)
-                history_update["points"] = history_update.get("points") or []
+                history_update["points"] = _filter_points_to_range(
+                    history_update.get("points") or [],
+                    start_dt.timestamp(),
+                    end_dt.timestamp(),
+                )
             yield history_update
     except asyncio.TimeoutError as exc:
         raise RuntimeError(
             f"Loading mains history took too long ({int(PREVIEW_HISTORY_TIMEOUT_S)}s). "
             "Please reduce the selected range or check the Home Assistant connection."
         ) from exc
+
+
+def _build_offline_preview_inputs(points, *, inference_dir: str, num_threads: int = 2, align_grid: str = "start", max_hold_factor: float = 5.0):
+    parsed_points = parse_mains_points([{"x": float(ts) * 1000.0, "y": float(value)} for ts, value in (points or [])])
+    if len(parsed_points) < 2:
+        return {
+            "embeddings": np.zeros((0, 0), dtype=np.float32),
+            "label_times_ms": np.zeros((0,), dtype=np.int64),
+            "mains_at_label": np.zeros((0,), dtype=np.float32),
+            "baseload_at_label": np.zeros((0,), dtype=np.float32),
+        }
+
+    settings = load_model_settings(os.path.join(inference_dir, "model_settings.json"))
+    extractor = QueryExtractor(os.path.join(inference_dir, "extractor.tflite"), num_threads=num_threads)
+
+    T = settings.sequence_length
+    dt = settings.frequency_s
+    pred_idx = settings.pred_idx
+    t_start = parsed_points[0][0]
+    t_end = parsed_points[-1][0]
+    grid_t = build_uniform_grid(t_start, t_end, dt, align=align_grid)
+    if grid_t.size < T:
+        return {
+            "embeddings": np.zeros((0, 0), dtype=np.float32),
+            "label_times_ms": np.zeros((0,), dtype=np.int64),
+            "mains_at_label": np.zeros((0,), dtype=np.float32),
+            "baseload_at_label": np.zeros((0,), dtype=np.float32),
+        }
+
+    max_hold_s = float(max_hold_factor) * dt if max_hold_factor and max_hold_factor > 0 else None
+    fill_value_w = float(settings.query_mean)
+    y_grid, mains_valid_mask = zoh_resample_to_grid(
+        parsed_points,
+        grid_t,
+        max_hold_s=max_hold_s,
+        fill_value=fill_value_w,
+        return_valid_mask=True,
+    )
+
+    M = int(grid_t.size)
+    N = M - (T - 1)
+    windows_raw = np.lib.stride_tricks.sliding_window_view(y_grid.astype(np.float32), window_shape=T)
+    baseload_per_window = np.min(windows_raw, axis=1).astype(np.float32)
+    windows_shifted = windows_raw - baseload_per_window[:, None]
+    query_std = settings.query_std if abs(settings.query_std) > 1e-12 else 1.0
+    windows = ((windows_shifted - float(settings.query_mean)) / float(query_std)).astype(np.float32)
+    valid_windows_mask = np.all(
+        np.lib.stride_tricks.sliding_window_view(mains_valid_mask.astype(np.uint8), window_shape=T) == 1,
+        axis=1,
+    )
+
+    grid_t_end = grid_t[(T - 1):]
+    offset = (T - 1 - pred_idx) * dt
+    grid_t_label = grid_t_end - offset
+    mains_at_label = y_grid[pred_idx:(pred_idx + N)].astype(np.float32)
+
+    windows = windows[valid_windows_mask]
+    grid_t_label = grid_t_label[valid_windows_mask]
+    mains_at_label = mains_at_label[valid_windows_mask]
+    baseload_per_window = baseload_per_window[valid_windows_mask]
+
+    if windows.shape[0] == 0:
+        return {
+            "embeddings": np.zeros((0, 0), dtype=np.float32),
+            "label_times_ms": np.zeros((0,), dtype=np.int64),
+            "mains_at_label": np.zeros((0,), dtype=np.float32),
+            "baseload_at_label": np.zeros((0,), dtype=np.float32),
+        }
+
+    X = extractor.build_input_batch(windows)
+    embs, mask = extractor.extract_embeddings(X, return_mask=True)
+    if mask is None:
+        raise RuntimeError("Internal error: preview extractor mask not returned")
+
+    return {
+        "embeddings": embs,
+        "label_times_ms": np.round(grid_t_label[mask] * 1000.0).astype(np.int64),
+        "mains_at_label": mains_at_label[mask].astype(np.float32),
+        "baseload_at_label": baseload_per_window[mask].astype(np.float32),
+    }
+
+
+def _score_preview_embeddings(preview_disaggregator, safe_names, preview_inputs):
+    embeddings = np.asarray(preview_inputs.get("embeddings"), dtype=np.float32)
+    label_times_ms = np.asarray(preview_inputs.get("label_times_ms"), dtype=np.int64)
+    mains_at_label = np.asarray(preview_inputs.get("mains_at_label"), dtype=np.float32)
+    baseload_at_label = np.asarray(preview_inputs.get("baseload_at_label"), dtype=np.float32)
+
+    prediction_map = {
+        safe_name: {
+            "power_series": [],
+            "baseload_series": [],
+            "state_series": [],
+        }
+        for safe_name in safe_names
+    }
+
+    if embeddings.ndim != 2 or embeddings.shape[0] == 0:
+        return prediction_map
+
+    model_state = {}
+    for safe_name in safe_names:
+        ref = preview_disaggregator._load_embedding(safe_name)
+        params = preview_disaggregator._load_appliance_params(safe_name)
+        model_state[safe_name] = (ref, float(params.get("onoff_threshold", 0.5)))
+
+    for idx in range(embeddings.shape[0]):
+        query_emb = np.asarray(embeddings[idx], dtype=np.float32).reshape(1, -1)
+        target_ms = int(label_times_ms[idx])
+        baseload_value = float(max(0.0, baseload_at_label[idx])) if idx < baseload_at_label.size else 0.0
+        available_appliance_power = float(max(0.0, float(mains_at_label[idx]) - baseload_value)) if idx < mains_at_label.size else 0.0
+
+        for safe_name in safe_names:
+            ref, onoff_threshold = model_state[safe_name]
+            power_w, onoff_value, _power_norm = preview_disaggregator._run_head(ref, query_emb)
+            power_w = float(max(0.0, power_w))
+            power_w = float(min(power_w, available_appliance_power))
+            if onoff_value < onoff_threshold:
+                power_w = 0.0
+
+            prediction_map[safe_name]["power_series"].append({"x": target_ms, "y": power_w})
+            prediction_map[safe_name]["baseload_series"].append({"x": target_ms, "y": baseload_value})
+            prediction_map[safe_name]["state_series"].append({
+                "x": target_ms,
+                "y": int(onoff_value >= onoff_threshold),
+                "score": float(onoff_value),
+                "threshold": float(onoff_threshold),
+            })
+
+    return prediction_map
 
 
 async def _build_preview_result(bundle_id, safe_name, start_dt, end_dt, provided_points=None):
@@ -180,7 +313,7 @@ async def _build_preview_result(bundle_id, safe_name, start_dt, end_dt, provided
     )
 
     points = []
-    async for history_update in _prepare_preview_points(preview_disaggregator, start_dt, end_dt, provided_points=provided_points):
+    async for history_update in _load_preview_points(start_dt, end_dt, provided_points=provided_points):
         if history_update.get("phase") == "history_ready":
             points = history_update.get("points") or []
             yield {
@@ -201,56 +334,30 @@ async def _build_preview_result(bundle_id, safe_name, start_dt, end_dt, provided
         }
         return
 
-    power_series = []
-    baseload_series = []
-    state_series = []
-    processed = 0
-    total = len(points)
-    last_progress_emit = 0.0
+    yield {"processed": 0, "total": len(points), "phase": "embeddings"}
+    preview_inputs = _build_offline_preview_inputs(points, inference_dir=bundle.inference_dir, num_threads=2, align_grid="start", max_hold_factor=5.0)
+    embeddings = np.asarray(preview_inputs.get("embeddings"), dtype=np.float32)
+    total = int(embeddings.shape[0])
+    if total <= 0:
+        yield {
+            "done": True,
+            "power_series": [],
+            "baseload_series": [],
+            "state_series": [],
+            "processed": 0,
+            "total": 0,
+        }
+        return
 
-    yield {"processed": 0, "total": total, "phase": "inference"}
-
-    for ts, mains_power in points:
-        result = await preview_disaggregator.disaggregate_next(float(mains_power), float(ts), appliances=[safe_name])
-        processed += 1
-        now_mono = time.monotonic()
-        if processed == 1 or processed == total or now_mono - last_progress_emit >= 0.05:
-            yield {"processed": processed, "total": total, "phase": "inference"}
-            last_progress_emit = now_mono
-        if processed % 32 == 0:
-            await asyncio.sleep(0)
-        if not result:
-            continue
-
-        target_ts = float(result.get("timestamp", ts))
-        if target_ts < start_dt.timestamp() or target_ts > end_dt.timestamp():
-            continue
-
-        appliance_result = (result.get("appliances") or {}).get(safe_name)
-        if not appliance_result:
-            continue
-
-        power_value = float(appliance_result.get("power", 0.0) or 0.0)
-        onoff_value = float(appliance_result.get("onoff", 0.0) or 0.0)
-        onoff_threshold = float(appliance_result.get("onoff_threshold", 0.5) or 0.5)
-        raw_window = preview_disaggregator.window.to_ordered_full()
-        baseload_value = float(np.min(raw_window)) if raw_window is not None and len(raw_window) else 0.0
-        target_ms = int(round(target_ts * 1000.0))
-
-        power_series.append({"x": target_ms, "y": power_value})
-        baseload_series.append({"x": target_ms, "y": max(0.0, baseload_value)})
-        state_series.append({
-            "x": target_ms,
-            "y": int(onoff_value >= onoff_threshold),
-            "score": onoff_value,
-            "threshold": onoff_threshold,
-        })
+    yield {"processed": total, "total": total, "phase": "inference"}
+    prediction_map = _score_preview_embeddings(preview_disaggregator, [safe_name], preview_inputs)
+    prediction = prediction_map.get(safe_name) or {}
 
     yield {
         "done": True,
-        "power_series": power_series,
-        "baseload_series": baseload_series,
-        "state_series": state_series,
+        "power_series": prediction.get("power_series", []),
+        "baseload_series": prediction.get("baseload_series", []),
+        "state_series": prediction.get("state_series", []),
         "processed": total,
         "total": total,
     }
@@ -293,7 +400,7 @@ async def _build_preview_all_results(model_entries, start_dt, end_dt, provided_p
         )
 
         points = []
-        async for history_update in _prepare_preview_points(preview_disaggregator, start_dt, end_dt, provided_points=provided_points):
+        async for history_update in _load_preview_points(start_dt, end_dt, provided_points=provided_points):
             if history_update.get("phase") == "history_ready":
                 points = history_update.get("points") or []
                 yield {
@@ -308,70 +415,26 @@ async def _build_preview_all_results(model_entries, start_dt, end_dt, provided_p
             continue
 
         model_names = [item["safe_name"] for item in bundle_models]
-        prediction_map = {
-            item["safe_name"]: {
-                "model_key": item["model_key"],
-                "model_name": item["model_name"],
-                "power_series": [],
-                "baseload_series": [],
-                "state_series": [],
-            }
-            for item in bundle_models
-        }
+        yield {"processed": 0, "total": len(points), "phase": "embeddings"}
+        preview_inputs = _build_offline_preview_inputs(points, inference_dir=bundle.inference_dir, num_threads=2, align_grid="start", max_hold_factor=5.0)
+        embeddings = np.asarray(preview_inputs.get("embeddings"), dtype=np.float32)
+        total = int(embeddings.shape[0])
+        if total <= 0:
+            continue
+        yield {"processed": total, "total": total, "phase": "inference"}
 
-        processed = 0
-        total = len(points)
-        last_progress_emit = 0.0
-        yield {"processed": 0, "total": total, "phase": "inference"}
+        scored_predictions = _score_preview_embeddings(preview_disaggregator, model_names, preview_inputs)
 
-        for ts, mains_power in points:
-            result = await preview_disaggregator.disaggregate_next(float(mains_power), float(ts), appliances=model_names)
-            processed += 1
-            now_mono = time.monotonic()
-            if processed == 1 or processed == total or now_mono - last_progress_emit >= 0.05:
-                yield {"processed": processed, "total": total, "phase": "inference"}
-                last_progress_emit = now_mono
-            if processed % 32 == 0:
-                await asyncio.sleep(0)
-            if not result:
-                continue
-
-            target_ts = float(result.get("timestamp", ts))
-            if target_ts < start_dt.timestamp() or target_ts > end_dt.timestamp():
-                continue
-
-            raw_window = preview_disaggregator.window.to_ordered_full()
-            baseload_value = float(np.min(raw_window)) if raw_window is not None and len(raw_window) else 0.0
-            target_ms = int(round(target_ts * 1000.0))
-            appliance_results = result.get("appliances") or {}
-
-            for safe_name, prediction in prediction_map.items():
-                appliance_result = appliance_results.get(safe_name)
-                if not appliance_result:
-                    continue
-                power_value = float(appliance_result.get("power", 0.0) or 0.0)
-                onoff_value = float(appliance_result.get("onoff", 0.0) or 0.0)
-                onoff_threshold = float(appliance_result.get("onoff_threshold", 0.5) or 0.5)
-                prediction["power_series"].append({"x": target_ms, "y": power_value})
-                prediction["baseload_series"].append({"x": target_ms, "y": max(0.0, baseload_value)})
-                prediction["state_series"].append({
-                    "x": target_ms,
-                    "y": int(onoff_value >= onoff_threshold),
-                    "score": onoff_value,
-                    "threshold": onoff_threshold,
-                })
-
-        yield {"processed": total, "total": total, "phase": "postprocess"}
-
-        for prediction in prediction_map.values():
-            power_series = prediction["power_series"]
-            state_series = prediction["state_series"]
+        for item in bundle_models:
+            prediction = scored_predictions.get(item["safe_name"]) or {}
+            power_series = prediction.get("power_series", [])
+            state_series = prediction.get("state_series", [])
 
             all_predictions.append({
-                "model_key": prediction["model_key"],
-                "model_name": prediction["model_name"],
+                "model_key": item["model_key"],
+                "model_name": item["model_name"],
                 "power_series": power_series,
-                "baseload_series": prediction["baseload_series"],
+                "baseload_series": prediction.get("baseload_series", []),
                 "state_series": state_series,
             })
 
