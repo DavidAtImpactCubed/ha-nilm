@@ -2554,7 +2554,7 @@
         return thinned;
     }
 
-    function getSeriesValueAtTimestamp(series, timestamp) {
+    function getSeriesPointAtTimestamp(series, timestamp) {
         if (!Array.isArray(series) || !series.length || !Number.isFinite(timestamp)) return null;
 
         let lo = 0;
@@ -2562,7 +2562,7 @@
         while (lo <= hi) {
             const mid = (lo + hi) >> 1;
             const pointX = Number(series[mid]?.x);
-            if (pointX === timestamp) return Number(series[mid]?.y);
+            if (pointX === timestamp) return series[mid];
             if (pointX < timestamp) lo = mid + 1;
             else hi = mid - 1;
         }
@@ -2681,9 +2681,13 @@
                             label(ctx) {
                                 const lines = [`${ctx.dataset.label}: ${formatPower(ctx.parsed.y)}`];
                                 const timestamp = Number(ctx.parsed?.x);
-                                const onOffValue = getSeriesValueAtTimestamp(ctx.dataset?.predictionStateSeries, timestamp);
-                                if (onOffValue !== null) {
-                                    lines.push(`On/Off Prediction: ${onOffValue >= 0.5 ? "ON" : "OFF"}`);
+                                const onOffPoint = getSeriesPointAtTimestamp(ctx.dataset?.predictionStateSeries, timestamp);
+                                if (onOffPoint) {
+                                    const stateLabel = Number(onOffPoint.y) >= 1 ? "ON" : "OFF";
+                                    const score = Number.isFinite(Number(onOffPoint.score))
+                                        ? ` (${Number(onOffPoint.score).toFixed(2)})`
+                                        : "";
+                                    lines.push(`On/Off Prediction: ${stateLabel}${score}`);
                                 }
                                 return lines;
                             }

@@ -11,7 +11,6 @@ import app_state
 from embedding_store import bundle_models_dir, delete_embedding_files, list_saved_models, load_embedding_metadata, save_embedding_metadata
 from ha_client import HistoryQuery, fetch_history_points
 from model_registry import get_bundle_by_id, make_model_key, parse_model_key
-from prepare_training_data import compute_on_mask
 from refquery import RefQueryDisaggregator
 
 PREVIEW_HISTORY_TIMEOUT_S = 30.0
@@ -204,7 +203,7 @@ async def _build_preview_result(bundle_id, safe_name, start_dt, end_dt, provided
 
     power_series = []
     baseload_series = []
-    preview_times_ms = []
+    state_series = []
     processed = 0
     total = len(points)
     last_progress_emit = 0.0
@@ -232,30 +231,20 @@ async def _build_preview_result(bundle_id, safe_name, start_dt, end_dt, provided
             continue
 
         power_value = float(appliance_result.get("power", 0.0) or 0.0)
+        onoff_value = float(appliance_result.get("onoff", 0.0) or 0.0)
+        onoff_threshold = float(appliance_result.get("onoff_threshold", 0.5) or 0.5)
         raw_window = preview_disaggregator.window.to_ordered_full()
         baseload_value = float(np.min(raw_window)) if raw_window is not None and len(raw_window) else 0.0
         target_ms = int(round(target_ts * 1000.0))
 
         power_series.append({"x": target_ms, "y": power_value})
         baseload_series.append({"x": target_ms, "y": max(0.0, baseload_value)})
-        preview_times_ms.append(target_ms)
-
-    state_series = []
-    if power_series:
-        yield {"processed": total, "total": total, "phase": "postprocess"}
-        power_values = np.asarray([float(point["y"]) for point in power_series], dtype=np.float32)
-        on_mask = compute_on_mask(
-            power_values,
-            sample_period_s=float(preview_disaggregator.settings.frequency_s),
-            threshold_watts=20.0,
-            window_hours=24.0,
-            min_on_s=60.0,
-            min_off_s=300.0,
-        )
-        state_series = [
-            {"x": int(preview_times_ms[i]), "y": int(on_mask[i] >= 1)}
-            for i in range(min(len(preview_times_ms), len(on_mask)))
-        ]
+        state_series.append({
+            "x": target_ms,
+            "y": int(onoff_value >= onoff_threshold),
+            "score": onoff_value,
+            "threshold": onoff_threshold,
+        })
 
     yield {
         "done": True,
@@ -325,7 +314,7 @@ async def _build_preview_all_results(model_entries, start_dt, end_dt, provided_p
                 "model_name": item["model_name"],
                 "power_series": [],
                 "baseload_series": [],
-                "preview_times_ms": [],
+                "state_series": [],
             }
             for item in bundle_models
         }
@@ -361,30 +350,22 @@ async def _build_preview_all_results(model_entries, start_dt, end_dt, provided_p
                 if not appliance_result:
                     continue
                 power_value = float(appliance_result.get("power", 0.0) or 0.0)
+                onoff_value = float(appliance_result.get("onoff", 0.0) or 0.0)
+                onoff_threshold = float(appliance_result.get("onoff_threshold", 0.5) or 0.5)
                 prediction["power_series"].append({"x": target_ms, "y": power_value})
                 prediction["baseload_series"].append({"x": target_ms, "y": max(0.0, baseload_value)})
-                prediction["preview_times_ms"].append(target_ms)
+                prediction["state_series"].append({
+                    "x": target_ms,
+                    "y": int(onoff_value >= onoff_threshold),
+                    "score": onoff_value,
+                    "threshold": onoff_threshold,
+                })
 
         yield {"processed": total, "total": total, "phase": "postprocess"}
 
         for prediction in prediction_map.values():
             power_series = prediction["power_series"]
-            preview_times_ms = prediction["preview_times_ms"]
-            state_series = []
-            if power_series:
-                power_values = np.asarray([float(point["y"]) for point in power_series], dtype=np.float32)
-                on_mask = compute_on_mask(
-                    power_values,
-                    sample_period_s=float(preview_disaggregator.settings.frequency_s),
-                    threshold_watts=20.0,
-                    window_hours=24.0,
-                    min_on_s=60.0,
-                    min_off_s=300.0,
-                )
-                state_series = [
-                    {"x": int(preview_times_ms[i]), "y": int(on_mask[i] >= 1)}
-                    for i in range(min(len(preview_times_ms), len(on_mask)))
-                ]
+            state_series = prediction["state_series"]
 
             all_predictions.append({
                 "model_key": prediction["model_key"],
