@@ -197,6 +197,7 @@ function progressLine(job) {
 }
 
 function formatMetricValue(v, digits = 3) {
+  if (v == null || v === "") return "";
   const n = Number(v);
   if (!Number.isFinite(n)) return "";
   return n.toFixed(digits);
@@ -205,6 +206,18 @@ function formatMetricValue(v, digits = 3) {
 function trainingMetricsLine(job) {
   const m = job.training_metrics && typeof job.training_metrics === "object" ? job.training_metrics : null;
   if (!m || !isDoneStatus(job.status)) return "";
+
+  const preferredOnOffF1Text = formatMetricValue(m.onoff_f1);
+  const preferredOnOffThrText = formatMetricValue(m.onoff_threshold, 2);
+  if (preferredOnOffF1Text && preferredOnOffThrText) {
+    return `Best F1 ${preferredOnOffF1Text} - Thr ${preferredOnOffThrText}`;
+  }
+
+  const preferredOnoffF1 = formatMetricValue(m.onoff_f1);
+  const preferredOnoffThr = formatMetricValue(m.onoff_threshold, 2);
+  if (preferredOnoffF1 && preferredOnoffThr) {
+    return `Best F1 ${preferredOnoffF1} â€¢ Thr ${preferredOnoffThr}`;
+  }
 
   const powerF1 = formatMetricValue(m.power_f1);
   const powerThr = formatMetricValue(m.power_threshold, 1);

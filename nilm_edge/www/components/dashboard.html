@@ -2830,10 +2830,7 @@
             card.className = "embedding-card";
 
             const metadata = embedding.metadata || {};
-            const fineTuneTarget = String(metadata.fine_tune_target || "").toLowerCase();
-            const bestF1Value = fineTuneTarget === "power"
-                ? Number(metadata.power_f1)
-                : Number(metadata.onoff_f1);
+            const bestF1Value = Number(metadata.onoff_f1);
             const bestF1Text = Number.isFinite(bestF1Value) ? bestF1Value.toFixed(3) : "Unknown";
             const publishOnline = Boolean(metadata.publish_online);
             const realtimeEntities = realtimeEntityIdsForModel(embedding);
