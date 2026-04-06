@@ -5,6 +5,7 @@ import json
 import uuid
 import asyncio
 import traceback
+import numpy as np
 from datetime import datetime, timezone
 from typing import Any, Dict, Optional
 import inspect
@@ -20,6 +21,8 @@ from training_server_client import (
 from embedding_store import bundle_models_dir, load_embedding_metadata
 from training_payload import training_server_payload_from_prepared, summarize_training_server_payload
 from embedding_store import save_embedding_metadata
+from model_registry import get_bundle_by_id
+from refquery import RefQueryDisaggregator
 
 
 def _utc_now_iso() -> str:
@@ -46,6 +49,47 @@ def _percent_from_progress(p: Optional[Dict[str, Any]]) -> Optional[int]:
         return max(0, min(100, int(round((e / t) * 100))))
     except Exception:
         return None
+
+
+def _binary_f1_score(y_true: np.ndarray, y_pred: np.ndarray) -> float:
+    y_true = np.asarray(y_true, dtype=np.int32).reshape(-1)
+    y_pred = np.asarray(y_pred, dtype=np.int32).reshape(-1)
+    if y_true.size == 0 or y_pred.size == 0 or y_true.size != y_pred.size:
+        return 0.0
+    tp = int(np.sum((y_true == 1) & (y_pred == 1)))
+    fp = int(np.sum((y_true == 0) & (y_pred == 1)))
+    fn = int(np.sum((y_true == 1) & (y_pred == 0)))
+    if tp == 0:
+        return 0.0
+    precision = tp / max(1, tp + fp)
+    recall = tp / max(1, tp + fn)
+    denom = precision + recall
+    return float(0.0 if denom <= 0 else (2.0 * precision * recall) / denom)
+
+
+def _summarize_scores(scores: np.ndarray, threshold: float, y_true: np.ndarray) -> Dict[str, Any]:
+    scores = np.asarray(scores, dtype=np.float32).reshape(-1)
+    y_true = np.asarray(y_true, dtype=np.int32).reshape(-1)
+    if scores.size == 0:
+        return {
+            "n_points": 0,
+            "max_score": None,
+            "min_score": None,
+            "mean_score": None,
+            "threshold": float(threshold),
+            "n_above_threshold": 0,
+            "f1_at_threshold": 0.0,
+        }
+    y_pred = (scores >= float(threshold)).astype(np.int32)
+    return {
+        "n_points": int(scores.size),
+        "max_score": float(np.max(scores)),
+        "min_score": float(np.min(scores)),
+        "mean_score": float(np.mean(scores)),
+        "threshold": float(threshold),
+        "n_above_threshold": int(np.sum(y_pred)),
+        "f1_at_threshold": _binary_f1_score(y_true, y_pred),
+    }
 
 
 class TrainingServerServiceManager:
@@ -365,6 +409,42 @@ class TrainingServerServiceManager:
                     "fine_tune_target": result.get("stats", {}).get("fine_tune_target"),
                 },
             )
+
+            edge_replay_metrics = None
+            try:
+                bundle = get_bundle_by_id(app_state.model_bundles, bundle_id)
+                prepared_embeddings = np.asarray(prepared_job.get("embeddings") or [], dtype=np.float32)
+                prepared_targets_on = np.asarray(prepared_job.get("targets_on") or [], dtype=np.int32)
+                saved_threshold = float(result.get("appliance_params", {}).get("onoff_threshold", 0.5))
+                if bundle is not None and prepared_embeddings.ndim == 2 and prepared_embeddings.shape[0] > 0 and prepared_embeddings.shape[0] == prepared_targets_on.size:
+                    replay_disaggregator = RefQueryDisaggregator(
+                        inference_dir=bundle.inference_dir,
+                        embeddings_dir=bundle_models_dir(self.models_root, bundle_id),
+                        num_threads=2,
+                        history_fetcher=None,
+                        top_k=None,
+                    )
+                    ref = replay_disaggregator._load_embedding(str(appliance_name))
+                    scores = np.zeros((prepared_embeddings.shape[0],), dtype=np.float32)
+                    for idx in range(prepared_embeddings.shape[0]):
+                        query_emb = np.asarray(prepared_embeddings[idx], dtype=np.float32).reshape(1, -1)
+                        _power_w, onoff_value, _power_norm = replay_disaggregator._run_head(ref, query_emb)
+                        scores[idx] = float(onoff_value)
+                    edge_replay_metrics = _summarize_scores(scores, saved_threshold, prepared_targets_on)
+                    print(
+                        f"Edge replay summary appliance={appliance_name} "
+                        f"n_points={edge_replay_metrics.get('n_points')} "
+                        f"max_score={edge_replay_metrics.get('max_score')} "
+                        f"mean_score={edge_replay_metrics.get('mean_score')} "
+                        f"threshold={edge_replay_metrics.get('threshold')} "
+                        f"n_above_threshold={edge_replay_metrics.get('n_above_threshold')} "
+                        f"f1_at_threshold={edge_replay_metrics.get('f1_at_threshold')}",
+                        flush=True,
+                    )
+            except Exception as replay_exc:
+                print(f"Edge replay summary failed for appliance={appliance_name}: {replay_exc}", flush=True)
+                print(traceback.format_exc(), flush=True)
+
             await self._maybe_reload_algorithm()
 
             await self._patch_job(job_id, {
@@ -379,6 +459,7 @@ class TrainingServerServiceManager:
                     "power_f1": result.get("stats", {}).get("power_f1"),
                     "power_threshold": result.get("appliance_params", {}).get("power_threshold"),
                     "fine_tune_target": result.get("stats", {}).get("fine_tune_target"),
+                    "edge_replay": edge_replay_metrics,
                 },
                 "progress": {
                     "phase": "done",
