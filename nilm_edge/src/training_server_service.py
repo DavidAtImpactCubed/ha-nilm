@@ -67,6 +67,24 @@ def _binary_f1_score(y_true: np.ndarray, y_pred: np.ndarray) -> float:
     return float(0.0 if denom <= 0 else (2.0 * precision * recall) / denom)
 
 
+def _best_prob_threshold(y_true: np.ndarray, y_prob: np.ndarray) -> tuple[float, float]:
+    y_true = np.asarray(y_true, dtype=np.int32).reshape(-1)
+    y_prob = np.asarray(y_prob, dtype=np.float32).reshape(-1)
+
+    if y_true.size == 0 or y_prob.size == 0 or y_true.size != y_prob.size or np.unique(y_true).size < 2:
+        return 0.5, 0.0
+
+    best_thr = 0.5
+    best_f1 = -1.0
+    for thr in np.linspace(0.05, 0.95, 19):
+        y_pred = (y_prob >= float(thr)).astype(np.int32)
+        f1 = _binary_f1_score(y_true, y_pred)
+        if f1 > best_f1:
+            best_f1 = f1
+            best_thr = float(thr)
+    return float(best_thr), float(best_f1)
+
+
 def _summarize_scores(scores: np.ndarray, threshold: float, y_true: np.ndarray) -> Dict[str, Any]:
     scores = np.asarray(scores, dtype=np.float32).reshape(-1)
     y_true = np.asarray(y_true, dtype=np.int32).reshape(-1)
@@ -386,6 +404,50 @@ class TrainingServerServiceManager:
             bundle_dir = bundle_models_dir(self.models_root, bundle_id)
             existing_metadata = load_embedding_metadata(bundle_dir, str(appliance_name)) or {}
             saved_path = self.save_embedding_npy(bundle_dir, str(appliance_name), embedding)
+            trainer_onoff_threshold = float(result.get("appliance_params", {}).get("onoff_threshold", 0.5))
+            trainer_onoff_f1 = result.get("stats", {}).get("onoff_f1")
+            deployment_onoff_threshold = trainer_onoff_threshold
+            deployment_onoff_f1 = trainer_onoff_f1
+
+            edge_replay_metrics = None
+            try:
+                bundle = get_bundle_by_id(app_state.model_bundles, bundle_id)
+                prepared_embeddings = np.asarray(prepared_job.get("embeddings") or [], dtype=np.float32)
+                prepared_targets_on = np.asarray(prepared_job.get("targets_on") or [], dtype=np.int32)
+                if bundle is not None and prepared_embeddings.ndim == 2 and prepared_embeddings.shape[0] > 0 and prepared_embeddings.shape[0] == prepared_targets_on.size:
+                    replay_disaggregator = RefQueryDisaggregator(
+                        inference_dir=bundle.inference_dir,
+                        embeddings_dir=bundle_models_dir(self.models_root, bundle_id),
+                        num_threads=2,
+                        history_fetcher=None,
+                        top_k=None,
+                    )
+                    ref = replay_disaggregator._load_embedding(str(appliance_name))
+                    scores = np.zeros((prepared_embeddings.shape[0],), dtype=np.float32)
+                    for idx in range(prepared_embeddings.shape[0]):
+                        query_emb = np.asarray(prepared_embeddings[idx], dtype=np.float32).reshape(1, -1)
+                        _power_w, onoff_value, _power_norm = replay_disaggregator._run_head(ref, query_emb)
+                        scores[idx] = float(onoff_value)
+                    deployment_onoff_threshold, deployment_onoff_f1 = _best_prob_threshold(prepared_targets_on, scores)
+                    edge_replay_metrics = _summarize_scores(scores, deployment_onoff_threshold, prepared_targets_on)
+                    edge_replay_metrics["trainer_threshold"] = float(trainer_onoff_threshold)
+                    edge_replay_metrics["trainer_onoff_f1"] = None if trainer_onoff_f1 is None else float(trainer_onoff_f1)
+                    edge_replay_metrics["deployment_threshold"] = float(deployment_onoff_threshold)
+                    edge_replay_metrics["deployment_onoff_f1"] = None if deployment_onoff_f1 is None else float(deployment_onoff_f1)
+                    print(
+                        f"Edge replay summary appliance={appliance_name} "
+                        f"n_points={edge_replay_metrics.get('n_points')} "
+                        f"max_score={edge_replay_metrics.get('max_score')} "
+                        f"mean_score={edge_replay_metrics.get('mean_score')} "
+                        f"threshold={edge_replay_metrics.get('threshold')} "
+                        f"n_above_threshold={edge_replay_metrics.get('n_above_threshold')} "
+                        f"f1_at_threshold={edge_replay_metrics.get('f1_at_threshold')}",
+                        flush=True,
+                    )
+            except Exception as replay_exc:
+                print(f"Edge replay summary failed for appliance={appliance_name}: {replay_exc}", flush=True)
+                print(traceback.format_exc(), flush=True)
+
             save_embedding_metadata(
                 bundle_dir,
                 str(appliance_name),
@@ -402,48 +464,15 @@ class TrainingServerServiceManager:
                     "appliance_sensor_id": prepared_job.get("appliance_sensor_id"),
                     "job_id": job_id,
                     "training_server_job_id": training_server_job_id,
-                    "onoff_threshold": float(result.get("appliance_params", {}).get("onoff_threshold", 0.5)),
+                    "onoff_threshold": float(deployment_onoff_threshold),
                     "power_threshold": float(result.get("appliance_params", {}).get("power_threshold", 0.0)),
-                    "onoff_f1": result.get("stats", {}).get("onoff_f1"),
+                    "onoff_f1": deployment_onoff_f1,
                     "power_f1": result.get("stats", {}).get("power_f1"),
                     "fine_tune_target": result.get("stats", {}).get("fine_tune_target"),
+                    "trainer_onoff_threshold": float(trainer_onoff_threshold),
+                    "trainer_onoff_f1": trainer_onoff_f1,
                 },
             )
-
-            edge_replay_metrics = None
-            try:
-                bundle = get_bundle_by_id(app_state.model_bundles, bundle_id)
-                prepared_embeddings = np.asarray(prepared_job.get("embeddings") or [], dtype=np.float32)
-                prepared_targets_on = np.asarray(prepared_job.get("targets_on") or [], dtype=np.int32)
-                saved_threshold = float(result.get("appliance_params", {}).get("onoff_threshold", 0.5))
-                if bundle is not None and prepared_embeddings.ndim == 2 and prepared_embeddings.shape[0] > 0 and prepared_embeddings.shape[0] == prepared_targets_on.size:
-                    replay_disaggregator = RefQueryDisaggregator(
-                        inference_dir=bundle.inference_dir,
-                        embeddings_dir=bundle_models_dir(self.models_root, bundle_id),
-                        num_threads=2,
-                        history_fetcher=None,
-                        top_k=None,
-                    )
-                    ref = replay_disaggregator._load_embedding(str(appliance_name))
-                    scores = np.zeros((prepared_embeddings.shape[0],), dtype=np.float32)
-                    for idx in range(prepared_embeddings.shape[0]):
-                        query_emb = np.asarray(prepared_embeddings[idx], dtype=np.float32).reshape(1, -1)
-                        _power_w, onoff_value, _power_norm = replay_disaggregator._run_head(ref, query_emb)
-                        scores[idx] = float(onoff_value)
-                    edge_replay_metrics = _summarize_scores(scores, saved_threshold, prepared_targets_on)
-                    print(
-                        f"Edge replay summary appliance={appliance_name} "
-                        f"n_points={edge_replay_metrics.get('n_points')} "
-                        f"max_score={edge_replay_metrics.get('max_score')} "
-                        f"mean_score={edge_replay_metrics.get('mean_score')} "
-                        f"threshold={edge_replay_metrics.get('threshold')} "
-                        f"n_above_threshold={edge_replay_metrics.get('n_above_threshold')} "
-                        f"f1_at_threshold={edge_replay_metrics.get('f1_at_threshold')}",
-                        flush=True,
-                    )
-            except Exception as replay_exc:
-                print(f"Edge replay summary failed for appliance={appliance_name}: {replay_exc}", flush=True)
-                print(traceback.format_exc(), flush=True)
 
             await self._maybe_reload_algorithm()
 
@@ -454,11 +483,13 @@ class TrainingServerServiceManager:
                 "embedding_dim": len(embedding),
                 "error": None,
                 "training_metrics": {
-                    "onoff_f1": result.get("stats", {}).get("onoff_f1"),
-                    "onoff_threshold": result.get("appliance_params", {}).get("onoff_threshold"),
+                    "onoff_f1": deployment_onoff_f1,
+                    "onoff_threshold": deployment_onoff_threshold,
                     "power_f1": result.get("stats", {}).get("power_f1"),
                     "power_threshold": result.get("appliance_params", {}).get("power_threshold"),
                     "fine_tune_target": result.get("stats", {}).get("fine_tune_target"),
+                    "trainer_onoff_f1": trainer_onoff_f1,
+                    "trainer_onoff_threshold": trainer_onoff_threshold,
                     "edge_replay": edge_replay_metrics,
                 },
                 "progress": {
