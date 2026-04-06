@@ -18,7 +18,7 @@ from training_server_client import (
     poll_training_result,
     fetch_training_status,
 )
-from embedding_store import bundle_models_dir, load_embedding_metadata
+from embedding_store import bundle_models_dir, load_embedding_metadata, sanitize_name
 from training_payload import training_server_payload_from_prepared, summarize_training_server_payload
 from embedding_store import save_embedding_metadata
 from model_registry import get_bundle_by_id
@@ -422,7 +422,7 @@ class TrainingServerServiceManager:
                         history_fetcher=None,
                         top_k=None,
                     )
-                    ref = replay_disaggregator._load_embedding(str(appliance_name))
+                    ref = replay_disaggregator._load_embedding(sanitize_name(str(appliance_name)))
                     scores = np.zeros((prepared_embeddings.shape[0],), dtype=np.float32)
                     for idx in range(prepared_embeddings.shape[0]):
                         query_emb = np.asarray(prepared_embeddings[idx], dtype=np.float32).reshape(1, -1)
