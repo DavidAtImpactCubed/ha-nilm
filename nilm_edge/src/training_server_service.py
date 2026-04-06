@@ -338,8 +338,6 @@ class TrainingServerServiceManager:
             timeout_s=1120.0,
         )
         del training_server_payload
-        del prepared
-        _release_process_memory()
 
         training_server_job_id = start["job_id"]
         print(
@@ -384,6 +382,8 @@ class TrainingServerServiceManager:
         asyncio.create_task(self._poll_and_finalize(job_id, training_server_job_id, training_server_url, training_server_api_key))
 
         del replay_input
+        del prepared
+        _release_process_memory()
         return {"status": "success", "job_id": job_id, "training_server_job_id": training_server_job_id}
 
     async def _merge_training_server_status(self, job_id: str, st: Dict[str, Any]) -> None:
