@@ -48,8 +48,12 @@ async def _pop_preview_job(app, job_id):
 async def _stream_preview_worker(payload):
     fd, input_path = tempfile.mkstemp(prefix="nilm_preview_", suffix=".json")
     os.close(fd)
+    fd_out, output_path = tempfile.mkstemp(prefix="nilm_preview_result_", suffix=".json")
+    os.close(fd_out)
     worker_path = os.path.join(os.path.dirname(__file__), "edge_preview_worker.py")
     try:
+        payload = dict(payload or {})
+        payload["result_path"] = output_path
         with open(input_path, "w", encoding="utf-8") as f:
             json.dump(payload, f, ensure_ascii=False)
 
@@ -74,6 +78,14 @@ async def _stream_preview_worker(payload):
             except Exception:
                 continue
             if isinstance(update, dict):
+                if update.get("done") and update.get("result_path"):
+                    result_path = str(update.get("result_path") or "").strip()
+                    if result_path and os.path.exists(result_path):
+                        with open(result_path, "r", encoding="utf-8") as f:
+                            result_payload = json.load(f)
+                        update = dict(update)
+                        update.pop("result_path", None)
+                        update.update(result_payload if isinstance(result_payload, dict) else {})
                 yield update
 
         stderr_bytes = await proc.stderr.read() if proc.stderr is not None else b""
@@ -86,6 +98,8 @@ async def _stream_preview_worker(payload):
     finally:
         if os.path.exists(input_path):
             os.remove(input_path)
+        if os.path.exists(output_path):
+            os.remove(output_path)
 
 
 async def _fetch_preview_history_points(fetch_start_dt, end_dt):

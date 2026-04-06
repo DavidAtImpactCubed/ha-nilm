@@ -286,23 +286,38 @@ def main():
     with open(sys.argv[1], "r", encoding="utf-8") as f:
         payload = json.load(f)
 
+    result_path = str(payload.get("result_path") or "").strip()
     points = payload.get("points") or []
     model_entries = payload.get("models") or []
     if not points:
-        emit({"done": True, "predictions": [] if payload.get("mode") == "all" else None, "result": {}})
+        result_payload = {"predictions": []} if payload.get("mode") == "all" else {"result": {}}
+        if result_path:
+            with open(result_path, "w", encoding="utf-8") as f:
+                json.dump(result_payload, f, ensure_ascii=False)
+            emit({"done": True, "result_path": result_path})
+        else:
+            emit({"done": True, **result_payload})
         return 0
 
     preview_inputs = build_offline_preview_inputs(points, inference_dir=model_entries[0]["inference_dir"], num_threads=2, align_grid="start", max_hold_factor=5.0)
     extracted = extract_embeddings_with_progress(preview_inputs)
     embeddings = np.asarray(extracted.get("embeddings"), dtype=np.float32)
     if embeddings.ndim != 2 or embeddings.shape[0] == 0:
+        result_payload = None
         if payload.get("mode") == "all":
-            emit({"done": True, "predictions": []})
+            result_payload = {"predictions": []}
         else:
-            emit({"done": True, "result": {"power_series": [], "baseload_series": [], "state_series": [], "state_summary": {}}})
+            result_payload = {"result": {"power_series": [], "baseload_series": [], "state_series": [], "state_summary": {}}}
+        if result_path:
+            with open(result_path, "w", encoding="utf-8") as f:
+                json.dump(result_payload, f, ensure_ascii=False)
+            emit({"done": True, "result_path": result_path})
+        else:
+            emit({"done": True, **(result_payload or {})})
         return 0
 
     results = score_predictions_with_progress(model_entries, extracted)
+    result_payload = None
     if payload.get("mode") == "all":
         predictions = []
         for entry in model_entries:
@@ -316,20 +331,25 @@ def main():
                 "state_series": state_series,
                 "state_summary": summarize_state_series(state_series),
             })
-        emit({"done": True, "predictions": predictions})
+        result_payload = {"predictions": predictions}
     else:
         entry = model_entries[0]
         prediction = results.get(entry["safe_name"]) or {}
         state_series = prediction.get("state_series", [])
-        emit({
-            "done": True,
+        result_payload = {
             "result": {
                 "power_series": prediction.get("power_series", []),
                 "baseload_series": prediction.get("baseload_series", []),
                 "state_series": state_series,
                 "state_summary": summarize_state_series(state_series),
-            },
-        })
+            }
+        }
+    if result_path:
+        with open(result_path, "w", encoding="utf-8") as f:
+            json.dump(result_payload, f, ensure_ascii=False)
+        emit({"done": True, "result_path": result_path})
+    else:
+        emit({"done": True, **(result_payload or {})})
     return 0
 
 
