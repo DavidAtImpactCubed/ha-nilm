@@ -1571,7 +1571,9 @@
             case "history":
                 return "Loading mains history from Home Assistant...";
             case "history_ready":
-                return "Mains history loaded. Starting NILM inference...";
+                return "Mains history loaded. Preparing offline preview...";
+            case "embeddings":
+                return "Computing query embeddings over the selected range...";
             case "postprocess":
                 return "Building ON intervals...";
             case "done":
@@ -1580,7 +1582,7 @@
                 return "Prediction preview failed";
             case "inference":
             default:
-                return "Running NILM inference over the selected range...";
+                return "Scoring appliance models over the selected range...";
         }
     }
 
