@@ -2684,10 +2684,20 @@
                                 const onOffPoint = getSeriesPointAtTimestamp(ctx.dataset?.predictionStateSeries, timestamp);
                                 if (onOffPoint) {
                                     const stateLabel = Number(onOffPoint.y) >= 1 ? "ON" : "OFF";
-                                    const score = Number.isFinite(Number(onOffPoint.score))
-                                        ? ` (${Number(onOffPoint.score).toFixed(2)})`
-                                        : "";
-                                    lines.push(`On/Off Prediction: ${stateLabel}${score}`);
+                                    const scoreText = Number.isFinite(Number(onOffPoint.score))
+                                        ? Number(onOffPoint.score).toFixed(2)
+                                        : null;
+                                    const thresholdText = Number.isFinite(Number(onOffPoint.threshold))
+                                        ? Number(onOffPoint.threshold).toFixed(2)
+                                        : null;
+                                    const extras = [];
+                                    if (scoreText !== null) extras.push(`p=${scoreText}`);
+                                    if (thresholdText !== null) extras.push(`thr=${thresholdText}`);
+                                    lines.push(
+                                        extras.length
+                                            ? `On/Off Prediction: ${stateLabel} (${extras.join(", ")})`
+                                            : `On/Off Prediction: ${stateLabel}`
+                                    );
                                 }
                                 return lines;
                             }
