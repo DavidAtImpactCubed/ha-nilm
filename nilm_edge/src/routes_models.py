@@ -2,6 +2,7 @@ import os
 import time
 import uuid
 import asyncio
+import gc
 from datetime import datetime, timedelta, timezone
 
 import numpy as np
@@ -34,6 +35,11 @@ async def _set_preview_job(app, job_id, patch):
 async def _get_preview_job(app, job_id):
     async with app["preview_jobs_lock"]:
         return dict(app["preview_jobs"].get(job_id) or {})
+
+
+async def _pop_preview_job(app, job_id):
+    async with app["preview_jobs_lock"]:
+        return dict(app["preview_jobs"].pop(job_id, {}) or {})
 
 
 async def _fetch_preview_history_points(fetch_start_dt, end_dt):
@@ -745,6 +751,8 @@ async def _run_preview_job(app, job_id, bundle_id, safe_name, start_dt, end_dt, 
             "updated_at": datetime.now(timezone.utc).isoformat(),
             "message": str(exc),
         })
+    finally:
+        gc.collect()
 
 
 async def _run_preview_all_job(app, job_id, model_entries, start_dt, end_dt, provided_points=None):
@@ -803,6 +811,8 @@ async def _run_preview_all_job(app, job_id, model_entries, start_dt, end_dt, pro
             "updated_at": datetime.now(timezone.utc).isoformat(),
             "message": str(exc),
         })
+    finally:
+        gc.collect()
 
 
 async def get_embeddings_handler(request):
@@ -1024,6 +1034,10 @@ async def preview_embedding_status_handler(request):
         job = await _get_preview_job(request.app, job_id)
         if not job:
             return web.json_response({"status": "error", "message": "Preview job not found"}, status=404)
+
+        if job.get("status") in {"done", "error"}:
+            job = await _pop_preview_job(request.app, job_id)
+            gc.collect()
 
         return web.json_response({
             "status": "success",
