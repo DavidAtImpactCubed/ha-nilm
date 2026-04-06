@@ -204,6 +204,8 @@ function formatMetricValue(v, digits = 3) {
 }
 
 function trainingMetricsLine(job) {
+  return "";
+
   const m = job.training_metrics && typeof job.training_metrics === "object" ? job.training_metrics : null;
   if (!m || !isDoneStatus(job.status)) return "";
 
