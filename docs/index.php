@@ -1,4 +1,29 @@
 <?php
+$journeys = [
+    [
+        'title' => 'First-time setup',
+        'body' => 'Start here if you have just installed the apps and want to reach a working NILM setup inside Home Assistant.',
+        'href' => '#installation',
+    ],
+    [
+        'title' => 'Preview and validate models',
+        'body' => 'Use this path if your goal is to understand Energy Dashboard, historical disaggregation, and model debugging.',
+        'href' => '#energy-dashboard',
+    ],
+    [
+        'title' => 'Train an appliance model',
+        'body' => 'Use this path if you want to prepare appliance data, send a training job, and validate the trained model afterward.',
+        'href' => '#training',
+    ],
+];
+
+$essentials = [
+    'A mains power sensor available in Home Assistant.',
+    'The NILM app installed and running.',
+    'The NILM Training Server app installed and running if you want training.',
+    'Enough history in Home Assistant for the interval you plan to analyze or train on.',
+];
+
 $sections = [
     [
         'id' => 'overview',
@@ -475,6 +500,37 @@ function render_block(array $block): void
                 </div>
             </header>
 
+            <section class="journey-strip">
+                <div class="journey-panel">
+                    <div class="section-head compact">
+                        <span class="eyebrow">Start Here</span>
+                        <h2>Choose the path that matches what you want to do</h2>
+                        <p>The documentation is organized around the real Home Assistant user flow, so you can jump directly to setup, dashboard usage, or training.</p>
+                    </div>
+
+                    <div class="journey-grid">
+                        <?php foreach ($journeys as $journey): ?>
+                            <a class="journey-card" href="<?= htmlspecialchars($journey['href']) ?>" data-track="cta" data-track-label="<?= htmlspecialchars($journey['title']) ?>">
+                                <h3><?= htmlspecialchars($journey['title']) ?></h3>
+                                <p><?= htmlspecialchars($journey['body']) ?></p>
+                                <span>Open section</span>
+                            </a>
+                        <?php endforeach; ?>
+                    </div>
+                </div>
+
+                <aside class="essentials-panel">
+                    <span class="eyebrow">Before You Begin</span>
+                    <h3>What you should already have</h3>
+                    <ul class="bullet-list compact">
+                        <?php foreach ($essentials as $item): ?>
+                            <li><?= htmlspecialchars($item) ?></li>
+                        <?php endforeach; ?>
+                    </ul>
+                    <a href="#troubleshooting" class="mini-link" data-track="cta" data-track-label="Troubleshooting quick link">Need help with setup?</a>
+                </aside>
+            </section>
+
             <?php foreach ($sections as $section): ?>
                 <section id="<?= htmlspecialchars($section['id']) ?>" class="doc-section">
                     <div class="section-head">
@@ -490,6 +546,19 @@ function render_block(array $block): void
                     </div>
                 </section>
             <?php endforeach; ?>
+
+            <footer class="site-footer">
+                <div>
+                    <strong>NILM documentation</strong>
+                    <p>Written for real Home Assistant usage: setup, training, preview, live publishing, and troubleshooting.</p>
+                </div>
+                <div class="footer-links">
+                    <a href="#installation" data-track="cta" data-track-label="Footer installation">Installation</a>
+                    <a href="#energy-dashboard" data-track="cta" data-track-label="Footer dashboard">Energy Dashboard</a>
+                    <a href="#training" data-track="cta" data-track-label="Footer training">Training</a>
+                    <a href="./stats.php" data-track="cta" data-track-label="Footer stats">Usage Stats</a>
+                </div>
+            </footer>
         </main>
     </div>
 

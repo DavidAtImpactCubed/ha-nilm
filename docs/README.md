@@ -6,6 +6,11 @@ If you want to publish the documentation as a website on a PHP-capable host such
 
 - [index.php](/c:/Users/lgarc/Repositories/ha-nilm/docs/index.php)
 
+The PHP documentation site also includes:
+
+- [track.php](/c:/Users/lgarc/Repositories/ha-nilm/docs/track.php) for lightweight usage tracking
+- [stats.php](/c:/Users/lgarc/Repositories/ha-nilm/docs/stats.php) for a simple usage summary page
+
 It is written for Home Assistant users who want to:
 
 - install the apps
