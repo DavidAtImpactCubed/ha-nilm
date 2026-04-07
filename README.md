@@ -68,6 +68,14 @@ https://github.com/lgarciamarrero92/ha-nilm
 
 ## More Information
 
+For end-user documentation prepared for the Home Assistant UI workflow:
+
+- [docs/README.md](/c:/Users/lgarc/Repositories/ha-nilm/docs/README.md)
+- [docs/installation.md](/c:/Users/lgarc/Repositories/ha-nilm/docs/installation.md)
+- [docs/energy-dashboard.md](/c:/Users/lgarc/Repositories/ha-nilm/docs/energy-dashboard.md)
+- [docs/training.md](/c:/Users/lgarc/Repositories/ha-nilm/docs/training.md)
+- [docs/troubleshooting.md](/c:/Users/lgarc/Repositories/ha-nilm/docs/troubleshooting.md)
+
 For details about each app:
 
 - [nilm_edge/README.md](/c:/Users/lgarc/Repositories/ha-nilm/nilm_edge/README.md)
