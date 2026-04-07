@@ -139,6 +139,16 @@ a {
     margin: 0 auto 24px;
 }
 
+.hero-proof {
+    max-width: var(--content-max);
+    margin: 0 auto 24px;
+    padding: 28px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-xl);
+    background: linear-gradient(180deg, rgba(247, 252, 255, 0.95), rgba(255, 255, 255, 0.9));
+    box-shadow: var(--shadow);
+}
+
 .journey-strip {
     max-width: var(--content-max);
     margin: 0 auto 24px;
@@ -276,6 +286,25 @@ a {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 16px;
+}
+
+.marketing-grid {
+    margin-bottom: 18px;
+}
+
+.marketing-card {
+    background: linear-gradient(180deg, #ffffff, #f4fbff);
+}
+
+.use-case-panel {
+    padding: 20px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-lg);
+    background: rgba(255, 255, 255, 0.82);
+}
+
+.use-case-panel h3 {
+    margin-top: 0;
 }
 
 .info-card,

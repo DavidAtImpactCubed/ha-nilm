@@ -17,6 +17,29 @@ $journeys = [
     ],
 ];
 
+$valueProps = [
+    [
+        'title' => 'Turn one mains sensor into appliance insight',
+        'body' => 'NILM uses a single aggregate power signal and learned appliance models to estimate what individual appliances are doing, without requiring one physical smart plug for every device.',
+    ],
+    [
+        'title' => 'Train models from your own Home Assistant history',
+        'body' => 'Instead of relying only on generic signatures, you can create appliance models from your own data, which makes the system better adapted to your home, your devices, and your sensors.',
+    ],
+    [
+        'title' => 'Move from raw power to actionable entities',
+        'body' => 'Once a model is good enough, NILM can publish live appliance power and on/off entities back into Home Assistant so you can use them in dashboards, automations, and energy workflows.',
+    ],
+];
+
+$useCases = [
+    'Understand which appliances are likely responsible for peaks in mains power.',
+    'Create virtual appliance entities for devices that do not have dedicated sensors.',
+    'Compare trained models on historical intervals before enabling live publishing.',
+    'Debug appliance behavior by inspecting predicted power, ON/OFF state, probability p, and threshold thr.',
+    'Build a more detailed energy view in Home Assistant without full hardware submetering.',
+];
+
 $essentials = [
     'A mains power sensor available in Home Assistant.',
     'The NILM app installed and running.',
@@ -29,8 +52,18 @@ $sections = [
         'id' => 'overview',
         'title' => 'Overview',
         'eyebrow' => 'Getting Started',
-        'intro' => 'NILM for Home Assistant is split into two apps that work together: the main NILM app for live inference and visualization, and NILM Training Server for appliance training.',
+        'intro' => 'NILM brings appliance-level visibility to Home Assistant from a single mains power signal. It combines live inference, historical disaggregation preview, and user-driven appliance training in one workflow.',
         'blocks' => [
+            [
+                'type' => 'list',
+                'title' => 'Why a Home Assistant user would want this',
+                'items' => [
+                    'You can estimate appliance activity without putting a separate plug or meter on every device.',
+                    'You can train models from your own home data instead of relying only on generic assumptions.',
+                    'You can preview and validate a model before exposing it as a live entity in Home Assistant.',
+                    'You can turn raw mains power into appliance-level signals that are more useful for automations and energy understanding.',
+                ],
+            ],
             [
                 'type' => 'cards',
                 'items' => [
@@ -485,12 +518,13 @@ function render_block(array $block): void
         <main class="content">
             <header class="hero">
                 <button class="nav-toggle" id="navToggle" type="button" aria-expanded="false" aria-controls="sidebar">Menu</button>
-                <span class="hero-kicker">Documentation Website</span>
+                <span class="hero-kicker">Home Assistant NILM</span>
                 <h2>NILM Apps For Home Assistant</h2>
                 <p>
-                    This documentation is written for Home Assistant users who want to install the apps,
-                    connect the training server, configure the mains sensor, train appliance models,
-                    preview disaggregation, and publish live entities back into Home Assistant.
+                    NILM helps you understand what is happening behind your aggregate power signal.
+                    Instead of seeing only total mains consumption, you can train appliance models,
+                    preview disaggregation on historical ranges, and publish live appliance entities
+                    back into Home Assistant.
                 </p>
 
                 <div class="hero-actions">
@@ -499,6 +533,32 @@ function render_block(array $block): void
                     <a href="#training" class="button secondary">Open Training Guide</a>
                 </div>
             </header>
+
+            <section class="hero-proof">
+                <div class="section-head compact">
+                    <span class="eyebrow">What NILM Is Useful For</span>
+                    <h2>Why this is more than just another add-on</h2>
+                    <p>NILM is useful when you want appliance-level insight without instrumenting every device individually. It is designed for Home Assistant users who want a practical path from one mains sensor to virtual appliance entities.</p>
+                </div>
+
+                <div class="card-grid marketing-grid">
+                    <?php foreach ($valueProps as $item): ?>
+                        <article class="info-card marketing-card">
+                            <h4><?= htmlspecialchars($item['title']) ?></h4>
+                            <p><?= htmlspecialchars($item['body']) ?></p>
+                        </article>
+                    <?php endforeach; ?>
+                </div>
+
+                <div class="use-case-panel">
+                    <h3>Typical reasons to use NILM</h3>
+                    <ul class="bullet-list">
+                        <?php foreach ($useCases as $item): ?>
+                            <li><?= htmlspecialchars($item) ?></li>
+                        <?php endforeach; ?>
+                    </ul>
+                </div>
+            </section>
 
             <section class="journey-strip">
                 <div class="journey-panel">
