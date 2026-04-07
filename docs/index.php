@@ -40,6 +40,28 @@ $useCases = [
     'Build a more detailed energy view in Home Assistant without full hardware submetering.',
 ];
 
+$whatNilmMeans = [
+    'NILM stands for Non-Intrusive Load Monitoring.',
+    'Non-intrusive means the system works from an aggregate mains signal instead of requiring a dedicated physical meter on each appliance.',
+    'Load monitoring means the system tries to infer appliance-level behavior such as estimated power and ON/OFF state from that aggregate signal.',
+    'In practical Home Assistant terms, NILM tries to answer a question like: “Given only my mains power, what is my fridge, oven, or dishwasher likely doing right now?”',
+];
+
+$howItWorks = [
+    'NILM starts from one mains power sensor that represents the total consumption of the home or monitored circuit.',
+    'The user prepares appliance training data from Home Assistant history, either with manual intervals or with a ground-truth appliance sensor.',
+    'The training server turns that prepared data into an appliance model that represents the target appliance in the embedding space used by the system.',
+    'Later, the NILM app compares the live or historical mains signal against those trained appliance models and estimates appliance-level power and ON/OFF behavior.',
+    'The result can be previewed in the dashboard and, if useful, published as live Home Assistant entities.',
+];
+
+$expectations = [
+    'NILM is an estimation system, not a certified submeter. It is useful for insight, monitoring, debugging, and automations, but it will not always be perfect.',
+    'The better the mains signal quality and the better the training examples, the better the appliance-level predictions tend to be.',
+    'Some appliances are easier than others. Distinctive, repeatable signatures are usually easier to learn and validate than subtle or overlapping ones.',
+    'The product is most useful when you want a practical middle ground between “only mains power” and “a hardware meter on every device.”',
+];
+
 $essentials = [
     'A mains power sensor available in Home Assistant.',
     'The NILM app installed and running.',
@@ -56,6 +78,16 @@ $sections = [
         'blocks' => [
             [
                 'type' => 'list',
+                'title' => 'What NILM means',
+                'items' => $whatNilmMeans,
+            ],
+            [
+                'type' => 'list',
+                'title' => 'How this product works in practice',
+                'items' => $howItWorks,
+            ],
+            [
+                'type' => 'list',
                 'title' => 'Why a Home Assistant user would want this',
                 'items' => [
                     'You can estimate appliance activity without putting a separate plug or meter on every device.',
@@ -63,6 +95,11 @@ $sections = [
                     'You can preview and validate a model before exposing it as a live entity in Home Assistant.',
                     'You can turn raw mains power into appliance-level signals that are more useful for automations and energy understanding.',
                 ],
+            ],
+            [
+                'type' => 'callout',
+                'title' => 'Important expectation',
+                'body' => 'NILM is designed to give useful appliance-level insight from one mains signal, not to replace a full hardware submetering setup. Its value is in practical visibility, validation, and automation support with much lower instrumentation effort.',
             ],
             [
                 'type' => 'cards',
@@ -91,6 +128,11 @@ $sections = [
                     'Inspect appliance on/off probability and threshold behavior directly in the dashboard.',
                     'Publish appliance power and on/off entities back into Home Assistant.',
                 ],
+            ],
+            [
+                'type' => 'list',
+                'title' => 'What to expect from results',
+                'items' => $expectations,
             ],
         ],
     ],
@@ -536,9 +578,9 @@ function render_block(array $block): void
 
             <section class="hero-proof">
                 <div class="section-head compact">
-                    <span class="eyebrow">What NILM Is Useful For</span>
-                    <h2>Why this is more than just another add-on</h2>
-                    <p>NILM is useful when you want appliance-level insight without instrumenting every device individually. It is designed for Home Assistant users who want a practical path from one mains sensor to virtual appliance entities.</p>
+                    <span class="eyebrow">What NILM Actually Is</span>
+                    <h2>From one mains signal to appliance-level visibility</h2>
+                    <p>NILM stands for Non-Intrusive Load Monitoring. In this project, it means using one aggregate mains power sensor plus appliance-specific models to estimate which appliances are active, how much power they are likely drawing, and whether they are ON or OFF.</p>
                 </div>
 
                 <div class="card-grid marketing-grid">
@@ -551,7 +593,7 @@ function render_block(array $block): void
                 </div>
 
                 <div class="use-case-panel">
-                    <h3>Typical reasons to use NILM</h3>
+                    <h3>Typical reasons to use NILM in Home Assistant</h3>
                     <ul class="bullet-list">
                         <?php foreach ($useCases as $item): ?>
                             <li><?= htmlspecialchars($item) ?></li>
