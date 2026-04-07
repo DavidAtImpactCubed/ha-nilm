@@ -631,11 +631,6 @@ function render_block(array $block): void
                     </a>
                 </div>
 
-                <div class="hero-actions">
-                    <a href="#installation" class="button primary">Start Setup</a>
-                    <a href="#energy-dashboard" class="button secondary">Open Dashboard Guide</a>
-                    <a href="#training" class="button secondary">Open Training Guide</a>
-                </div>
             </header>
 
             <section class="hero-proof">
