@@ -1,9 +1,46 @@
 const navToggle = document.getElementById("navToggle");
 const sidebar = document.getElementById("sidebar");
+const consentBanner = document.getElementById("consentBanner");
+const acceptConsentBtn = document.getElementById("acceptConsentBtn");
+const rejectConsentBtn = document.getElementById("rejectConsentBtn");
+const manageConsentBtn = document.getElementById("manageConsentBtn");
 const trackedSections = new Set();
 const trackedDepths = new Set();
+const CONSENT_KEY = "nilm_docs_analytics_consent";
+
+function getConsentState() {
+    try {
+        return window.localStorage.getItem(CONSENT_KEY);
+    } catch (_error) {
+        return null;
+    }
+}
+
+function setConsentState(value) {
+    try {
+        window.localStorage.setItem(CONSENT_KEY, value);
+    } catch (_error) {
+        // Ignore storage errors and fail closed.
+    }
+}
+
+function hasAnalyticsConsent() {
+    return getConsentState() === "accepted";
+}
+
+function updateConsentBanner() {
+    if (!consentBanner) {
+        return;
+    }
+    const consent = getConsentState();
+    consentBanner.hidden = consent === "accepted" || consent === "rejected";
+}
 
 function sendTrackingEvent(payload) {
+    if (!hasAnalyticsConsent()) {
+        return;
+    }
+
     const body = JSON.stringify({
         ...payload,
         path: window.location.pathname,
@@ -26,6 +63,34 @@ function sendTrackingEvent(payload) {
     }).catch(() => {});
 }
 
+updateConsentBanner();
+
+if (acceptConsentBtn) {
+    acceptConsentBtn.addEventListener("click", () => {
+        setConsentState("accepted");
+        updateConsentBanner();
+        sendTrackingEvent({ type: "page_view", label: "docs-index" });
+    });
+}
+
+if (rejectConsentBtn) {
+    rejectConsentBtn.addEventListener("click", () => {
+        setConsentState("rejected");
+        updateConsentBanner();
+    });
+}
+
+if (manageConsentBtn) {
+    manageConsentBtn.addEventListener("click", () => {
+        try {
+            window.localStorage.removeItem(CONSENT_KEY);
+        } catch (_error) {
+            // Ignore storage errors.
+        }
+        updateConsentBanner();
+    });
+}
+
 if (navToggle && sidebar) {
     navToggle.addEventListener("click", () => {
         const isOpen = sidebar.classList.toggle("is-open");
@@ -40,7 +105,9 @@ if (navToggle && sidebar) {
     });
 }
 
-sendTrackingEvent({ type: "page_view", label: "docs-index" });
+if (hasAnalyticsConsent()) {
+    sendTrackingEvent({ type: "page_view", label: "docs-index" });
+}
 
 document.querySelectorAll("[data-track]").forEach((element) => {
     element.addEventListener("click", () => {

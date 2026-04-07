@@ -617,9 +617,28 @@ function render_block(array $block): void
                     <a href="#energy-dashboard" data-track="cta" data-track-label="Footer dashboard">Energy Dashboard</a>
                     <a href="#training" data-track="cta" data-track-label="Footer training">Training</a>
                     <a href="./stats.php" data-track="cta" data-track-label="Footer stats">Usage Stats</a>
+                    <button type="button" class="link-button" id="manageConsentBtn">Analytics Preferences</button>
                 </div>
             </footer>
         </main>
+    </div>
+
+    <div class="consent-banner" id="consentBanner" hidden>
+        <div class="consent-content">
+            <div>
+                <span class="eyebrow">Privacy</span>
+                <h3>Analytics consent</h3>
+                <p>
+                    This documentation site can collect privacy-friendly usage analytics such as page views,
+                    section views, CTA clicks, and scroll depth to help evaluate interest in the NILM apps.
+                    No analytics data is sent unless you explicitly accept.
+                </p>
+            </div>
+            <div class="consent-actions">
+                <button type="button" class="button secondary consent-btn" id="rejectConsentBtn">Reject</button>
+                <button type="button" class="button primary consent-btn" id="acceptConsentBtn">Accept analytics</button>
+            </div>
+        </div>
     </div>
 
     <script src="./assets/docs.js"></script>
