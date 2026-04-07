@@ -307,6 +307,23 @@ a {
     margin-top: 0;
 }
 
+.pitch-panel {
+    margin-top: 18px;
+    padding: 22px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-lg);
+    background: linear-gradient(180deg, #ffffff, #f7fbfe);
+}
+
+.pitch-panel h3 {
+    margin-top: 0;
+}
+
+.pitch-panel p {
+    color: var(--muted);
+    line-height: 1.7;
+}
+
 .info-card,
 .callout,
 .faq-item {

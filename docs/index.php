@@ -1,4 +1,8 @@
 <?php
+$githubRepoUrl = 'https://github.com/lgarciamarrero92/ha-nilm';
+$haStoreUrl = 'https://my.home-assistant.io/redirect/supervisor_store/';
+$haAddRepositoryUrl = 'https://my.home-assistant.io/redirect/supervisor_add_addon_repository/?repository_url=https%3A%2F%2Fgithub.com%2Flgarciamarrero92%2Fha-nilm';
+
 $journeys = [
     [
         'title' => 'First-time setup',
@@ -62,6 +66,29 @@ $expectations = [
     'The product is most useful when you want a practical middle ground between “only mains power” and “a hardware meter on every device.”',
 ];
 
+$ilmVsNilm = [
+    [
+        'title' => 'ILM: Intrusive Load Monitoring',
+        'body' => 'ILM usually means measuring appliances with dedicated hardware such as smart plugs, clamp meters, or individual submeters. It gives direct readings per device, but it requires more hardware, more installation effort, and usually a higher cost as the number of monitored appliances grows.',
+    ],
+    [
+        'title' => 'NILM: Non-Intrusive Load Monitoring',
+        'body' => 'NILM starts from a single aggregate mains signal and tries to infer appliance-level behavior with trained models. It is less direct than ILM, but far easier and cheaper to scale because you do not need one physical meter per appliance.',
+    ],
+    [
+        'title' => 'Why the tradeoff is attractive',
+        'body' => 'For many Home Assistant users, the goal is not laboratory-grade submetering. The goal is useful visibility, virtual appliance entities, and energy understanding without deploying hardware everywhere. That is exactly where NILM becomes attractive.',
+    ],
+];
+
+$costBenefits = [
+    'Lower hardware cost because the system can start from one mains sensor.',
+    'Lower installation effort because you do not need to wire or pair a separate monitor for every appliance.',
+    'Better scalability because adding insight for another appliance can come from training, not from buying another device.',
+    'Better Home Assistant integration because predictions can become virtual appliance entities used in dashboards and automations.',
+    'A realistic tradeoff: lower cost and faster deployment in exchange for estimation instead of direct per-device measurement.',
+];
+
 $essentials = [
     'A mains power sensor available in Home Assistant.',
     'The NILM app installed and running.',
@@ -74,12 +101,17 @@ $sections = [
         'id' => 'overview',
         'title' => 'Overview',
         'eyebrow' => 'Getting Started',
-        'intro' => 'NILM brings appliance-level visibility to Home Assistant from a single mains power signal. It combines live inference, historical disaggregation preview, and user-driven appliance training in one workflow.',
+        'intro' => 'NILM brings appliance-level visibility to Home Assistant from a single mains power signal. It is designed for users who want more than total consumption, but do not want the cost and complexity of physically metering every appliance.',
         'blocks' => [
             [
                 'type' => 'list',
                 'title' => 'What NILM means',
                 'items' => $whatNilmMeans,
+            ],
+            [
+                'type' => 'cards',
+                'title' => 'ILM vs NILM',
+                'items' => $ilmVsNilm,
             ],
             [
                 'type' => 'list',
@@ -95,6 +127,11 @@ $sections = [
                     'You can preview and validate a model before exposing it as a live entity in Home Assistant.',
                     'You can turn raw mains power into appliance-level signals that are more useful for automations and energy understanding.',
                 ],
+            ],
+            [
+                'type' => 'list',
+                'title' => 'Cost and benefit tradeoff',
+                'items' => $costBenefits,
             ],
             [
                 'type' => 'callout',
@@ -563,16 +600,19 @@ function render_block(array $block): void
                 <span class="hero-kicker">Home Assistant NILM</span>
                 <h2>NILM Apps For Home Assistant</h2>
                 <p>
-                    NILM helps you understand what is happening behind your aggregate power signal.
-                    Instead of seeing only total mains consumption, you can train appliance models,
-                    preview disaggregation on historical ranges, and publish live appliance entities
-                    back into Home Assistant.
+                    NILM helps you move from one aggregate mains signal to appliance-level insight.
+                    Instead of seeing only total consumption, you can estimate which appliances are active,
+                    preview their behavior on historical ranges, and publish virtual appliance entities back
+                    into Home Assistant without deploying dedicated hardware on every device.
                 </p>
 
                 <div class="hero-actions">
                     <a href="#installation" class="button primary">Start Setup</a>
                     <a href="#energy-dashboard" class="button secondary">Open Dashboard Guide</a>
                     <a href="#training" class="button secondary">Open Training Guide</a>
+                    <a href="<?= htmlspecialchars($githubRepoUrl) ?>" class="button secondary" target="_blank" rel="noopener noreferrer" data-track="cta" data-track-label="Hero GitHub">GitHub Repository</a>
+                    <a href="<?= htmlspecialchars($haAddRepositoryUrl) ?>" class="button secondary" target="_blank" rel="noopener noreferrer" data-track="cta" data-track-label="Hero Add Repository">Add Repository To Home Assistant</a>
+                    <a href="<?= htmlspecialchars($haStoreUrl) ?>" class="button secondary" target="_blank" rel="noopener noreferrer" data-track="cta" data-track-label="Hero Open Store">Open Home Assistant Store</a>
                 </div>
             </header>
 
@@ -580,7 +620,7 @@ function render_block(array $block): void
                 <div class="section-head compact">
                     <span class="eyebrow">What NILM Actually Is</span>
                     <h2>From one mains signal to appliance-level visibility</h2>
-                    <p>NILM stands for Non-Intrusive Load Monitoring. In this project, it means using one aggregate mains power sensor plus appliance-specific models to estimate which appliances are active, how much power they are likely drawing, and whether they are ON or OFF.</p>
+                    <p>NILM stands for Non-Intrusive Load Monitoring. In this project, it means using one aggregate mains power sensor plus appliance-specific models to estimate which appliances are active, how much power they are likely drawing, and whether they are ON or OFF. It is the practical alternative to instrumenting every appliance with its own dedicated meter.</p>
                 </div>
 
                 <div class="card-grid marketing-grid">
@@ -599,6 +639,21 @@ function render_block(array $block): void
                             <li><?= htmlspecialchars($item) ?></li>
                         <?php endforeach; ?>
                     </ul>
+                </div>
+
+                <div class="pitch-panel">
+                    <h3>Why this product can be worth installing</h3>
+                    <p>
+                        If you already had dedicated metering for every appliance, you would not need NILM.
+                        The reason to use NILM is that full ILM-style instrumentation is expensive, time-consuming,
+                        and often unrealistic for an existing home. NILM gives you a lower-cost path to appliance-level
+                        insight by reusing a mains signal you may already have in Home Assistant.
+                    </p>
+                    <p>
+                        The value is not only in visualization. Once a trained model is useful enough, NILM can expose
+                        live appliance entities inside Home Assistant, which means you can build dashboards, automations,
+                        and energy workflows around appliances that do not have direct physical sensors.
+                    </p>
                 </div>
             </section>
 
