@@ -2,6 +2,10 @@
 
 This folder contains end-user documentation for the `NILM` and `NILM Training Server` Home Assistant apps.
 
+If you want to publish the documentation as a website on a PHP-capable host such as Hostinger, the entry page is:
+
+- [index.php](/c:/Users/lgarc/Repositories/ha-nilm/docs/index.php)
+
 It is written for Home Assistant users who want to:
 
 - install the apps
@@ -82,4 +86,3 @@ The UI shows a `Training Quality` score for each appliance model. This is a mode
 ### Live Publishing
 
 When live publishing is enabled for a model, the app creates Home Assistant entities for that appliance and keeps updating them while the app is running.
-
