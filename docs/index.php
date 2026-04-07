@@ -585,8 +585,8 @@ function render_block(array $block): void
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>NILM Apps Documentation</title>
-    <meta name="description" content="User documentation for the NILM and NILM Training Server Home Assistant apps.">
+    <title>Non-Intrusive Load Monitoring for Home Assistant</title>
+    <meta name="description" content="Documentation for Non-Intrusive Load Monitoring for Home Assistant, including installation, appliance training, energy dashboard usage, live entities, and troubleshooting.">
     <link rel="stylesheet" href="./assets/docs.css">
 </head>
 <body>
@@ -595,7 +595,7 @@ function render_block(array $block): void
             <div class="sidebar-inner">
                 <div class="brand">
                     <span class="brand-kicker">Home Assistant</span>
-                    <h1>NILM Docs</h1>
+                    <h1>Non-Intrusive Load Monitoring for Home Assistant</h1>
                     <p>User documentation for the NILM and NILM Training Server apps.</p>
                 </div>
 
@@ -615,8 +615,8 @@ function render_block(array $block): void
         <main class="content">
             <header class="hero">
                 <button class="nav-toggle" id="navToggle" type="button" aria-expanded="false" aria-controls="sidebar">Menu</button>
-                <span class="hero-kicker">Home Assistant NILM</span>
-                <h2>NILM Apps For Home Assistant</h2>
+                <span class="hero-kicker">Home Assistant Energy Intelligence</span>
+                <h2>Non-Intrusive Load Monitoring for Home Assistant</h2>
                 <p>
                     NILM helps you move from one aggregate mains signal to appliance-level insight.
                     Instead of seeing only total consumption, you can estimate which appliances are active,
@@ -652,7 +652,7 @@ function render_block(array $block): void
 
             </header>
 
-            <section class="hero-proof">
+            <div class="hero-proof">
                 <div class="section-head compact">
                     <span class="eyebrow">What NILM Actually Is</span>
                     <h2>From one mains signal to appliance-level visibility</h2>
@@ -691,9 +691,9 @@ function render_block(array $block): void
                         and energy workflows around appliances that do not have direct physical sensors.
                     </p>
                 </div>
-            </section>
+            </div>
 
-            <section class="journey-strip">
+            <div class="journey-strip">
                 <div class="journey-panel">
                     <div class="section-head compact">
                         <span class="eyebrow">Start Here</span>
@@ -722,7 +722,7 @@ function render_block(array $block): void
                     </ul>
                     <a href="#troubleshooting" class="mini-link" data-track="cta" data-track-label="Troubleshooting quick link">Need help with setup?</a>
                 </aside>
-            </section>
+            </div>
 
             <?php foreach ($sectionOrder as $sectionId):
                 $section = $sectionsById[$sectionId] ?? null;
