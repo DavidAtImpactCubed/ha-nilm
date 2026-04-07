@@ -313,7 +313,7 @@ $sections = [
     ],
     [
         'id' => 'training',
-        'title' => 'Appliance Training Session',
+        'title' => 'How to train your first appliance',
         'eyebrow' => 'Model Training',
         'intro' => 'Appliance Training Session is the page used to prepare training data from Home Assistant history and send the job to the training server.',
         'blocks' => [
@@ -508,6 +508,20 @@ $sections = [
     ],
 ];
 
+$sectionOrder = [
+    'overview',
+    'installation',
+    'training',
+    'energy-dashboard',
+    'entities',
+    'troubleshooting',
+];
+
+$sectionsById = [];
+foreach ($sections as $section) {
+    $sectionsById[$section['id']] = $section;
+}
+
 function render_block(array $block): void
 {
     $type = $block['type'] ?? '';
@@ -586,7 +600,12 @@ function render_block(array $block): void
                 </div>
 
                 <nav class="toc" aria-label="Documentation sections">
-                    <?php foreach ($sections as $section): ?>
+                    <?php foreach ($sectionOrder as $sectionId):
+                        $section = $sectionsById[$sectionId] ?? null;
+                        if (!$section) {
+                            continue;
+                        }
+                    ?>
                         <a href="#<?= htmlspecialchars($section['id']) ?>"><?= htmlspecialchars($section['title']) ?></a>
                     <?php endforeach; ?>
                 </nav>
@@ -705,7 +724,12 @@ function render_block(array $block): void
                 </aside>
             </section>
 
-            <?php foreach ($sections as $section): ?>
+            <?php foreach ($sectionOrder as $sectionId):
+                $section = $sectionsById[$sectionId] ?? null;
+                if (!$section) {
+                    continue;
+                }
+            ?>
                 <section id="<?= htmlspecialchars($section['id']) ?>" class="doc-section">
                     <div class="section-head">
                         <span class="eyebrow"><?= htmlspecialchars($section['eyebrow']) ?></span>
