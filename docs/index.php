@@ -1,6 +1,5 @@
 <?php
 $githubRepoUrl = 'https://github.com/lgarciamarrero92/ha-nilm';
-$haStoreUrl = 'https://my.home-assistant.io/redirect/supervisor_store/';
 $haAddRepositoryUrl = 'https://my.home-assistant.io/redirect/supervisor_add_addon_repository/?repository_url=https%3A%2F%2Fgithub.com%2Flgarciamarrero92%2Fha-nilm';
 
 $journeys = [
@@ -48,7 +47,7 @@ $whatNilmMeans = [
     'NILM stands for Non-Intrusive Load Monitoring.',
     'Non-intrusive means the system works from an aggregate mains signal instead of requiring a dedicated physical meter on each appliance.',
     'Load monitoring means the system tries to infer appliance-level behavior such as estimated power and ON/OFF state from that aggregate signal.',
-    'In practical Home Assistant terms, NILM tries to answer a question like: “Given only my mains power, what is my fridge, oven, or dishwasher likely doing right now?”',
+    'In practical Home Assistant terms, NILM tries to answer a question like: "Given only my mains power, what is my fridge, oven, or dishwasher likely doing right now?"',
 ];
 
 $howItWorks = [
@@ -63,7 +62,7 @@ $expectations = [
     'NILM is an estimation system, not a certified submeter. It is useful for insight, monitoring, debugging, and automations, but it will not always be perfect.',
     'The better the mains signal quality and the better the training examples, the better the appliance-level predictions tend to be.',
     'Some appliances are easier than others. Distinctive, repeatable signatures are usually easier to learn and validate than subtle or overlapping ones.',
-    'The product is most useful when you want a practical middle ground between “only mains power” and “a hardware meter on every device.”',
+    'The product is most useful when you want a practical middle ground between "only mains power" and "a hardware meter on every device."',
 ];
 
 $ilmVsNilm = [
@@ -606,13 +605,36 @@ function render_block(array $block): void
                     into Home Assistant without deploying dedicated hardware on every device.
                 </p>
 
+                <div class="hero-links">
+                    <a href="<?= htmlspecialchars($githubRepoUrl) ?>" class="product-link" target="_blank" rel="noopener noreferrer" data-track="cta" data-track-label="Hero GitHub">
+                        <span class="product-link-icon" aria-hidden="true">
+                            <svg viewBox="0 0 24 24" role="img" focusable="false">
+                                <path d="M12 2C6.48 2 2 6.58 2 12.23c0 4.52 2.87 8.35 6.84 9.71.5.1.68-.22.68-.49 0-.24-.01-1.04-.01-1.88-2.78.62-3.37-1.21-3.37-1.21-.45-1.18-1.11-1.49-1.11-1.49-.91-.64.07-.63.07-.63 1 .08 1.53 1.06 1.53 1.06.9 1.57 2.36 1.12 2.94.86.09-.67.35-1.12.64-1.38-2.22-.26-4.56-1.14-4.56-5.09 0-1.13.39-2.06 1.03-2.79-.1-.26-.45-1.31.1-2.74 0 0 .84-.28 2.75 1.07A9.3 9.3 0 0 1 12 6.84c.85 0 1.71.12 2.52.35 1.91-1.35 2.75-1.07 2.75-1.07.55 1.43.2 2.48.1 2.74.64.73 1.03 1.66 1.03 2.79 0 3.96-2.34 4.83-4.57 5.08.36.32.68.94.68 1.9 0 1.37-.01 2.47-.01 2.81 0 .27.18.59.69.49A10.27 10.27 0 0 0 22 12.23C22 6.58 17.52 2 12 2Z" fill="currentColor"/>
+                            </svg>
+                        </span>
+                        <span>
+                            <strong>GitHub Repository</strong>
+                            <small>View source code, releases, and project details</small>
+                        </span>
+                    </a>
+
+                    <a href="<?= htmlspecialchars($haAddRepositoryUrl) ?>" class="product-link" target="_blank" rel="noopener noreferrer" data-track="cta" data-track-label="Hero Add Repository">
+                        <span class="product-link-icon" aria-hidden="true">
+                            <svg viewBox="0 0 24 24" role="img" focusable="false">
+                                <path d="M12 2.5 4 6.6v5.96c0 4.62 3.2 8.92 8 9.94 4.8-1.02 8-5.32 8-9.94V6.6l-8-4.1Zm0 2.02 5.9 3.02-2.24 1.14-3.66-1.88-3.66 1.88L6.1 7.54 12 4.52Zm-6 4.64 5 2.56v8.35c-3.04-.95-5-3.98-5-7.51V9.16Zm7 10.91v-8.35l5-2.56v3.4c0 3.53-1.96 6.56-5 7.51Z" fill="currentColor"/>
+                            </svg>
+                        </span>
+                        <span>
+                            <strong>Install In Home Assistant</strong>
+                            <small>Add this repository directly to your Home Assistant app store</small>
+                        </span>
+                    </a>
+                </div>
+
                 <div class="hero-actions">
                     <a href="#installation" class="button primary">Start Setup</a>
                     <a href="#energy-dashboard" class="button secondary">Open Dashboard Guide</a>
                     <a href="#training" class="button secondary">Open Training Guide</a>
-                    <a href="<?= htmlspecialchars($githubRepoUrl) ?>" class="button secondary" target="_blank" rel="noopener noreferrer" data-track="cta" data-track-label="Hero GitHub">GitHub Repository</a>
-                    <a href="<?= htmlspecialchars($haAddRepositoryUrl) ?>" class="button secondary" target="_blank" rel="noopener noreferrer" data-track="cta" data-track-label="Hero Add Repository">Add Repository To Home Assistant</a>
-                    <a href="<?= htmlspecialchars($haStoreUrl) ?>" class="button secondary" target="_blank" rel="noopener noreferrer" data-track="cta" data-track-label="Hero Open Store">Open Home Assistant Store</a>
                 </div>
             </header>
 
@@ -741,3 +763,4 @@ function render_block(array $block): void
     <script src="./assets/docs.js"></script>
 </body>
 </html>
+
