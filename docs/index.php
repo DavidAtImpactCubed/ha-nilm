@@ -625,7 +625,7 @@ function render_block(array $block): void
             <div class="sidebar-inner">
                 <div class="brand">
                     <h1>NILM</h1>
-                    <p>Non-Intrusive Load Monitoring for Home Assistant.</p>
+                    <p>Non-Intrusive Load Monitoring for Home Assistant. Documentation for the NILM apps for Home Assistant.</p>
                 </div>
 
                 <nav class="toc" aria-label="Documentation sections">
