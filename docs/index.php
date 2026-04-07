@@ -103,6 +103,36 @@ $sections = [
         'intro' => 'NILM brings appliance-level visibility to Home Assistant from a single mains power signal. It is designed for users who want more than total consumption, but do not want the cost and complexity of physically metering every appliance.',
         'blocks' => [
             [
+                'type' => 'cards',
+                'items' => $valueProps,
+            ],
+            [
+                'type' => 'list',
+                'title' => 'Typical reasons to use NILM in Home Assistant',
+                'items' => $useCases,
+            ],
+            [
+                'type' => 'callout',
+                'title' => 'Why this product can be worth installing',
+                'body' => 'If you already had dedicated metering for every appliance, you would not need NILM. The reason to use NILM is that full ILM-style instrumentation is expensive, time-consuming, and often unrealistic for an existing home. NILM gives you a lower-cost path to appliance-level insight by reusing a mains signal you may already have in Home Assistant. Once a trained model is useful enough, NILM can also expose live appliance entities inside Home Assistant for dashboards, automations, and energy workflows.',
+            ],
+            [
+                'type' => 'list',
+                'title' => 'Documentation order',
+                'items' => [
+                    'Start with Installation And First Setup to get both apps running correctly.',
+                    'Continue with How to train your first appliance to create your first model.',
+                    'Use Energy Dashboard to validate models and inspect predictions on historical ranges.',
+                    'Check Live Entities In Home Assistant when you are ready to publish models for daily use.',
+                    'Use Troubleshooting And Practical Tips whenever behavior does not match expectations.',
+                ],
+            ],
+            [
+                'type' => 'list',
+                'title' => 'Before you begin',
+                'items' => $essentials,
+            ],
+            [
                 'type' => 'list',
                 'title' => 'What NILM means',
                 'items' => $whatNilmMeans,
@@ -594,9 +624,8 @@ function render_block(array $block): void
         <aside class="sidebar" id="sidebar">
             <div class="sidebar-inner">
                 <div class="brand">
-                    <span class="brand-kicker">Home Assistant</span>
-                    <h1>Non-Intrusive Load Monitoring for Home Assistant</h1>
-                    <p>User documentation for the NILM and NILM Training Server apps.</p>
+                    <h1>NILM</h1>
+                    <p>Non-Intrusive Load Monitoring for Home Assistant.</p>
                 </div>
 
                 <nav class="toc" aria-label="Documentation sections">
@@ -615,7 +644,6 @@ function render_block(array $block): void
         <main class="content">
             <header class="hero">
                 <button class="nav-toggle" id="navToggle" type="button" aria-expanded="false" aria-controls="sidebar">Menu</button>
-                <span class="hero-kicker">Home Assistant Energy Intelligence</span>
                 <h2>Non-Intrusive Load Monitoring for Home Assistant</h2>
                 <p>
                     NILM helps you move from one aggregate mains signal to appliance-level insight.
@@ -651,78 +679,6 @@ function render_block(array $block): void
                 </div>
 
             </header>
-
-            <div class="hero-proof">
-                <div class="section-head compact">
-                    <span class="eyebrow">What NILM Actually Is</span>
-                    <h2>From one mains signal to appliance-level visibility</h2>
-                    <p>NILM stands for Non-Intrusive Load Monitoring. In this project, it means using one aggregate mains power sensor plus appliance-specific models to estimate which appliances are active, how much power they are likely drawing, and whether they are ON or OFF. It is the practical alternative to instrumenting every appliance with its own dedicated meter.</p>
-                </div>
-
-                <div class="card-grid marketing-grid">
-                    <?php foreach ($valueProps as $item): ?>
-                        <article class="info-card marketing-card">
-                            <h4><?= htmlspecialchars($item['title']) ?></h4>
-                            <p><?= htmlspecialchars($item['body']) ?></p>
-                        </article>
-                    <?php endforeach; ?>
-                </div>
-
-                <div class="use-case-panel">
-                    <h3>Typical reasons to use NILM in Home Assistant</h3>
-                    <ul class="bullet-list">
-                        <?php foreach ($useCases as $item): ?>
-                            <li><?= htmlspecialchars($item) ?></li>
-                        <?php endforeach; ?>
-                    </ul>
-                </div>
-
-                <div class="pitch-panel">
-                    <h3>Why this product can be worth installing</h3>
-                    <p>
-                        If you already had dedicated metering for every appliance, you would not need NILM.
-                        The reason to use NILM is that full ILM-style instrumentation is expensive, time-consuming,
-                        and often unrealistic for an existing home. NILM gives you a lower-cost path to appliance-level
-                        insight by reusing a mains signal you may already have in Home Assistant.
-                    </p>
-                    <p>
-                        The value is not only in visualization. Once a trained model is useful enough, NILM can expose
-                        live appliance entities inside Home Assistant, which means you can build dashboards, automations,
-                        and energy workflows around appliances that do not have direct physical sensors.
-                    </p>
-                </div>
-            </div>
-
-            <div class="journey-strip">
-                <div class="journey-panel">
-                    <div class="section-head compact">
-                        <span class="eyebrow">Start Here</span>
-                        <h2>Choose the path that matches what you want to do</h2>
-                        <p>The documentation is organized around the real Home Assistant user flow, so you can jump directly to setup, dashboard usage, or training.</p>
-                    </div>
-
-                    <div class="journey-grid">
-                        <?php foreach ($journeys as $journey): ?>
-                            <a class="journey-card" href="<?= htmlspecialchars($journey['href']) ?>" data-track="cta" data-track-label="<?= htmlspecialchars($journey['title']) ?>">
-                                <h3><?= htmlspecialchars($journey['title']) ?></h3>
-                                <p><?= htmlspecialchars($journey['body']) ?></p>
-                                <span>Open section</span>
-                            </a>
-                        <?php endforeach; ?>
-                    </div>
-                </div>
-
-                <aside class="essentials-panel">
-                    <span class="eyebrow">Before You Begin</span>
-                    <h3>What you should already have</h3>
-                    <ul class="bullet-list compact">
-                        <?php foreach ($essentials as $item): ?>
-                            <li><?= htmlspecialchars($item) ?></li>
-                        <?php endforeach; ?>
-                    </ul>
-                    <a href="#troubleshooting" class="mini-link" data-track="cta" data-track-label="Troubleshooting quick link">Need help with setup?</a>
-                </aside>
-            </div>
 
             <?php foreach ($sectionOrder as $sectionId):
                 $section = $sectionsById[$sectionId] ?? null;

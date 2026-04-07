@@ -71,8 +71,6 @@ a {
     box-shadow: var(--shadow);
 }
 
-.brand-kicker,
-.hero-kicker,
 .eyebrow {
     display: inline-flex;
     align-items: center;
@@ -92,7 +90,9 @@ a {
 }
 
 .brand h1 {
-    font-size: 2rem;
+    font-size: 1.7rem;
+    line-height: 1;
+    margin: 0;
 }
 
 .brand p,
@@ -137,6 +137,14 @@ a {
 .doc-section {
     max-width: var(--content-max);
     margin: 0 auto 24px;
+}
+
+.hero {
+    padding: 28px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-xl);
+    background: linear-gradient(180deg, rgba(247, 252, 255, 0.95), rgba(255, 255, 255, 0.9));
+    box-shadow: var(--shadow);
 }
 
 .hero-proof {
@@ -594,7 +602,6 @@ a {
         padding: 18px;
     }
 
-    .journey-strip,
     .stats-columns,
     .site-footer {
         grid-template-columns: 1fr;
@@ -603,8 +610,6 @@ a {
 
     .hero,
     .doc-section,
-    .journey-panel,
-    .essentials-panel,
     .site-footer {
         padding: 22px;
     }
