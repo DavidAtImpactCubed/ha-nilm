@@ -950,7 +950,7 @@
                         <button type="button" class="action-btn action-neutral training-quick-range-btn" data-hours="168">7 d</button>
                     </div>
                 </div>
-                <div class="md:col-span-2 flex flex-wrap gap-2">
+                <div class="md:col-span-2 flex flex-wrap justify-end gap-2">
                     <button id="useCurrentViewRangeBtn" type="button" class="action-btn action-chart-view">
                         <i class="fas fa-magnifying-glass-chart mr-2" aria-hidden="true"></i> Use Current Chart View
                     </button>
@@ -1271,6 +1271,7 @@
     let quickRangeChangeHandler;
     let trainingRangeInputHandler;
     let trainingRangeSyncTimer = null;
+    let suppressTrainingRangeSync = false;
     let addManualIntervalHandler;
     let supervisionModeChangeHandler;
     let manualIntervalInputHandler;
@@ -1811,17 +1812,30 @@
             const endValue = formatForDateTimeLocal(endMs);
             const startDate = new Date(startMs);
             const endDate = new Date(endMs);
-            if (trainingRangeStartPickerInstance) {
-                trainingRangeStartPickerInstance.setDate(startDate, false);
-            }
-            if (trainingRangeStartInput) {
-                trainingRangeStartInput.value = startValue;
-            }
-            if (trainingRangeEndPickerInstance) {
-                trainingRangeEndPickerInstance.setDate(endDate, false);
-            }
-            if (trainingRangeEndInput) {
-                trainingRangeEndInput.value = endValue;
+            suppressTrainingRangeSync = true;
+            try {
+                if (trainingRangeStartPickerInstance) {
+                    trainingRangeStartPickerInstance.setDate(startDate, false);
+                    if (trainingRangeStartPickerInstance.altInput) {
+                        trainingRangeStartPickerInstance.altInput.value = startValue;
+                    }
+                }
+                if (trainingRangeStartInput) {
+                    trainingRangeStartInput.value = startValue;
+                }
+                if (trainingRangeEndPickerInstance) {
+                    trainingRangeEndPickerInstance.setDate(endDate, false);
+                    if (trainingRangeEndPickerInstance.altInput) {
+                        trainingRangeEndPickerInstance.altInput.value = endValue;
+                    }
+                }
+                if (trainingRangeEndInput) {
+                    trainingRangeEndInput.value = endValue;
+                }
+            } finally {
+                setTimeout(() => {
+                    suppressTrainingRangeSync = false;
+                }, 0);
             }
         }
 
@@ -1880,6 +1894,7 @@
         }
 
         function scheduleTrainingRangeSync() {
+            if (suppressTrainingRangeSync) return;
             if (trainingRangeSyncTimer) {
                 clearTimeout(trainingRangeSyncTimer);
             }
