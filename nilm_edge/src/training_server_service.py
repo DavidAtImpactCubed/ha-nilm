@@ -598,27 +598,10 @@ class TrainingServerServiceManager:
             await self._prune_heavy_job_fields(job_id)
             del prepared_job
             _release_process_memory()
-            metrics_lines = []
-            if deployment_onoff_f1 is not None:
-                metrics_lines.append(f"- ON/OFF F1: {float(deployment_onoff_f1):.3f}")
-            if deployment_onoff_threshold is not None:
-                metrics_lines.append(f"- ON/OFF threshold: {float(deployment_onoff_threshold):.2f}")
-            power_f1 = result.get("stats", {}).get("power_f1")
-            if power_f1 is not None:
-                metrics_lines.append(f"- Power F1: {float(power_f1):.3f}")
-            notification_message = "\n".join([
-                f"Training completed successfully for **{appliance_name}**.",
-                f"- Bundle: `{bundle_id}`",
-                f"- Job ID: `{job_id}`",
-                f"- Model path: `{saved_path}`",
-                "",
-                "The appliance model is now available for disaggregation in **Energy Dashboard**.",
-                *(metrics_lines or []),
-            ])
             await self._notify_training_result(
                 job_id=job_id,
                 title=f"NILM training finished: {appliance_name}",
-                message=notification_message,
+                message=f"Training completed successfully for {appliance_name}. The appliance model is now available for disaggregation in Energy Dashboard.",
             )
             print(
                 f"Training finalize done local_job_id={job_id} training_server_job_id={training_server_job_id} "
