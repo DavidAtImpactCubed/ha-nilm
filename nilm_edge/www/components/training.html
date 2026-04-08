@@ -894,10 +894,10 @@
             <div class="mb-4">
                 <label for="supervisionModeSelect" class="field-label">Supervision Mode</label>
                 <select id="supervisionModeSelect" class="field-input">
-                    <option value="intervals" selected>ON intervals in mains</option>
-                    <option value="sensor">Ground-truth appliance power sensor</option>
+                    <option value="sensor" selected>Ground-truth appliance power sensor</option>
+                    <option value="intervals">ON intervals in mains</option>
                 </select>
-                <p id="supervisionModeHint" class="text-xs text-slate-500 mt-2">Use interval supervision when you only know when the appliance was ON inside the mains signal.</p>
+                <p id="supervisionModeHint" class="text-xs text-slate-500 mt-2">Use sensor supervision when you have a Home Assistant power sensor for this appliance.</p>
             </div>
             <div class="mb-4">
                 <label for="applianceNameInput" class="field-label">Appliance Name (e.g., Refrigerator)</label>
