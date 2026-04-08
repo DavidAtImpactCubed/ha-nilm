@@ -539,6 +539,15 @@
         min-width: 0;
     }
 
+    .training-step.is-clickable {
+        cursor: pointer;
+    }
+
+    .training-step.is-clickable:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08);
+    }
+
     .training-step.is-current {
         border-color: #7dd3fc;
         background: linear-gradient(180deg, rgba(224, 242, 254, 0.88), rgba(255, 255, 255, 0.96));
@@ -592,6 +601,34 @@
         line-height: 1.25;
     }
 
+    .training-step-panel {
+        display: none;
+    }
+
+    .training-step-panel.is-visible {
+        display: block;
+    }
+
+    .training-wizard-nav {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        margin-bottom: 18px;
+        padding: 14px 16px;
+        border: 1px solid #e2e8f0;
+        border-radius: 16px;
+        background: rgba(255, 255, 255, 0.88);
+    }
+
+    .training-wizard-status {
+        color: #475569;
+        font-size: 0.9rem;
+        font-weight: 700;
+        text-align: center;
+        flex: 1 1 auto;
+    }
+
     @media (max-width: 640px) {
         .nilm-training {
             padding: 12px;
@@ -618,6 +655,13 @@
         .training-stepper {
             grid-template-columns: 1fr;
             gap: 8px;
+        }
+        .training-wizard-nav {
+            flex-direction: column;
+            align-items: stretch;
+        }
+        .training-wizard-status {
+            text-align: left;
         }
         .panel-surface {
             padding: 14px;
@@ -780,29 +824,36 @@
                 <div class="training-step-note">Choose appliance name and supervision</div>
             </div>
         </div>
-        <div class="training-step" data-step="labels">
+        <div class="training-step" data-step="interval">
             <span class="training-step-index">3</span>
             <div class="training-step-copy">
+                <div class="training-step-title">Interval</div>
+                <div class="training-step-note">Choose the mains range for training</div>
+            </div>
+        </div>
+        <div class="training-step" data-step="labels">
+            <span class="training-step-index">4</span>
+            <div class="training-step-copy">
                 <div class="training-step-title">Labels</div>
-                <div class="training-step-note">Add intervals or choose a sensor</div>
+                <div class="training-step-note">Draw intervals or choose a sensor</div>
             </div>
         </div>
         <div class="training-step" data-step="prepare">
-            <span class="training-step-index">4</span>
-            <div class="training-step-copy">
-                <div class="training-step-title">Prepare</div>
-                <div class="training-step-note">Build the training package</div>
-            </div>
-        </div>
-        <div class="training-step" data-step="train">
             <span class="training-step-index">5</span>
             <div class="training-step-copy">
-                <div class="training-step-title">Train</div>
-                <div class="training-step-note">Send and follow job progress</div>
+                <div class="training-step-title">Prepare & Send</div>
+                <div class="training-step-note">Build the package and follow the job</div>
             </div>
         </div>
     </div>
 
+    <div class="training-wizard-nav">
+        <button id="trainingWizardPrevBtn" class="action-btn action-neutral" type="button">Previous Step</button>
+        <div id="trainingWizardStatus" class="training-wizard-status">Step 1 of 5</div>
+        <button id="trainingWizardNextBtn" class="action-btn action-primary" type="button">Next Step</button>
+    </div>
+
+    <div id="trainingServerStepPanel" class="training-step-panel" data-wizard-step="server">
     <div id="trainingServerStatusCard" class="training-server-status-card">
         <div class="training-server-status-copy">
             <div class="training-server-status-header">
@@ -823,10 +874,11 @@
             <div id="trainingServerConfigMeta" class="training-server-config-meta hidden"></div>
         </div>
     </div>
+    </div>
 
     <main class="space-y-6">
         <!-- Appliance for Training Section -->
-        <div class="panel-surface">
+        <div id="trainingApplianceStepPanel" class="training-step-panel panel-surface" data-wizard-step="appliance">
             <h2 class="text-xl font-semibold mb-4 border-b pb-2">Appliance for Training</h2>
             <div class="mb-4">
                 <label for="supervisionModeSelect" class="field-label">Supervision Mode</label>
@@ -841,22 +893,15 @@
                 <input type="text" id="applianceNameInput" class="field-input" placeholder="Enter appliance name">
                 <p id="applianceNameError" class="text-red-500 text-xs mt-1 hidden">Appliance name is required.</p>
             </div>
-            <div id="sensorSupervisionSection" class="mb-4 hidden">
-                <label for="applianceSensorSelect" class="field-label">Ground-Truth Appliance Sensor</label>
-                <select id="applianceSensorSelect" class="field-input">
-                    <option value="">Select appliance power sensor</option>
-                </select>
-                <p class="text-xs text-slate-500 mt-2">Choose the Home Assistant sensor that directly measures the appliance power over the same mains range.</p>
-            </div>
             <p id="applianceInfoStatus" class="text-sm text-green-600 mt-2 text-center hidden"></p>
         </div>
 
         <!-- Main Chart Section -->
-        <div class="panel-surface">
+        <div id="trainingChartStepPanel" class="training-step-panel panel-surface" data-wizard-steps="interval labels">
             <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4">
                 <div>
-                    <h2 class="text-xl font-semibold">Mains Power Signal</h2>
-                    <p class="panel-copy text-sm mt-1">Inspect the mains trace, navigate the current view, and label appliance activity with intervals.</p>
+                    <h2 id="trainingChartSectionTitle" class="text-xl font-semibold">Mains Power Signal</h2>
+                    <p id="trainingChartSectionCopy" class="panel-copy text-sm mt-1">Inspect the mains trace, navigate the current view, and label appliance activity with intervals.</p>
                 </div>
                 <div class="flex items-center space-x-2 mt-4 sm:mt-0">
                     
@@ -881,6 +926,14 @@
             <p id="dateRangeError" class="text-red-500 text-xs mt-1 text-center hidden">Invalid date range. Please select a start and end date, and ensure the range is no more than 7 days.</p>
             <!-- REMOVED: Display for current active date range -->
             <!-- <div id="currentDateRangeDisplay" class="text-sm text-gray-600 mt-2 text-center hidden"></div> -->
+
+            <div id="sensorSupervisionSection" class="mb-4 hidden">
+                <label for="applianceSensorSelect" class="field-label">Ground-Truth Appliance Sensor</label>
+                <select id="applianceSensorSelect" class="field-input">
+                    <option value="">Select appliance power sensor</option>
+                </select>
+                <p class="text-xs text-slate-500 mt-2">Choose the Home Assistant sensor that directly measures the appliance power over the same mains range.</p>
+            </div>
 
             <div class="chart-primary-action">
                 <div class="relative group">
@@ -929,7 +982,7 @@
         </div>
 
         <!-- Selection Previews Section -->
-        <div id="previewSection" class="panel-surface hidden">
+        <div id="previewSection" class="training-step-panel panel-surface hidden" data-wizard-step="labels">
             <div class="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3 mb-4">
                 <div>
                     <h2 class="text-xl font-semibold">Selected Windows Preview</h2>
@@ -943,6 +996,7 @@
         </div>
 
         <!-- Training prep + training server actions -->
+        <div id="trainingPrepareStepPanel" class="training-step-panel" data-wizard-step="prepare">
         <div class="mt-6 text-center space-y-3">
             <button id="checkAllDataBtn" class="action-btn action-accent text-lg px-8 py-3">
                 <i class="fas fa-check-circle mr-2" aria-hidden="true"></i> Check All Data
@@ -997,6 +1051,7 @@
                 </div>
             </div>
         </div>
+        </div>
     </main>
 </div>
 
@@ -1046,16 +1101,14 @@
     <div class="modal-content" style="max-width: 720px; text-align: left;">
         <h3 class="text-xl font-semibold text-blue-800 mb-4">How This Training Session Works</h3>
         <p class="text-gray-700">
-            This page prepares an appliance model from the mains signal. Start by selecting a training server, then choose the supervision mode that matches the data you have.
+            This page follows a five-step workflow. Move through the steps in order, then return to any previous step if you need to adjust the configuration.
         </p>
         <ol class="training-help-list">
-            <li>Enter the appliance name and choose either ON intervals in mains or a ground-truth appliance power sensor.</li>
-            <li>Confirm that the Training Server Connection card shows the server as ready before spending time labeling data.</li>
-            <li>Choose the mains history range with Quick Range or Select Date Range, then pan and zoom the chart as needed.</li>
-            <li>In interval mode, draw appliance ON windows on the mains chart or add them manually with the Start and End fields.</li>
-            <li>In sensor mode, select the appliance power sensor and compare it against the mains chart over the same range.</li>
-            <li>Review the Selected Windows Preview, then click Check All Data to build a training package.</li>
-            <li>When preparation succeeds, click Send to Training Server and follow progress in the Training Jobs table.</li>
+            <li>Step 1: select the training server and confirm that the connection is ready.</li>
+            <li>Step 2: enter the appliance name and choose the supervision mode.</li>
+            <li>Step 3: choose the mains history interval that will be used for training.</li>
+            <li>Step 4: if you use interval supervision, draw the ON intervals; if you use sensor supervision, select the ground-truth appliance sensor.</li>
+            <li>Step 5: prepare the training package, send it to the training server, and follow the job in the Training Jobs table.</li>
         </ol>
         <div class="flex justify-end mt-6">
             <button id="closeTrainingHelpModalBtn" class="action-btn action-primary" type="button">OK</button>
@@ -1084,6 +1137,8 @@
     let trainingServerConnectionReady = false;
     let trainingStepper;
     let suppressTrainingServerUrlSelectChange = false;
+    let trainingWizardCurrentStep = "server";
+    const TRAINING_WIZARD_STEPS = ["server", "appliance", "interval", "labels", "prepare"];
 
     let jobsUIReadyPromise = null;
     let pendingJobEvents = []; // {kind:"prepared"|"sent", data:{...}}
@@ -1097,11 +1152,21 @@
     let jobsPrevPageBtn;
     let jobsNextPageBtn;
     let trainingServerStatusCard;
+    let trainingServerStepPanel;
     let trainingServerStatusMessage;
     let trainingServerStatusBadge;
     let trainingServerUrlSelect;
     let trainingServerConfigMeta;
     let retryTrainingServerStatusBtn;
+    let trainingApplianceStepPanel;
+    let trainingChartStepPanel;
+    let trainingPrepareStepPanel;
+    let trainingWizardPrevBtn;
+    let trainingWizardNextBtn;
+    let trainingWizardStatus;
+    let trainingChartSectionTitle;
+    let trainingChartSectionCopy;
+    let previewSection;
     let jobsUI = null;
     let sendToTrainingServerBtn;
     let trainingPrepStatus;
@@ -1171,6 +1236,9 @@
     let manualIntervalInputHandler;
     let retryTrainingServerStatusHandler;
     let trainingServerUrlSelectHandler;
+    let trainingWizardPrevHandler;
+    let trainingWizardNextHandler;
+    let trainingStepperClickHandler;
     // applyDateRangeHandler is now the Flatpickr onChange event
 
 
@@ -1453,46 +1521,129 @@
 
         function currentTrainingStepperState() {
             const serverReady = Boolean(trainingServerConnectionReady);
-            const applianceReady = Boolean(applianceNameInput?.value?.trim())
-                && (currentSupervisionMode() !== "sensor" || Boolean(applianceSensorSelect?.value));
+            const applianceReady = Boolean(applianceNameInput?.value?.trim());
+            const intervalReady = Array.isArray(fullSensorHistoryData)
+                && fullSensorHistoryData.length > 0
+                && Number.isFinite(currentChartMinTime)
+                && Number.isFinite(currentChartMaxTime)
+                && currentChartMaxTime > currentChartMinTime;
             const labelsReady = currentSupervisionMode() === "sensor"
                 ? Boolean(applianceSensorSelect?.value)
                 : selectedWindows.length > 0;
             const prepareReady = Boolean(trainingJobId);
             const trainReady = Array.isArray(pendingJobEvents)
                 && pendingJobEvents.some((event) => event?.kind === "sent");
-            return { serverReady, applianceReady, labelsReady, prepareReady, trainReady };
+            return { serverReady, applianceReady, intervalReady, labelsReady, prepareReady, trainReady };
+        }
+
+        function isTrainingStepUnlocked(stepKey, state = currentTrainingStepperState()) {
+            switch (stepKey) {
+                case "server":
+                    return true;
+                case "appliance":
+                    return state.serverReady;
+                case "interval":
+                    return state.serverReady && state.applianceReady;
+                case "labels":
+                    return state.serverReady && state.applianceReady && state.intervalReady;
+                case "prepare":
+                    return state.serverReady && state.applianceReady && state.intervalReady && state.labelsReady;
+                default:
+                    return false;
+            }
+        }
+
+        function firstIncompleteTrainingStep(state = currentTrainingStepperState()) {
+            if (!state.serverReady) return "server";
+            if (!state.applianceReady) return "appliance";
+            if (!state.intervalReady) return "interval";
+            if (!state.labelsReady) return "labels";
+            return "prepare";
+        }
+
+        function goToTrainingWizardStep(stepKey, { force = false } = {}) {
+            const state = currentTrainingStepperState();
+            if (!TRAINING_WIZARD_STEPS.includes(stepKey)) return;
+            if (!force && !isTrainingStepUnlocked(stepKey, state)) return;
+            trainingWizardCurrentStep = stepKey;
+            updateTrainingStepper();
         }
 
         function updateTrainingStepper() {
             if (!trainingStepper) return;
 
-            const { serverReady, applianceReady, labelsReady, prepareReady, trainReady } = currentTrainingStepperState();
-            const currentStep = !serverReady
-                ? "server"
-                : !applianceReady
-                    ? "appliance"
-                    : !labelsReady
-                        ? "labels"
-                        : !prepareReady
-                            ? "prepare"
-                            : !trainReady
-                                ? "train"
-                                : null;
-
+            const state = currentTrainingStepperState();
             const completed = {
-                server: serverReady,
-                appliance: serverReady && applianceReady,
-                labels: serverReady && applianceReady && labelsReady,
-                prepare: serverReady && applianceReady && labelsReady && prepareReady,
-                train: serverReady && applianceReady && labelsReady && prepareReady && trainReady,
+                server: state.serverReady,
+                appliance: state.serverReady && state.applianceReady,
+                interval: state.serverReady && state.applianceReady && state.intervalReady,
+                labels: state.serverReady && state.applianceReady && state.intervalReady && state.labelsReady,
+                prepare: state.serverReady && state.applianceReady && state.intervalReady && state.labelsReady && (state.prepareReady || state.trainReady),
             };
+
+            if (!isTrainingStepUnlocked(trainingWizardCurrentStep, state)) {
+                trainingWizardCurrentStep = firstIncompleteTrainingStep(state);
+            }
 
             trainingStepper.querySelectorAll("[data-step]").forEach((stepEl) => {
                 const stepKey = stepEl.getAttribute("data-step");
+                const unlocked = isTrainingStepUnlocked(stepKey, state);
                 stepEl.classList.toggle("is-complete", Boolean(completed[stepKey]));
-                stepEl.classList.toggle("is-current", currentStep === stepKey);
+                stepEl.classList.toggle("is-current", trainingWizardCurrentStep === stepKey);
+                stepEl.classList.toggle("is-clickable", unlocked);
+                stepEl.setAttribute("aria-disabled", unlocked ? "false" : "true");
             });
+
+            document.querySelectorAll("[data-wizard-step], [data-wizard-steps]").forEach((panel) => {
+                const singleStep = panel.getAttribute("data-wizard-step");
+                const multiSteps = (panel.getAttribute("data-wizard-steps") || "")
+                    .split(/\s+/)
+                    .filter(Boolean);
+                const isVisible = singleStep
+                    ? singleStep === trainingWizardCurrentStep
+                    : multiSteps.includes(trainingWizardCurrentStep);
+                panel.classList.toggle("is-visible", isVisible);
+            });
+
+            const isLabelsStep = trainingWizardCurrentStep === "labels";
+            const isIntervalStep = trainingWizardCurrentStep === "interval";
+            const isSensorMode = currentSupervisionMode() === "sensor";
+
+            if (trainingChartSectionTitle) {
+                trainingChartSectionTitle.textContent = isIntervalStep
+                    ? "Main Training Interval"
+                    : "Training Labels";
+            }
+            if (trainingChartSectionCopy) {
+                if (isIntervalStep) {
+                    trainingChartSectionCopy.textContent = "Choose the mains range that will be used for training, then move to the next step to define the supervision labels.";
+                } else if (isSensorMode) {
+                    trainingChartSectionCopy.textContent = "Select the ground-truth appliance sensor and review the derived intervals against the same mains range.";
+                } else {
+                    trainingChartSectionCopy.textContent = "Draw the ON intervals that describe the appliance activity inside the selected mains range.";
+                }
+            }
+
+            const selectModeControl = selectModeBtn?.closest('.relative.group');
+            if (selectModeControl) selectModeControl.classList.toggle('hidden', !isLabelsStep || isSensorMode);
+            if (selectModeBtn) selectModeBtn.disabled = !isLabelsStep || isSensorMode;
+            if (selectionAssistantSection) selectionAssistantSection.classList.toggle('hidden', !isLabelsStep || isSensorMode);
+            if (sensorSupervisionSection) sensorSupervisionSection.classList.toggle('hidden', !isLabelsStep || !isSensorMode);
+            if (previewSection) previewSection.classList.toggle('hidden', !isLabelsStep || isSensorMode);
+
+            if (trainingWizardStatus) {
+                const stepIndex = TRAINING_WIZARD_STEPS.indexOf(trainingWizardCurrentStep) + 1;
+                trainingWizardStatus.textContent = `Step ${stepIndex} of ${TRAINING_WIZARD_STEPS.length}`;
+            }
+            if (trainingWizardPrevBtn) {
+                trainingWizardPrevBtn.disabled = TRAINING_WIZARD_STEPS.indexOf(trainingWizardCurrentStep) <= 0;
+            }
+            if (trainingWizardNextBtn) {
+                const currentIndex = TRAINING_WIZARD_STEPS.indexOf(trainingWizardCurrentStep);
+                const hasNext = currentIndex < TRAINING_WIZARD_STEPS.length - 1;
+                trainingWizardNextBtn.classList.toggle("hidden", !hasNext);
+                trainingWizardNextBtn.disabled = !hasNext || !completed[trainingWizardCurrentStep];
+            }
         }
 
         function toIsoUtcNoMs(date) {
@@ -1536,14 +1687,6 @@
         function updateSupervisionModeUI() {
             const mode = currentSupervisionMode();
             const isSensor = mode === "sensor";
-
-            if (sensorSupervisionSection) sensorSupervisionSection.classList.toggle('hidden', !isSensor);
-            if (selectionAssistantSection) selectionAssistantSection.classList.toggle('hidden', isSensor);
-            const previewSection = document.getElementById('previewSection');
-            if (previewSection && isSensor) previewSection.classList.add('hidden');
-            const selectModeControl = selectModeBtn?.closest('.relative.group');
-            if (selectModeControl) selectModeControl.classList.toggle('hidden', isSensor);
-            if (selectModeBtn) selectModeBtn.disabled = isSensor;
             if (supervisionModeHint) {
                 supervisionModeHint.textContent = isSensor
                     ? "Use sensor supervision when you have a Home Assistant power sensor for this appliance."
@@ -2052,13 +2195,12 @@
 
         // 4b. Selection Preview Rendering (depends on removeSelection, fullSensorHistoryData, Chart.js, DOM elements)
         function renderSelectionPreviews() {
-            if (!selectionPreviewContainer || !document.getElementById('previewSection') || !noPreviewsMessage) {
+            if (!selectionPreviewContainer || !previewSection || !noPreviewsMessage) {
                 console.warn("DEBUG: renderSelectionPreviews: Missing one or more required DOM elements for preview rendering.");
                 return;
             }
 
             selectionPreviewContainer.innerHTML = '';
-            const previewSection = document.getElementById('previewSection');
 
             if (selectedWindows.length === 0) {
                 previewSection.classList.add('hidden');
@@ -2980,10 +3122,34 @@
             if (closeValidationResultModalBtn) closeValidationResultModalBtn.addEventListener('click', closeValidationResultHandler);
             retryTrainingServerStatusHandler = () => checkTrainingServerConnection(true);
             if (retryTrainingServerStatusBtn) retryTrainingServerStatusBtn.addEventListener('click', retryTrainingServerStatusHandler);
+            trainingWizardPrevHandler = () => {
+                const currentIndex = TRAINING_WIZARD_STEPS.indexOf(trainingWizardCurrentStep);
+                if (currentIndex > 0) {
+                    goToTrainingWizardStep(TRAINING_WIZARD_STEPS[currentIndex - 1], { force: true });
+                }
+            };
+            trainingWizardNextHandler = () => {
+                const currentIndex = TRAINING_WIZARD_STEPS.indexOf(trainingWizardCurrentStep);
+                if (currentIndex < 0 || currentIndex >= TRAINING_WIZARD_STEPS.length - 1) return;
+                const nextStep = TRAINING_WIZARD_STEPS[currentIndex + 1];
+                goToTrainingWizardStep(nextStep);
+            };
+            trainingStepperClickHandler = (event) => {
+                const stepEl = event.target.closest("[data-step]");
+                if (!stepEl) return;
+                const stepKey = stepEl.getAttribute("data-step");
+                goToTrainingWizardStep(stepKey);
+            };
+            if (trainingWizardPrevBtn) trainingWizardPrevBtn.addEventListener('click', trainingWizardPrevHandler);
+            if (trainingWizardNextBtn) trainingWizardNextBtn.addEventListener('click', trainingWizardNextHandler);
+            if (trainingStepper) trainingStepper.addEventListener('click', trainingStepperClickHandler);
             trainingServerUrlSelectHandler = async () => {
                 if (suppressTrainingServerUrlSelectChange) return;
                 try {
                     await saveTrainingServerUrlOverride(trainingServerUrlSelect ? trainingServerUrlSelect.value : "");
+                    if (trainingWizardCurrentStep === "server" && trainingServerConnectionReady) {
+                        goToTrainingWizardStep("appliance");
+                    }
                 } catch (error) {
                     showValidationResultModal("Selection Error", error.message || "Failed to update the training server selection.", true);
                 }
@@ -3030,6 +3196,9 @@
             if (cancelClearBtn && cancelClearHandler) cancelClearBtn.removeEventListener('click', cancelClearHandler);
             if (closeValidationResultModalBtn && closeValidationResultHandler) closeValidationResultModalBtn.removeEventListener('click', closeValidationResultHandler);
             if (retryTrainingServerStatusBtn && retryTrainingServerStatusHandler) retryTrainingServerStatusBtn.removeEventListener('click', retryTrainingServerStatusHandler);
+            if (trainingWizardPrevBtn && trainingWizardPrevHandler) trainingWizardPrevBtn.removeEventListener('click', trainingWizardPrevHandler);
+            if (trainingWizardNextBtn && trainingWizardNextHandler) trainingWizardNextBtn.removeEventListener('click', trainingWizardNextHandler);
+            if (trainingStepper && trainingStepperClickHandler) trainingStepper.removeEventListener('click', trainingStepperClickHandler);
             if (trainingServerUrlSelect && trainingServerUrlSelectHandler) trainingServerUrlSelect.removeEventListener('change', trainingServerUrlSelectHandler);
             if (trainingHelpBtn && trainingHelpOpenHandler) trainingHelpBtn.removeEventListener('click', trainingHelpOpenHandler);
             if (closeTrainingHelpModalBtn && trainingHelpCloseHandler) closeTrainingHelpModalBtn.removeEventListener('click', trainingHelpCloseHandler);
@@ -3112,12 +3281,22 @@
         sendToTrainingServerBtn = document.getElementById("sendToTrainingServerBtn");
         trainingPrepStatus = document.getElementById("trainingPrepStatus");
         trainingServerStatusCard = document.getElementById("trainingServerStatusCard");
+        trainingServerStepPanel = document.getElementById("trainingServerStepPanel");
         trainingServerStatusMessage = document.getElementById("trainingServerStatusMessage");
         trainingServerStatusBadge = document.getElementById("trainingServerStatusBadge");
         trainingServerUrlSelect = document.getElementById("trainingServerUrlSelect");
         trainingServerConfigMeta = document.getElementById("trainingServerConfigMeta");
         retryTrainingServerStatusBtn = document.getElementById("retryTrainingServerStatusBtn");
         trainingStepper = document.getElementById("trainingStepper");
+        trainingApplianceStepPanel = document.getElementById("trainingApplianceStepPanel");
+        trainingChartStepPanel = document.getElementById("trainingChartStepPanel");
+        trainingPrepareStepPanel = document.getElementById("trainingPrepareStepPanel");
+        trainingWizardPrevBtn = document.getElementById("trainingWizardPrevBtn");
+        trainingWizardNextBtn = document.getElementById("trainingWizardNextBtn");
+        trainingWizardStatus = document.getElementById("trainingWizardStatus");
+        trainingChartSectionTitle = document.getElementById("trainingChartSectionTitle");
+        trainingChartSectionCopy = document.getElementById("trainingChartSectionCopy");
+        previewSection = document.getElementById("previewSection");
 
         jobsTableBody = document.getElementById("jobsTableBody");
         noJobsMsg = document.getElementById("noJobsMsg");
@@ -3151,6 +3330,7 @@
         isSettingEndpoint = false;
         activeSelectionId = null;
         selectedWindows = [];
+        trainingWizardCurrentStep = "server";
         updateTrainingStepper();
 
         // Attach core UI event listeners immediately after DOM references are assigned
