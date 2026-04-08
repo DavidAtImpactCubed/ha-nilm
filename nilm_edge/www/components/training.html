@@ -937,13 +937,6 @@
                     </button>
                     <span id="selectModeTooltip" class="tooltip absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-1 bg-gray-800 text-white text-xs rounded-md whitespace-nowrap">Start guided interval drawing.</span>
                 </div>
-                <div class="relative group">
-                    <button id="chartResetZoomBtn" class="action-btn action-secondary inline-flex items-center justify-center">
-                        <i class="fas fa-sync-alt text-lg mr-2" aria-hidden="true"></i>
-                        <span>Reset Zoom</span>
-                    </button>
-                    <span class="tooltip absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-1 bg-gray-800 text-white text-xs rounded-md whitespace-nowrap">Reset chart zoom to the loaded range.</span>
-                </div>
                 <div id="selectionAssistantSection" class="selection-assistant">
                     <div class="selection-assistant-grid">
                         <div>
@@ -991,6 +984,15 @@
 
         <!-- Training prep + training server actions -->
         <div id="trainingPrepareStepPanel" class="training-step-panel" data-wizard-step="prepare">
+        <div class="panel-surface mb-6">
+            <div class="flex items-start justify-between gap-4 mb-4">
+                <div>
+                    <h2 class="text-xl font-semibold">Training Overview</h2>
+                    <p class="panel-copy text-sm mt-1">Review the configuration that will be sent to the training server.</p>
+                </div>
+            </div>
+            <div id="trainingPrepareOverview" class="grid grid-cols-1 md:grid-cols-2 gap-4"></div>
+        </div>
         <div class="mt-6 text-center space-y-3">
             <button id="checkAllDataBtn" class="action-btn action-accent text-lg px-8 py-3">
                 <i class="fas fa-rocket mr-2" aria-hidden="true"></i> Prepare and Send to Training Server
@@ -1160,6 +1162,7 @@
     let trainingWizardPrevBtn;
     let trainingWizardNextBtn;
     let trainingWizardStatus;
+    let trainingPrepareOverview;
     let trainingChartSectionTitle;
     let trainingChartSectionCopy;
     let trainingIntervalToolbarPanel;
@@ -1182,7 +1185,6 @@
     let selectModeBtn;
     let selectModeBtnIcon;
     let selectModeBtnLabel;
-    let chartResetZoomBtn;
 
     let applianceNameInput;
     let supervisionModeSelect;
@@ -1294,6 +1296,50 @@
                 second: withSeconds ? "2-digit" : undefined,
                 hour12: !prefers24Hour,
             });
+        }
+
+        function renderTrainingOverviewItem(label, value, helpText = "") {
+            return `
+                <div class="rounded-2xl border border-slate-200 bg-white/90 px-4 py-4 shadow-sm">
+                    <div class="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">${label}</div>
+                    <div class="mt-2 text-base font-semibold leading-snug text-slate-800">${value}</div>
+                    ${helpText ? `<div class="text-xs text-slate-500 mt-2">${helpText}</div>` : ""}
+                </div>
+            `;
+        }
+
+        function updateTrainingPrepareOverview() {
+            if (!trainingPrepareOverview) return;
+
+            const supervisionMode = currentSupervisionMode();
+            const applianceName = applianceNameInput?.value?.trim() || "Not entered yet";
+            const trainingServerLabel = trainingServerUrlSelect?.selectedOptions?.[0]?.textContent?.trim() || "Not selected yet";
+            const rangeValue = Number.isFinite(firstTimestamp) && Number.isFinite(lastTimestamp) && lastTimestamp > firstTimestamp
+                ? `${formatUiDateTime(firstTimestamp)} to ${formatUiDateTime(lastTimestamp)}`
+                : "Load a mains interval in step 3";
+            const intervalDurationHours = Number.isFinite(firstTimestamp) && Number.isFinite(lastTimestamp) && lastTimestamp > firstTimestamp
+                ? ((lastTimestamp - firstTimestamp) / 3600000).toFixed(2)
+                : null;
+            const supervisionValue = supervisionMode === "sensor"
+                ? "Ground-truth appliance power sensor"
+                : "ON intervals drawn in the mains signal";
+            const supervisionHelp = supervisionMode === "sensor"
+                ? "The selected appliance sensor is aligned with the mains range and used as the training target."
+                : "The intervals you draw indicate when the appliance was active inside the mains signal.";
+            const labelsValue = supervisionMode === "sensor"
+                ? (applianceSensorSelect?.selectedOptions?.[0]?.textContent?.trim() || "No ground-truth sensor selected yet")
+                : `${selectedWindows.length} manual ON interval${selectedWindows.length === 1 ? "" : "s"}`;
+            const labelsHelp = supervisionMode === "sensor"
+                ? `${sensorDerivedWindows.length} sensor-derived ON interval${sensorDerivedWindows.length === 1 ? "" : "s"} detected in the current range.`
+                : "Return to step 4 if you want to add, edit, or remove intervals.";
+
+            trainingPrepareOverview.innerHTML = [
+                renderTrainingOverviewItem("Training Server", trainingServerLabel, trainingServerConnectionReady ? "Connection ready." : "Connection not ready yet."),
+                renderTrainingOverviewItem("Appliance Name", applianceName, "This name will be used for the trained model and Home Assistant entities."),
+                renderTrainingOverviewItem("Mains Range", rangeValue, intervalDurationHours ? `Duration: ${intervalDurationHours} h` : ""),
+                renderTrainingOverviewItem("Supervision", supervisionValue, supervisionHelp),
+                renderTrainingOverviewItem("Labels", labelsValue, labelsHelp),
+            ].join("");
         }
 
         function setUiBusy(isBusy, msg = "") {
@@ -1679,6 +1725,7 @@
                 trainingWizardNextBtn.classList.toggle("hidden", !hasNext);
                 trainingWizardNextBtn.disabled = !hasNext;
             }
+            updateTrainingPrepareOverview();
         }
 
         function toIsoUtcNoMs(date) {
@@ -3070,7 +3117,6 @@
                 powerChartCanvas.addEventListener('pointerleave', handleMouseLeave);
             }
             if (selectModeBtn) selectModeBtn.addEventListener('click', toggleSelectionMode);
-            if (chartResetZoomBtn) chartResetZoomBtn.addEventListener('click', handleResetZoom);
             if (document.getElementById('clearAllSelectionsBtn')) document.getElementById('clearAllSelectionsBtn').addEventListener('click', showClearConfirmModal);
             if (checkAllDataBtn) checkAllDataBtn.addEventListener('click', handleCheckAllData);
             if (applianceNameInput) applianceNameInput.addEventListener('input', handleApplianceNameInput);
@@ -3204,7 +3250,6 @@
                 powerChartCanvas.removeEventListener('pointerleave', handleMouseLeave);
             }
             if (selectModeBtn) selectModeBtn.removeEventListener('click', toggleSelectionMode);
-            if (chartResetZoomBtn) chartResetZoomBtn.removeEventListener('click', handleResetZoom);
             if (document.getElementById('clearAllSelectionsBtn')) document.getElementById('clearAllSelectionsBtn').removeEventListener('click', showClearConfirmModal);
             if (checkAllDataBtn) checkAllDataBtn.removeEventListener('click', handleCheckAllData);
             if (applianceNameInput) applianceNameInput.removeEventListener('input', handleApplianceNameInput);
@@ -3281,7 +3326,6 @@
         selectModeBtn = document.getElementById('selectModeBtn');
         selectModeBtnIcon = selectModeBtn ? selectModeBtn.querySelector('i') : null;
         selectModeBtnLabel = document.getElementById('selectModeBtnLabel');
-        chartResetZoomBtn = document.getElementById('chartResetZoomBtn');
 
         applianceNameInput = document.getElementById('applianceNameInput');
         supervisionModeSelect = document.getElementById('supervisionModeSelect');
@@ -3317,6 +3361,7 @@
         trainingApplianceStepPanel = document.getElementById("trainingApplianceStepPanel");
         trainingChartStepPanel = document.getElementById("trainingChartStepPanel");
         trainingPrepareStepPanel = document.getElementById("trainingPrepareStepPanel");
+        trainingPrepareOverview = document.getElementById("trainingPrepareOverview");
         trainingWizardPrevBtn = document.getElementById("trainingWizardPrevBtn");
         trainingWizardNextBtn = document.getElementById("trainingWizardNextBtn");
         trainingWizardStatus = document.getElementById("trainingWizardStatus");

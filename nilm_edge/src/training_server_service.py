@@ -25,6 +25,7 @@ from embedding_store import bundle_models_dir, load_embedding_metadata
 from training_payload import training_server_payload_from_prepared, summarize_training_server_payload
 from embedding_store import save_embedding_metadata
 from model_registry import get_bundle_by_id
+from ha_client import call_ha_service
 
 
 def _utc_now_iso() -> str:
@@ -145,6 +146,30 @@ class TrainingServerServiceManager:
 
         # Prevent concurrent read/write races between UI status calls and poller tasks
         self._io_lock = asyncio.Lock()
+
+    async def _notify_training_result(
+        self,
+        *,
+        job_id: str,
+        title: str,
+        message: str,
+    ) -> None:
+        if not app_state.TOKEN:
+            return
+        try:
+            await call_ha_service(
+                app_state.HA_REST_API_URL,
+                app_state.TOKEN,
+                "persistent_notification",
+                "create",
+                {
+                    "title": title,
+                    "message": message,
+                    "notification_id": f"nilm_training_{job_id}",
+                },
+            )
+        except Exception as exc:
+            print(f"Failed to create Home Assistant training notification for job_id={job_id}: {exc}", flush=True)
 
     async def _maybe_reload_algorithm(self) -> None:
         if self.reload_algorithm is None:
@@ -573,6 +598,28 @@ class TrainingServerServiceManager:
             await self._prune_heavy_job_fields(job_id)
             del prepared_job
             _release_process_memory()
+            metrics_lines = []
+            if deployment_onoff_f1 is not None:
+                metrics_lines.append(f"- ON/OFF F1: {float(deployment_onoff_f1):.3f}")
+            if deployment_onoff_threshold is not None:
+                metrics_lines.append(f"- ON/OFF threshold: {float(deployment_onoff_threshold):.2f}")
+            power_f1 = result.get("stats", {}).get("power_f1")
+            if power_f1 is not None:
+                metrics_lines.append(f"- Power F1: {float(power_f1):.3f}")
+            notification_message = "\n".join([
+                f"Training completed successfully for **{appliance_name}**.",
+                f"- Bundle: `{bundle_id}`",
+                f"- Job ID: `{job_id}`",
+                f"- Model path: `{saved_path}`",
+                "",
+                "The appliance model is now available for disaggregation in **Energy Dashboard**.",
+                *(metrics_lines or []),
+            ])
+            await self._notify_training_result(
+                job_id=job_id,
+                title=f"NILM training finished: {appliance_name}",
+                message=notification_message,
+            )
             print(
                 f"Training finalize done local_job_id={job_id} training_server_job_id={training_server_job_id} "
                 f"saved_path={saved_path}",
@@ -591,4 +638,15 @@ class TrainingServerServiceManager:
                 "error": str(e),
                 "progress": {"phase": "error"},
             })
+            await self._notify_training_result(
+                job_id=job_id,
+                title="NILM training failed",
+                message="\n".join([
+                    f"Training failed for job `{job_id}`.",
+                    "",
+                    f"Error: {e}",
+                    "",
+                    "Open the Appliance Training Session page to review the job and logs.",
+                ]),
+            )
             _release_process_memory()

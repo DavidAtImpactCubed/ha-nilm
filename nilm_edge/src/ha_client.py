@@ -152,6 +152,30 @@ async def fetch_history_points(
     return points
 
 
+async def call_ha_service(
+    ha_rest_api_url: str,
+    token: str,
+    domain: str,
+    service: str,
+    service_data: dict,
+) -> dict:
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Content-Type": "application/json",
+    }
+    url = f"{ha_rest_api_url}/services/{domain}/{service}"
+
+    async with ClientSession() as session:
+        try:
+            async with session.post(url, headers=headers, json=service_data) as response:
+                response.raise_for_status()
+                if response.content_type == "application/json":
+                    return await response.json()
+                return {"ok": True}
+        except ClientError as e:
+            raise RuntimeError(f"Could not call Home Assistant service {domain}.{service}: {e}") from e
+
+
 def points_to_xy_json(points: List[Tuple[float, float]]) -> List[dict]:
     """
     Convert (epoch_seconds, value) -> [{"x": "...Z", "y": ...}, ...]
