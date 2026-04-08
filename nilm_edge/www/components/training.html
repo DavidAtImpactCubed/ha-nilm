@@ -1750,6 +1750,11 @@
             if (isSensor && selectionModeActive) {
                 finishIntervalSelectionMode();
             }
+            if (isSensor && selectedWindows.length > 0) {
+                selectedWindows = [];
+                if (noPreviewsMessage) noPreviewsMessage.classList.remove('hidden');
+                renderSelectionPreviews();
+            }
             if (!isSensor) {
                 applianceSensorHistoryData = [];
                 sensorDerivedWindows = [];
