@@ -2843,8 +2843,9 @@
                     return;
                 }
 
-                await finishBusyProgress(
-                    "Preparing training data...",
+                clearBusyProgress();
+                setUiBusy(
+                    true,
                     supervisionMode === 'sensor'
                         ? "Ground-truth power data matched the selected mains range. Sending package to the training server..."
                         : `Prepared ${selectedWindows.length} ON interval${selectedWindows.length === 1 ? "" : "s"}. Sending package to the training server...`
