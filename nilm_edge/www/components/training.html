@@ -156,6 +156,27 @@
         border: 1px solid rgba(147, 197, 253, 0.9);
     }
 
+    .training-range-actions {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 12px;
+    }
+
+    .training-quick-range-buttons {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+    }
+
+    .training-quick-range-btn {
+        min-height: 38px;
+        padding: 8px 12px;
+        border-radius: 10px;
+        font-size: 0.92rem;
+        line-height: 1;
+    }
+
     .action-success {
         background: linear-gradient(135deg, #16a34a, #15803d);
         color: #fff;
@@ -720,6 +741,31 @@
             grid-template-columns: 1fr;
             padding: 12px;
         }
+        .training-range-actions {
+            flex-direction: column;
+            align-items: stretch;
+            gap: 10px;
+        }
+        .training-quick-range-buttons {
+            gap: 6px;
+        }
+        .training-quick-range-btn {
+            min-height: 34px;
+            padding: 6px 10px;
+            font-size: 0.84rem;
+            border-radius: 9px;
+        }
+        .action-chart-view {
+            justify-content: center;
+            width: 100%;
+            padding: 8px 12px;
+            font-size: 0.88rem;
+        }
+        .action-chart-view > span[aria-hidden="true"] {
+            width: 20px;
+            height: 20px;
+            font-size: 0.72rem;
+        }
         .training-server-status-card {
             flex-direction: column;
             align-items: stretch;
@@ -962,8 +1008,8 @@
                 </div>
                 <div class="md:col-span-2">
                     <label class="field-label">Quick Range</label>
-                    <div class="flex flex-wrap items-center gap-2">
-                    <div id="trainingQuickRangeButtons" class="flex flex-wrap gap-2">
+                    <div class="training-range-actions">
+                    <div id="trainingQuickRangeButtons" class="training-quick-range-buttons">
                         <button type="button" class="action-btn action-neutral training-quick-range-btn" data-hours="12">12 h</button>
                         <button type="button" class="action-btn action-neutral training-quick-range-btn" data-hours="24">1 d</button>
                         <button type="button" class="action-btn action-neutral training-quick-range-btn" data-hours="72">3 d</button>
