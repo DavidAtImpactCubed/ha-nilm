@@ -744,12 +744,16 @@
         .training-range-actions {
             flex-direction: row;
             flex-wrap: wrap;
-            align-items: center;
-            justify-content: space-between;
-            gap: 10px;
+            align-items: flex-start;
+            justify-content: flex-start;
+            gap: 8px;
         }
         .training-quick-range-buttons {
-            flex: 0 1 auto;
+            display: grid;
+            grid-template-columns: repeat(4, max-content);
+            width: max-content;
+            max-width: 100%;
+            flex: 0 0 auto;
             align-self: flex-start;
             gap: 6px;
         }
@@ -757,12 +761,12 @@
             width: auto;
             flex: 0 0 auto;
             min-height: 34px;
-            padding: 6px 10px;
-            font-size: 0.84rem;
+            padding: 6px 8px;
+            font-size: 0.8rem;
             border-radius: 9px;
         }
         .action-chart-view {
-            margin-left: auto;
+            margin-left: 0;
             justify-content: center;
             width: auto;
             flex: 0 0 auto;
