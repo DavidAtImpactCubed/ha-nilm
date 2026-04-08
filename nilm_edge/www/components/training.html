@@ -466,7 +466,7 @@
 
     .training-server-inline-row {
         display: grid;
-        grid-template-columns: minmax(0, 1fr) auto auto auto;
+        grid-template-columns: minmax(0, 1fr) auto;
         gap: 10px;
         align-items: end;
         margin-top: 12px;
@@ -816,7 +816,6 @@
                         <option value="">No training server available</option>
                     </select>
                 </div>
-                <button id="saveTrainingServerUrlBtn" class="action-btn action-primary" type="button">Save</button>
                 <button id="retryTrainingServerStatusBtn" class="action-btn action-neutral" type="button">
                     <i class="fas fa-sync mr-2" aria-hidden="true"></i> Retry
                 </button>
@@ -1084,6 +1083,7 @@
     let selectedWindows = []; // Stores all selected time windows
     let trainingServerConnectionReady = false;
     let trainingStepper;
+    let suppressTrainingServerUrlSelectChange = false;
 
     let jobsUIReadyPromise = null;
     let pendingJobEvents = []; // {kind:"prepared"|"sent", data:{...}}
@@ -1100,7 +1100,6 @@
     let trainingServerStatusMessage;
     let trainingServerStatusBadge;
     let trainingServerUrlSelect;
-    let saveTrainingServerUrlBtn;
     let trainingServerConfigMeta;
     let retryTrainingServerStatusBtn;
     let jobsUI = null;
@@ -1171,7 +1170,7 @@
     let supervisionModeChangeHandler;
     let manualIntervalInputHandler;
     let retryTrainingServerStatusHandler;
-    let saveTrainingServerUrlHandler;
+    let trainingServerUrlSelectHandler;
     // applyDateRangeHandler is now the Flatpickr onChange event
 
 
@@ -1321,6 +1320,7 @@
             if (trainingServerUrlSelect) {
                 const options = Array.isArray(payload.available_training_servers) ? payload.available_training_servers : [];
                 const selectedUrl = payload.configured_training_server_url || "";
+                suppressTrainingServerUrlSelectChange = true;
                 trainingServerUrlSelect.innerHTML = "";
 
                 if (!options.length) {
@@ -1344,11 +1344,7 @@
 
                 trainingServerUrlSelect.value = selectedUrl;
                 trainingServerUrlSelect.disabled = options.length === 0;
-            }
-
-            if (saveTrainingServerUrlBtn) {
-                const options = Array.isArray(payload.available_training_servers) ? payload.available_training_servers : [];
-                saveTrainingServerUrlBtn.disabled = options.length === 0;
+                suppressTrainingServerUrlSelectChange = false;
             }
 
             if (trainingServerConfigMeta) {
@@ -1392,8 +1388,8 @@
             await checkTrainingServerConnection(true);
             if (trainingPrepStatus) {
                 trainingPrepStatus.textContent = urlValue
-                    ? "Training server URL saved."
-                    : "Training server URL cleared.";
+                    ? "Training server saved."
+                    : "Training server cleared.";
                 trainingPrepStatus.classList.remove("hidden");
             }
         }
@@ -2984,14 +2980,15 @@
             if (closeValidationResultModalBtn) closeValidationResultModalBtn.addEventListener('click', closeValidationResultHandler);
             retryTrainingServerStatusHandler = () => checkTrainingServerConnection(true);
             if (retryTrainingServerStatusBtn) retryTrainingServerStatusBtn.addEventListener('click', retryTrainingServerStatusHandler);
-            saveTrainingServerUrlHandler = async () => {
+            trainingServerUrlSelectHandler = async () => {
+                if (suppressTrainingServerUrlSelectChange) return;
                 try {
                     await saveTrainingServerUrlOverride(trainingServerUrlSelect ? trainingServerUrlSelect.value : "");
                 } catch (error) {
-                    showValidationResultModal("Save Error", error.message || "Failed to save the training server URL.", true);
+                    showValidationResultModal("Save Error", error.message || "Failed to save the training server.", true);
                 }
             };
-            if (saveTrainingServerUrlBtn) saveTrainingServerUrlBtn.addEventListener('click', saveTrainingServerUrlHandler);
+            if (trainingServerUrlSelect) trainingServerUrlSelect.addEventListener('change', trainingServerUrlSelectHandler);
             if (trainingHelpBtn) trainingHelpBtn.addEventListener('click', trainingHelpOpenHandler);
             if (closeTrainingHelpModalBtn) closeTrainingHelpModalBtn.addEventListener('click', trainingHelpCloseHandler);
             if (trainingHelpModal) trainingHelpModal.addEventListener('click', trainingHelpOverlayHandler);
@@ -3033,7 +3030,7 @@
             if (cancelClearBtn && cancelClearHandler) cancelClearBtn.removeEventListener('click', cancelClearHandler);
             if (closeValidationResultModalBtn && closeValidationResultHandler) closeValidationResultModalBtn.removeEventListener('click', closeValidationResultHandler);
             if (retryTrainingServerStatusBtn && retryTrainingServerStatusHandler) retryTrainingServerStatusBtn.removeEventListener('click', retryTrainingServerStatusHandler);
-            if (saveTrainingServerUrlBtn && saveTrainingServerUrlHandler) saveTrainingServerUrlBtn.removeEventListener('click', saveTrainingServerUrlHandler);
+            if (trainingServerUrlSelect && trainingServerUrlSelectHandler) trainingServerUrlSelect.removeEventListener('change', trainingServerUrlSelectHandler);
             if (trainingHelpBtn && trainingHelpOpenHandler) trainingHelpBtn.removeEventListener('click', trainingHelpOpenHandler);
             if (closeTrainingHelpModalBtn && trainingHelpCloseHandler) closeTrainingHelpModalBtn.removeEventListener('click', trainingHelpCloseHandler);
             if (trainingHelpModal && trainingHelpOverlayHandler) trainingHelpModal.removeEventListener('click', trainingHelpOverlayHandler);
@@ -3118,7 +3115,6 @@
         trainingServerStatusMessage = document.getElementById("trainingServerStatusMessage");
         trainingServerStatusBadge = document.getElementById("trainingServerStatusBadge");
         trainingServerUrlSelect = document.getElementById("trainingServerUrlSelect");
-        saveTrainingServerUrlBtn = document.getElementById("saveTrainingServerUrlBtn");
         trainingServerConfigMeta = document.getElementById("trainingServerConfigMeta");
         retryTrainingServerStatusBtn = document.getElementById("retryTrainingServerStatusBtn");
         trainingStepper = document.getElementById("trainingStepper");
