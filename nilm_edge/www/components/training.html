@@ -614,6 +614,7 @@
         grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
         align-items: center;
         gap: 12px;
+        margin-top: 22px;
         margin-bottom: 18px;
         padding: 14px 16px;
         border: 1px solid #e2e8f0;
@@ -1785,14 +1786,18 @@
             if (!Number.isFinite(startMs) || !Number.isFinite(endMs)) return;
             const startValue = formatForDateTimeLocal(startMs);
             const endValue = formatForDateTimeLocal(endMs);
+            const startDate = new Date(startMs);
+            const endDate = new Date(endMs);
             if (trainingRangeStartPickerInstance) {
-                trainingRangeStartPickerInstance.setDate(startValue, false, "Y-m-d H:i");
-            } else if (trainingRangeStartInput) {
+                trainingRangeStartPickerInstance.setDate(startDate, false);
+            }
+            if (trainingRangeStartInput) {
                 trainingRangeStartInput.value = startValue;
             }
             if (trainingRangeEndPickerInstance) {
-                trainingRangeEndPickerInstance.setDate(endValue, false, "Y-m-d H:i");
-            } else if (trainingRangeEndInput) {
+                trainingRangeEndPickerInstance.setDate(endDate, false);
+            }
+            if (trainingRangeEndInput) {
                 trainingRangeEndInput.value = endValue;
             }
         }
