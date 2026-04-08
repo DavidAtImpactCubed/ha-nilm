@@ -750,19 +750,19 @@
         }
         .training-quick-range-buttons {
             display: grid;
-            grid-template-columns: repeat(4, max-content);
-            width: max-content;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            width: 100%;
             max-width: 100%;
-            flex: 0 0 auto;
+            flex: 1 1 100%;
             align-self: flex-start;
             gap: 6px;
         }
         .training-quick-range-btn {
-            width: auto;
+            width: 100%;
             flex: 0 0 auto;
             min-height: 34px;
-            padding: 6px 8px;
-            font-size: 0.8rem;
+            padding: 6px 10px;
+            font-size: 0.88rem;
             border-radius: 9px;
         }
         .action-chart-view {
