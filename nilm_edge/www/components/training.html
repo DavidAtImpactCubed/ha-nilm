@@ -962,7 +962,7 @@
                 </div>
                 <div class="md:col-span-2">
                     <label class="field-label">Quick Range</label>
-                    <div class="flex flex-wrap items-center justify-between gap-3">
+                    <div class="flex flex-wrap items-center gap-2">
                     <div id="trainingQuickRangeButtons" class="flex flex-wrap gap-2">
                         <button type="button" class="action-btn action-neutral training-quick-range-btn" data-hours="12">12 h</button>
                         <button type="button" class="action-btn action-neutral training-quick-range-btn" data-hours="24">1 d</button>
@@ -970,7 +970,7 @@
                         <button type="button" class="action-btn action-neutral training-quick-range-btn" data-hours="168">7 d</button>
                     </div>
                     <button id="useCurrentViewRangeBtn" type="button" class="action-btn action-chart-view">
-                        <span aria-hidden="true">+/-</span>
+                        <span aria-hidden="true">&#8646;</span>
                         <span>Use Current Chart View</span>
                     </button>
                 </div>
@@ -3448,12 +3448,6 @@
             if (supervisionModeSelect && supervisionModeChangeHandler) supervisionModeSelect.removeEventListener('change', supervisionModeChangeHandler);
             trainingQuickRangeButtons.forEach((button) => button.removeEventListener('click', quickRangeChangeHandler));
             if (useCurrentViewRangeBtn) useCurrentViewRangeBtn.removeEventListener('click', applyCurrentChartViewRange);
-            if (trainingRangeStartInput && trainingRangeInputHandler) trainingRangeStartInput.removeEventListener('input', trainingRangeInputHandler);
-            if (trainingRangeStartInput && trainingRangeInputHandler) trainingRangeStartInput.removeEventListener('change', trainingRangeInputHandler);
-            if (trainingRangeStartInput && trainingRangeInputHandler) trainingRangeStartInput.removeEventListener('blur', trainingRangeInputHandler);
-            if (trainingRangeEndInput && trainingRangeInputHandler) trainingRangeEndInput.removeEventListener('input', trainingRangeInputHandler);
-            if (trainingRangeEndInput && trainingRangeInputHandler) trainingRangeEndInput.removeEventListener('change', trainingRangeInputHandler);
-            if (trainingRangeEndInput && trainingRangeInputHandler) trainingRangeEndInput.removeEventListener('blur', trainingRangeInputHandler);
             if (manualStartInput && manualIntervalInputHandler) manualStartInput.removeEventListener('input', manualIntervalInputHandler);
             if (manualStartInput && manualIntervalInputHandler) manualStartInput.removeEventListener('change', manualIntervalInputHandler);
             if (manualStartInput && manualIntervalInputHandler) manualStartInput.removeEventListener('blur', manualIntervalInputHandler);
@@ -3616,15 +3610,8 @@
             if (hours) applyQuickRangeHours(hours);
         };
         trainingQuickRangeButtons.forEach((button) => button.addEventListener('click', quickRangeChangeHandler));
-        trainingRangeInputHandler = () => scheduleTrainingRangeSync();
         supervisionModeChangeHandler = () => updateSupervisionModeUI();
         if (supervisionModeSelect) supervisionModeSelect.addEventListener('change', supervisionModeChangeHandler);
-        if (trainingRangeStartInput) trainingRangeStartInput.addEventListener('input', trainingRangeInputHandler);
-        if (trainingRangeStartInput) trainingRangeStartInput.addEventListener('change', trainingRangeInputHandler);
-        if (trainingRangeStartInput) trainingRangeStartInput.addEventListener('blur', trainingRangeInputHandler);
-        if (trainingRangeEndInput) trainingRangeEndInput.addEventListener('input', trainingRangeInputHandler);
-        if (trainingRangeEndInput) trainingRangeEndInput.addEventListener('change', trainingRangeInputHandler);
-        if (trainingRangeEndInput) trainingRangeEndInput.addEventListener('blur', trainingRangeInputHandler);
         if (useCurrentViewRangeBtn) useCurrentViewRangeBtn.addEventListener('click', applyCurrentChartViewRange);
         setTrainingServerStatusUi({
             ok: false,
@@ -3657,11 +3644,15 @@
                 if (trainingRangeStartPickerInstance) trainingRangeStartPickerInstance.destroy();
                 trainingRangeStartPickerInstance = flatpickr(trainingRangeStartInput, {
                     ...manualPickerOptions,
+                    onChange: () => scheduleTrainingRangeSync(),
+                    onClose: () => scheduleTrainingRangeSync(),
                 });
 
                 if (trainingRangeEndPickerInstance) trainingRangeEndPickerInstance.destroy();
                 trainingRangeEndPickerInstance = flatpickr(trainingRangeEndInput, {
                     ...manualPickerOptions,
+                    onChange: () => scheduleTrainingRangeSync(),
+                    onClose: () => scheduleTrainingRangeSync(),
                 });
 
                 if (manualStartInput) {
