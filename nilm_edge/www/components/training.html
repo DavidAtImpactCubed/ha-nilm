@@ -847,12 +847,6 @@
         </div>
     </div>
 
-    <div class="training-wizard-nav">
-        <button id="trainingWizardPrevBtn" class="action-btn action-neutral" type="button">Previous Step</button>
-        <div id="trainingWizardStatus" class="training-wizard-status">Step 1 of 5</div>
-        <button id="trainingWizardNextBtn" class="action-btn action-primary" type="button">Next Step</button>
-    </div>
-
     <div id="trainingServerStepPanel" class="training-step-panel" data-wizard-step="server">
     <div id="trainingServerStatusCard" class="training-server-status-card">
         <div class="training-server-status-copy">
@@ -1048,6 +1042,12 @@
         </div>
         </div>
     </main>
+
+    <div class="training-wizard-nav">
+        <button id="trainingWizardPrevBtn" class="action-btn action-neutral" type="button">Previous Step</button>
+        <div id="trainingWizardStatus" class="training-wizard-status">Step 1 of 5</div>
+        <button id="trainingWizardNextBtn" class="action-btn action-primary" type="button">Next Step</button>
+    </div>
 </div>
 
 <!-- Custom Modal for Overlap Warning -->
@@ -2664,7 +2664,12 @@
                 updateTrainingStepper();
                 await finishBusyProgress(
                     "Sending prepared package to the training server...",
-                    "Training package sent successfully. Follow the Training Jobs table below for progress."
+                    "Training package sent successfully."
+                );
+                showValidationResultModal(
+                    "Training Started",
+                    "Your training package was sent successfully. You can follow the Training Jobs table below for progress. When the job completes, the appliance model will be available for disaggregation in Energy Dashboard.",
+                    false
                 );
                 return true;
             } catch (e) {
