@@ -742,22 +742,30 @@
             padding: 12px;
         }
         .training-range-actions {
-            flex-direction: column;
-            align-items: stretch;
+            flex-direction: row;
+            flex-wrap: wrap;
+            align-items: center;
+            justify-content: space-between;
             gap: 10px;
         }
         .training-quick-range-buttons {
+            flex: 0 1 auto;
+            align-self: flex-start;
             gap: 6px;
         }
         .training-quick-range-btn {
+            width: auto;
+            flex: 0 0 auto;
             min-height: 34px;
             padding: 6px 10px;
             font-size: 0.84rem;
             border-radius: 9px;
         }
         .action-chart-view {
+            margin-left: auto;
             justify-content: center;
-            width: 100%;
+            width: auto;
+            flex: 0 0 auto;
             padding: 8px 12px;
             font-size: 0.88rem;
         }
