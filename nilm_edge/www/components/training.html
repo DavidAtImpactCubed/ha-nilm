@@ -909,7 +909,7 @@
             </div>
 
             <!-- New: Date Range Selector for Chart (Flatpickr) -->
-            <div class="toolbar-panel">
+            <div id="trainingIntervalToolbarPanel" class="toolbar-panel">
                 <div>
                     <label for="quickRangeSelect" class="field-label">Quick Range</label>
                     <select id="quickRangeSelect" class="field-input">
@@ -1138,6 +1138,7 @@
     let trainingStepper;
     let suppressTrainingServerUrlSelectChange = false;
     let trainingWizardCurrentStep = "server";
+    let trainingIntervalConfirmed = false;
     const TRAINING_WIZARD_STEPS = ["server", "appliance", "interval", "labels", "prepare"];
 
     let jobsUIReadyPromise = null;
@@ -1166,6 +1167,7 @@
     let trainingWizardStatus;
     let trainingChartSectionTitle;
     let trainingChartSectionCopy;
+    let trainingIntervalToolbarPanel;
     let previewSection;
     let jobsUI = null;
     let sendToTrainingServerBtn;
@@ -1522,18 +1524,68 @@
         function currentTrainingStepperState() {
             const serverReady = Boolean(trainingServerConnectionReady);
             const applianceReady = Boolean(applianceNameInput?.value?.trim());
-            const intervalReady = Array.isArray(fullSensorHistoryData)
+            const intervalDataReady = Array.isArray(fullSensorHistoryData)
                 && fullSensorHistoryData.length > 0
                 && Number.isFinite(currentChartMinTime)
                 && Number.isFinite(currentChartMaxTime)
                 && currentChartMaxTime > currentChartMinTime;
+            const intervalReady = intervalDataReady && trainingIntervalConfirmed;
             const labelsReady = currentSupervisionMode() === "sensor"
                 ? Boolean(applianceSensorSelect?.value)
                 : selectedWindows.length > 0;
             const prepareReady = Boolean(trainingJobId);
             const trainReady = Array.isArray(pendingJobEvents)
                 && pendingJobEvents.some((event) => event?.kind === "sent");
-            return { serverReady, applianceReady, intervalReady, labelsReady, prepareReady, trainReady };
+            return { serverReady, applianceReady, intervalDataReady, intervalReady, labelsReady, prepareReady, trainReady };
+        }
+
+        function validateTrainingWizardStep(stepKey, { showErrors = true } = {}) {
+            const state = currentTrainingStepperState();
+
+            if (stepKey === "server") {
+                if (state.serverReady) return true;
+                if (showErrors) {
+                    showValidationResultModal("Training Server Not Ready", "Please select a reachable training server before continuing.", true);
+                }
+                return false;
+            }
+
+            if (stepKey === "appliance") {
+                const hasName = Boolean(applianceNameInput?.value?.trim());
+                if (applianceNameError) applianceNameError.classList.toggle("hidden", hasName);
+                if (hasName) return true;
+                if (showErrors) {
+                    showValidationResultModal("Appliance Name Required", "Please enter an appliance name before continuing.", true);
+                }
+                return false;
+            }
+
+            if (stepKey === "interval") {
+                if (state.intervalDataReady) return true;
+                if (showErrors) {
+                    showValidationResultModal("Training Interval Required", "Please load the mains history interval that will be used for training before continuing.", true);
+                }
+                return false;
+            }
+
+            if (stepKey === "labels") {
+                if (currentSupervisionMode() === "sensor") {
+                    const hasSensor = Boolean(applianceSensorSelect?.value);
+                    if (hasSensor) return true;
+                    if (showErrors) {
+                        showValidationResultModal("Sensor Required", "Please select the ground-truth appliance sensor before continuing.", true);
+                    }
+                    return false;
+                }
+                const hasIntervals = selectedWindows.length > 0;
+                if (hasIntervals) return true;
+                if (showErrors) {
+                    showValidationResultModal("No Intervals Defined", "Please draw at least one ON interval before continuing.", true);
+                }
+                return false;
+            }
+
+            return true;
         }
 
         function isTrainingStepUnlocked(stepKey, state = currentTrainingStepperState()) {
@@ -1627,6 +1679,7 @@
             const selectModeControl = selectModeBtn?.closest('.relative.group');
             if (selectModeControl) selectModeControl.classList.toggle('hidden', !isLabelsStep || isSensorMode);
             if (selectModeBtn) selectModeBtn.disabled = !isLabelsStep || isSensorMode;
+            if (trainingIntervalToolbarPanel) trainingIntervalToolbarPanel.classList.toggle('hidden', !isIntervalStep);
             if (selectionAssistantSection) selectionAssistantSection.classList.toggle('hidden', !isLabelsStep || isSensorMode);
             if (sensorSupervisionSection) sensorSupervisionSection.classList.toggle('hidden', !isLabelsStep || !isSensorMode);
             if (previewSection) previewSection.classList.toggle('hidden', !isLabelsStep || isSensorMode);
@@ -1642,7 +1695,7 @@
                 const currentIndex = TRAINING_WIZARD_STEPS.indexOf(trainingWizardCurrentStep);
                 const hasNext = currentIndex < TRAINING_WIZARD_STEPS.length - 1;
                 trainingWizardNextBtn.classList.toggle("hidden", !hasNext);
-                trainingWizardNextBtn.disabled = !hasNext || !completed[trainingWizardCurrentStep];
+                trainingWizardNextBtn.disabled = !hasNext;
             }
         }
 
@@ -1670,6 +1723,7 @@
         function applyQuickRange(days) {
             const { startDate, endDate, safeDays } = getUtcDayRange(days);
             if (dateRangeError) dateRangeError.classList.add('hidden');
+            trainingIntervalConfirmed = false;
             if (dateRangePickerInstance) {
                 dateRangePickerInstance.setDate([startDate, endDate], false);
             } else if (dateRangePicker) {
@@ -2911,6 +2965,8 @@
         // 8. Data Fetching (depends on loading indicators, chart initialization, modal helpers)
         async function fetchSensorHistoryData(startMs = null, endMs = null) {
             showLoadingIndicator(); 
+            trainingIntervalConfirmed = false;
+            updateTrainingStepper();
             try {
                 let url = '';
                 if (startMs !== null && endMs !== null) {
@@ -3131,6 +3187,11 @@
             trainingWizardNextHandler = () => {
                 const currentIndex = TRAINING_WIZARD_STEPS.indexOf(trainingWizardCurrentStep);
                 if (currentIndex < 0 || currentIndex >= TRAINING_WIZARD_STEPS.length - 1) return;
+                if (!validateTrainingWizardStep(trainingWizardCurrentStep, { showErrors: true })) return;
+                if (trainingWizardCurrentStep === "interval") {
+                    trainingIntervalConfirmed = true;
+                    updateTrainingStepper();
+                }
                 const nextStep = TRAINING_WIZARD_STEPS[currentIndex + 1];
                 goToTrainingWizardStep(nextStep);
             };
@@ -3296,6 +3357,7 @@
         trainingWizardStatus = document.getElementById("trainingWizardStatus");
         trainingChartSectionTitle = document.getElementById("trainingChartSectionTitle");
         trainingChartSectionCopy = document.getElementById("trainingChartSectionCopy");
+        trainingIntervalToolbarPanel = document.getElementById("trainingIntervalToolbarPanel");
         previewSection = document.getElementById("previewSection");
 
         jobsTableBody = document.getElementById("jobsTableBody");
