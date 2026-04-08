@@ -3676,14 +3676,12 @@
                 trainingRangeStartPickerInstance = flatpickr(trainingRangeStartInput, {
                     ...trainingRangePickerOptions,
                     onChange: () => scheduleTrainingRangeSync(),
-                    onClose: () => scheduleTrainingRangeSync(),
                 });
 
                 if (trainingRangeEndPickerInstance) trainingRangeEndPickerInstance.destroy();
                 trainingRangeEndPickerInstance = flatpickr(trainingRangeEndInput, {
                     ...trainingRangePickerOptions,
                     onChange: () => scheduleTrainingRangeSync(),
-                    onClose: () => scheduleTrainingRangeSync(),
                 });
 
                 if (manualStartInput) {
