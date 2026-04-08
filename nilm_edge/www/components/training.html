@@ -2985,7 +2985,7 @@
                 try {
                     await saveTrainingServerUrlOverride(trainingServerUrlSelect ? trainingServerUrlSelect.value : "");
                 } catch (error) {
-                    showValidationResultModal("Save Error", error.message || "Failed to save the training server.", true);
+                    showValidationResultModal("Selection Error", error.message || "Failed to update the training server selection.", true);
                 }
             };
             if (trainingServerUrlSelect) trainingServerUrlSelect.addEventListener('change', trainingServerUrlSelectHandler);

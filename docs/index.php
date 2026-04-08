@@ -58,7 +58,7 @@ $sections = [
         'id' => 'installation',
         'title' => 'Installation And First Setup',
         'eyebrow' => 'Section 1',
-        'intro' => 'Installation has two objectives: first, make both apps available and running inside Home Assistant; second, save the training server and mains sensor selections so NILM is ready for training and historical analysis.',
+        'intro' => 'Installation has two objectives: first, make both apps available and running inside Home Assistant; second, select the training server and mains sensor so NILM is ready for training and historical analysis.',
         'blocks' => [
             [
                 'type' => 'steps',
@@ -83,7 +83,7 @@ $sections = [
                 'type' => 'steps',
                 'title' => 'Complete the initial configuration',
                 'items' => [
-                    'Open the training page and save the training server selection in the Training Server Connection card.',
+                    'Open the training page and select the training server in the Training Server Connection card.',
                     'Open Energy Dashboard and save the mains power sensor.',
                     'Confirm that the mains chart loads and that the training server is reported as ready.',
                 ],
@@ -101,7 +101,7 @@ $sections = [
             [
                 'type' => 'callout',
                 'title' => 'Important detail',
-                'body' => 'Detection is not the same as configuration. The training server can be automatically detected, but it still has to be selected and saved before NILM will use it for training.',
+                'body' => 'Detection is not the same as configuration. The training server can be detected automatically, but it still has to be selected before NILM will use it for training.',
             ],
         ],
     ],
@@ -300,7 +300,7 @@ $sections = [
                 'items' => [
                     [
                         'question' => 'The training server is detected, but training does not work.',
-                        'answer' => 'Detection is only discovery. The training server must still be selected and saved in the Training Server Connection card before NILM will use it.',
+                        'answer' => 'Detection is only discovery. The training server must still be selected in the Training Server Connection card before NILM will use it.',
                     ],
                     [
                         'question' => 'The upload to the training server failed.',

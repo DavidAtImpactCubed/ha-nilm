@@ -281,8 +281,8 @@ class TrainingServerServiceManager:
             message = "Training server URL is not configured."
             if autodetect.get("ok") and autodetect.get("training_server_url"):
                 message = (
-                    "Training server URL is not saved yet. "
-                    "Select the detected server and press Save."
+                    "Training server is not selected yet. "
+                    "Select the detected server to use it."
                 )
             elif autodetect.get("message"):
                 message = f"{message} {autodetect.get('message')}"

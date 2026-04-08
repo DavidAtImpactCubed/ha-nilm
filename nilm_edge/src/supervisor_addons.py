@@ -101,7 +101,7 @@ async def discover_training_server_addon(base_url: str, token: Optional[str], ti
             "slug": selected_slug,
             "hostname": hostname,
             "training_server_url": training_server_url,
-            "message": "NILM Training Server app was detected automatically. Select it and press Save to use it.",
+            "message": "NILM Training Server app was detected automatically. Select it to use it.",
         }
     except Exception as exc:
         message = str(exc)
