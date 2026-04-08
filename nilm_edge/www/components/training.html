@@ -1828,26 +1828,20 @@
 
         function setTrainingRangeInputs(startMs, endMs) {
             if (!Number.isFinite(startMs) || !Number.isFinite(endMs)) return;
-            const startValue = formatForDateTimeLocal(startMs);
-            const endValue = formatForDateTimeLocal(endMs);
+            const startValue = formatForTrainingRangeInput(startMs);
+            const endValue = formatForTrainingRangeInput(endMs);
             const startDate = new Date(startMs);
             const endDate = new Date(endMs);
             suppressTrainingRangeSync = true;
             try {
                 if (trainingRangeStartPickerInstance) {
                     trainingRangeStartPickerInstance.setDate(startDate, false);
-                    if (trainingRangeStartPickerInstance.altInput) {
-                        trainingRangeStartPickerInstance.altInput.value = startValue;
-                    }
                 }
                 if (trainingRangeStartInput) {
                     trainingRangeStartInput.value = startValue;
                 }
                 if (trainingRangeEndPickerInstance) {
                     trainingRangeEndPickerInstance.setDate(endDate, false);
-                    if (trainingRangeEndPickerInstance.altInput) {
-                        trainingRangeEndPickerInstance.altInput.value = endValue;
-                    }
                 }
                 if (trainingRangeEndInput) {
                     trainingRangeEndInput.value = endValue;
@@ -1868,8 +1862,8 @@
         }
 
         function applyTrainingRangeFromInputs() {
-            const startMs = parseDateTimeLocal(trainingRangeStartInput?.value);
-            const endMs = parseDateTimeLocal(trainingRangeEndInput?.value);
+            const startMs = parseTrainingRangeInput(trainingRangeStartInput?.value);
+            const endMs = parseTrainingRangeInput(trainingRangeEndInput?.value);
             const maxRangeMs = 7 * 24 * 60 * 60 * 1000;
             const { minMs, maxMs } = getTrainingRangeBounds();
 
@@ -2217,6 +2211,13 @@
             return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
         }
 
+        function formatForTrainingRangeInput(ms) {
+            if (!Number.isFinite(ms)) return '';
+            const d = new Date(ms);
+            const pad = (n) => String(n).padStart(2, '0');
+            return `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+        }
+
         function parseDateTimeLocal(value) {
             if (!value) return NaN;
             const match = String(value).trim().match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})$/);
@@ -2231,6 +2232,25 @@
                 0,
                 0
             ).getTime();
+        }
+
+        function parseTrainingRangeInput(value) {
+            if (!value) return NaN;
+            const text = String(value).trim();
+            let match = text.match(/^(\d{2})\/(\d{2})\/(\d{4})[ T](\d{2}):(\d{2})$/);
+            if (match) {
+                const [, day, month, year, hour, minute] = match;
+                return new Date(
+                    Number(year),
+                    Number(month) - 1,
+                    Number(day),
+                    Number(hour),
+                    Number(minute),
+                    0,
+                    0
+                ).getTime();
+            }
+            return parseDateTimeLocal(text);
         }
 
         function snapToNearestTimestamp(ts) {
@@ -3628,6 +3648,17 @@
                 const { minDate: trainingMinDate, maxDate: trainingMaxDate } = getTrainingRangeBounds();
                 console.log("DEBUG: Flatpickr initialized successfully.");
 
+                const trainingRangePickerOptions = {
+                    enableTime: true,
+                    time_24hr: true,
+                    allowInput: true,
+                    disableMobile: true,
+                    dateFormat: "d/m/Y H:i",
+                    clickOpens: true,
+                    minDate: trainingMinDate,
+                    maxDate: trainingMaxDate,
+                };
+
                 const manualPickerOptions = {
                     enableTime: true,
                     time_24hr: true,
@@ -3643,14 +3674,14 @@
 
                 if (trainingRangeStartPickerInstance) trainingRangeStartPickerInstance.destroy();
                 trainingRangeStartPickerInstance = flatpickr(trainingRangeStartInput, {
-                    ...manualPickerOptions,
+                    ...trainingRangePickerOptions,
                     onChange: () => scheduleTrainingRangeSync(),
                     onClose: () => scheduleTrainingRangeSync(),
                 });
 
                 if (trainingRangeEndPickerInstance) trainingRangeEndPickerInstance.destroy();
                 trainingRangeEndPickerInstance = flatpickr(trainingRangeEndInput, {
-                    ...manualPickerOptions,
+                    ...trainingRangePickerOptions,
                     onChange: () => scheduleTrainingRangeSync(),
                     onClose: () => scheduleTrainingRangeSync(),
                 });
