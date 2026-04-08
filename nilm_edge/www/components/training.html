@@ -999,12 +999,7 @@
         <div id="trainingPrepareStepPanel" class="training-step-panel" data-wizard-step="prepare">
         <div class="mt-6 text-center space-y-3">
             <button id="checkAllDataBtn" class="action-btn action-accent text-lg px-8 py-3">
-                <i class="fas fa-check-circle mr-2" aria-hidden="true"></i> Check All Data
-            </button>
-
-            <!-- Appears only after prep is ready -->
-            <button id="sendToTrainingServerBtn" class="hidden action-btn action-success text-lg px-8 py-3">
-                <i class="fas fa-server mr-2" aria-hidden="true"></i> Send to Training Server
+                <i class="fas fa-rocket mr-2" aria-hidden="true"></i> Prepare and Send to Training Server
             </button>
 
             <!-- Status text -->
@@ -1170,7 +1165,6 @@
     let trainingIntervalToolbarPanel;
     let previewSection;
     let jobsUI = null;
-    let sendToTrainingServerBtn;
     let trainingPrepStatus;
     let ctx;
     let chartContainer;
@@ -1307,7 +1301,6 @@
             else hideLoadingIndicator();
 
             if (checkAllDataBtn) checkAllDataBtn.disabled = isBusy || !trainingServerConnectionReady;
-            if (sendToTrainingServerBtn) sendToTrainingServerBtn.disabled = isBusy || !trainingServerConnectionReady;
             if (retryTrainingServerStatusBtn) retryTrainingServerStatusBtn.disabled = isBusy;
 
             if (trainingPrepStatus) {
@@ -1382,7 +1375,6 @@
             }
 
             if (checkAllDataBtn) checkAllDataBtn.disabled = !trainingServerConnectionReady;
-            if (sendToTrainingServerBtn) sendToTrainingServerBtn.disabled = !trainingServerConnectionReady;
             updateTrainingStepper();
         }
 
@@ -1511,16 +1503,6 @@
             }
         }
 
-        function showSendToTrainingServerReady() {
-            if (sendToTrainingServerBtn) sendToTrainingServerBtn.classList.remove("hidden");
-            updateTrainingStepper();
-        }
-
-        function hideSendToTrainingServer() {
-            if (sendToTrainingServerBtn) sendToTrainingServerBtn.classList.add("hidden");
-            updateTrainingStepper();
-        }
-
         function currentTrainingStepperState() {
             const serverReady = Boolean(trainingServerConnectionReady);
             const applianceReady = Boolean(applianceNameInput?.value?.trim());
@@ -1630,7 +1612,7 @@
                 appliance: state.serverReady && state.applianceReady,
                 interval: state.serverReady && state.applianceReady && state.intervalReady,
                 labels: state.serverReady && state.applianceReady && state.intervalReady && state.labelsReady,
-                prepare: state.serverReady && state.applianceReady && state.intervalReady && state.labelsReady && (state.prepareReady || state.trainReady),
+                prepare: state.serverReady && state.applianceReady && state.intervalReady && state.labelsReady && state.trainReady,
             };
 
             if (!isTrainingStepUnlocked(trainingWizardCurrentStep, state)) {
@@ -2639,6 +2621,61 @@
             updateTrainingStepper();
         }
 
+        async function sendPreparedTrainingPackage() {
+            if (!trainingServerConnectionReady) {
+                showValidationResultModal("Training Server Not Ready", "Training is not available yet. Please solve the training server connection warning before sending this package.", true);
+                return false;
+            }
+
+            if (!trainingJobId) {
+                showValidationResultModal("Nothing to Send", "Please prepare the training package first.", true);
+                return false;
+            }
+
+            startBusyProgress("Sending prepared package to the training server...", 90);
+
+            try {
+                const resp = await fetch(`training?action=send&job_id=${encodeURIComponent(trainingJobId)}`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({})
+                });
+
+                if (!resp.ok) {
+                    const err = await resp.json().catch(() => ({ message: "Unknown error" }));
+                    throw new Error(err.message || `HTTP ${resp.status}`);
+                }
+
+                const result = await resp.json();
+                if (trainingJobId) {
+                    const ev = {
+                        kind: "sent",
+                        data: {
+                            job_id: trainingJobId,
+                            training_server_job_id: result.training_server_job_id || result.trainingServerJobId || result.training_server_id || null
+                        }
+                    };
+
+                    if (jobsUI) pendingJobEvents.push(ev), jobsUI.recordSent(ev.data);
+                    else pendingJobEvents.push(ev);
+                    updateTrainingStepper();
+                }
+
+                updateTrainingStepper();
+                await finishBusyProgress(
+                    "Sending prepared package to the training server...",
+                    "Training package sent successfully. Follow the Training Jobs table below for progress."
+                );
+                return true;
+            } catch (e) {
+                console.error("send error:", e);
+                showValidationResultModal("Upload Failed", `Failed to send to the training server: ${e.message}`, true);
+                clearBusyProgress();
+                setUiBusy(false);
+                return false;
+            }
+        }
+
         async function handleCheckAllData() {
             if (!trainingServerConnectionReady) {
                 showValidationResultModal("Training Server Not Ready", "Training is not available yet. Please solve the training server connection warning before preparing an appliance model.", true);
@@ -2667,7 +2704,6 @@
             });
 
             trainingJobId = null;
-            hideSendToTrainingServer();
             updateTrainingStepper();
             startBusyProgress("Preparing training data...");
 
@@ -2725,32 +2761,21 @@
                     updateTrainingStepper();
                 }
 
-                const preparedSummary = supervisionMode === 'sensor'
-                    ? "Ground-truth power data has been matched with the selected mains range."
-                    : `${selectedWindows.length} ON interval${selectedWindows.length === 1 ? "" : "s"} prepared for training.`;
-
-                const preparationMessage = [
-                    "Everything looks good. Your training package is ready.",
-                    preparedSummary,
-                    "Next step: click 'Send to Training Server' to start training."
-                ].join(" ");
-
-                showValidationResultModal("Training Data Ready", preparationMessage, false);
-
                 if (!trainingJobId) {
                     await finishBusyProgress(
                         "Preparing training data...",
-                        "Training data is ready. You can continue with 'Send to Training Server'."
+                        "Training data was prepared, but no job was created."
                     );
-                    showSendToTrainingServerReady();
                     return;
                 }
 
-                showSendToTrainingServerReady();
                 await finishBusyProgress(
                     "Preparing training data...",
-                    "Training data is ready. Next: Send to Training Server."
+                    supervisionMode === 'sensor'
+                        ? "Ground-truth power data matched the selected mains range. Sending package to the training server..."
+                        : `Prepared ${selectedWindows.length} ON interval${selectedWindows.length === 1 ? "" : "s"}. Sending package to the training server...`
                 );
+                await sendPreparedTrainingPackage();
             } catch (e) {
                 console.error("prepare error:", e);
                 showValidationResultModal("Preparation Failed", `Failed to prepare training data: ${e.message}`, true);
@@ -2758,72 +2783,6 @@
                 setUiBusy(false);
             }
         }
-
-
-
-        async function handleSendToTrainingServer() {
-            if (!trainingServerConnectionReady) {
-                showValidationResultModal("Training Server Not Ready", "Training is not available yet. Please solve the training server connection warning before sending this package.", true);
-                return;
-            }
-
-            if (!trainingJobId) {
-                showValidationResultModal("Nothing to Send", "Please click 'Check All Data' first.", true);
-                return;
-            }
-
-            startBusyProgress("Sending prepared package to the training server...", 90);
-
-            try {
-                const resp = await fetch(`training?action=send&job_id=${encodeURIComponent(trainingJobId)}`, {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({}) // optional, can be empty
-                });
-
-                if (!resp.ok) {
-                    const err = await resp.json().catch(() => ({ message: "Unknown error" }));
-                    throw new Error(err.message || `HTTP ${resp.status}`);
-                }
-
-                const result = await resp.json();
-                if (trainingJobId) {
-                    const ev = {
-                        kind: "sent",
-                        data: {
-                            job_id: trainingJobId,
-                            training_server_job_id: result.training_server_job_id || result.trainingServerJobId || result.training_server_id || null
-                        }
-                    };
-
-                    if (jobsUI) pendingJobEvents.push(ev), jobsUI.recordSent(ev.data);
-                    else pendingJobEvents.push(ev);
-                    updateTrainingStepper();
-                }
-
-                hideSendToTrainingServer();
-
-                const trainingServerStartMessage = [
-                    "Your training package was sent successfully.",
-                    "Next step: watch the Training Jobs table below for progress.",
-                    "When the job finishes, the new appliance model will appear in Energy Dashboard."
-                ].join(" ");
-
-                showValidationResultModal("Training Started", trainingServerStartMessage, false);
-
-                await finishBusyProgress(
-                    "Sending prepared package to the training server...",
-                    "Upload complete. Check the jobs table below."
-                );
-            } catch (e) {
-                console.error("send error:", e);
-                showValidationResultModal("Upload Failed", `Failed to send to the training server: ${e.message}`, true);
-                clearBusyProgress();
-                setUiBusy(false);
-            }
-        }
-
-
         // 7. Chart Initialization (depends on data processing, event listeners, selection previews)
         function initializePowerChart(data, minTime, maxTime) {
             if (powerChart) powerChart.destroy();
@@ -3100,8 +3059,6 @@
         // 9. Event Listener Attachment (depends on all event handlers and DOM elements)
         function attachChartEventListeners() {
             console.log("DEBUG: Attaching event listeners for the training UI...");
-            if (sendToTrainingServerBtn) sendToTrainingServerBtn.addEventListener("click", handleSendToTrainingServer);
-
                 if (powerChartCanvas) {
                 powerChartCanvas.addEventListener('pointerup', handleChartClick);
                 powerChartCanvas.addEventListener('pointermove', handleMouseMove);
@@ -3241,7 +3198,6 @@
                 powerChartCanvas.removeEventListener('pointermove', handleMouseMove);
                 powerChartCanvas.removeEventListener('pointerleave', handleMouseLeave);
             }
-            if (sendToTrainingServerBtn) sendToTrainingServerBtn.removeEventListener("click", handleSendToTrainingServer);
             if (selectModeBtn) selectModeBtn.removeEventListener('click', toggleSelectionMode);
             if (chartResetZoomBtn) chartResetZoomBtn.removeEventListener('click', handleResetZoom);
             if (document.getElementById('clearAllSelectionsBtn')) document.getElementById('clearAllSelectionsBtn').removeEventListener('click', showClearConfirmModal);
@@ -3344,7 +3300,6 @@
         trainingHelpModal = document.getElementById('trainingHelpModal');
         closeTrainingHelpModalBtn = document.getElementById('closeTrainingHelpModalBtn');
 
-        sendToTrainingServerBtn = document.getElementById("sendToTrainingServerBtn");
         trainingPrepStatus = document.getElementById("trainingPrepStatus");
         trainingServerStatusCard = document.getElementById("trainingServerStatusCard");
         trainingServerStepPanel = document.getElementById("trainingServerStepPanel");
