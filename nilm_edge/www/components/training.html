@@ -125,6 +125,18 @@
         color: #0f172a;
     }
 
+    .action-chart-view {
+        background: linear-gradient(135deg, #eff6ff, #dbeafe);
+        color: #1d4ed8;
+        border: 1px solid #93c5fd;
+        box-shadow: 0 10px 20px rgba(59, 130, 246, 0.12);
+    }
+
+    .action-chart-view:hover {
+        background: linear-gradient(135deg, #dbeafe, #bfdbfe);
+        box-shadow: 0 12px 24px rgba(59, 130, 246, 0.16);
+    }
+
     .action-success {
         background: linear-gradient(135deg, #16a34a, #15803d);
         color: #fff;
@@ -939,8 +951,8 @@
                     </div>
                 </div>
                 <div class="md:col-span-2 flex flex-wrap gap-2">
-                    <button id="useCurrentViewRangeBtn" type="button" class="action-btn action-neutral">
-                        <i class="fas fa-magnifying-glass-chart mr-2" aria-hidden="true"></i> Use Current View
+                    <button id="useCurrentViewRangeBtn" type="button" class="action-btn action-chart-view">
+                        <i class="fas fa-magnifying-glass-chart mr-2" aria-hidden="true"></i> Use Current Chart View
                     </button>
                 </div>
             </div>
@@ -1782,6 +1794,17 @@
             return { startDate, endDate, safeHours };
         }
 
+        function getTrainingRangeBounds() {
+            const maxDate = new Date();
+            const minDate = new Date(maxDate.getTime() - (7 * 24 * 60 * 60 * 1000));
+            return {
+                minMs: minDate.getTime(),
+                maxMs: maxDate.getTime(),
+                minDate,
+                maxDate,
+            };
+        }
+
         function setTrainingRangeInputs(startMs, endMs) {
             if (!Number.isFinite(startMs) || !Number.isFinite(endMs)) return;
             const startValue = formatForDateTimeLocal(startMs);
@@ -1814,6 +1837,7 @@
             const startMs = parseDateTimeLocal(trainingRangeStartInput?.value);
             const endMs = parseDateTimeLocal(trainingRangeEndInput?.value);
             const maxRangeMs = 7 * 24 * 60 * 60 * 1000;
+            const { minMs, maxMs } = getTrainingRangeBounds();
 
             if (!Number.isFinite(startMs) || !Number.isFinite(endMs)) {
                 if (dateRangeError) {
@@ -1825,6 +1849,20 @@
             if (startMs >= endMs) {
                 if (dateRangeError) {
                     dateRangeError.textContent = "End time must be after the start time.";
+                    dateRangeError.classList.remove('hidden');
+                }
+                return;
+            }
+            if (startMs < minMs || endMs < minMs) {
+                if (dateRangeError) {
+                    dateRangeError.textContent = "The selected range must stay within the last 7 days.";
+                    dateRangeError.classList.remove('hidden');
+                }
+                return;
+            }
+            if (startMs > maxMs || endMs > maxMs) {
+                if (dateRangeError) {
+                    dateRangeError.textContent = "Future dates are not allowed for the training range.";
                     dateRangeError.classList.remove('hidden');
                 }
                 return;
@@ -3550,6 +3588,7 @@
         const initFlatpickrWithRetry = (retryCount = 0) => {
             if (typeof flatpickr !== 'undefined' && trainingRangeStartInput && trainingRangeEndInput) {
                 const { startDate: defaultStartDate, endDate: defaultEndDate } = getUtcRangeByHours(168);
+                const { minDate: trainingMinDate, maxDate: trainingMaxDate } = getTrainingRangeBounds();
                 console.log("DEBUG: Flatpickr initialized successfully.");
 
                 const manualPickerOptions = {
@@ -3561,6 +3600,8 @@
                     altInput: true,
                     altFormat: "d/m/Y H:i",
                     clickOpens: true,
+                    minDate: trainingMinDate,
+                    maxDate: trainingMaxDate,
                 };
 
                 if (trainingRangeStartPickerInstance) trainingRangeStartPickerInstance.destroy();
