@@ -919,25 +919,37 @@
                 </div>
             </div>
 
-            <!-- New: Date Range Selector for Chart (Flatpickr) -->
             <div id="trainingIntervalToolbarPanel" class="toolbar-panel">
                 <div>
-                    <label for="quickRangeSelect" class="field-label">Quick Range</label>
-                    <select id="quickRangeSelect" class="field-input">
-                        <option value="">Custom range</option>
-                        <option value="1">1 day</option>
-                        <option value="3">3 days</option>
-                        <option value="7" selected>7 days</option>
-                    </select>
+                    <label for="trainingRangeStartInput" class="field-label">Start</label>
+                    <input type="text" id="trainingRangeStartInput" class="field-input" placeholder="dd/mm/yyyy hh:mm">
                 </div>
                 <div>
-                    <label for="dateRangePicker" class="field-label">Select Date Range</label>
-                    <input type="text" id="dateRangePicker" class="field-input" placeholder="Select date and time range">
+                    <label for="trainingRangeEndInput" class="field-label">End</label>
+                    <input type="text" id="trainingRangeEndInput" class="field-input" placeholder="dd/mm/yyyy hh:mm">
+                </div>
+                <div class="md:col-span-2">
+                    <label class="field-label">Quick Range</label>
+                    <div id="trainingQuickRangeButtons" class="flex flex-wrap gap-2">
+                        <button type="button" class="action-btn action-neutral training-quick-range-btn" data-hours="1">1 h</button>
+                        <button type="button" class="action-btn action-neutral training-quick-range-btn" data-hours="2">2 h</button>
+                        <button type="button" class="action-btn action-neutral training-quick-range-btn" data-hours="6">6 h</button>
+                        <button type="button" class="action-btn action-neutral training-quick-range-btn" data-hours="12">12 h</button>
+                        <button type="button" class="action-btn action-neutral training-quick-range-btn" data-hours="24">1 d</button>
+                        <button type="button" class="action-btn action-neutral training-quick-range-btn" data-hours="72">3 d</button>
+                        <button type="button" class="action-btn action-neutral training-quick-range-btn" data-hours="168">7 d</button>
+                    </div>
+                </div>
+                <div class="md:col-span-2 flex flex-wrap gap-2">
+                    <button id="applyTrainingRangeBtn" type="button" class="action-btn action-primary">
+                        <i class="fas fa-wave-square mr-2" aria-hidden="true"></i> Apply Range
+                    </button>
+                    <button id="useCurrentViewRangeBtn" type="button" class="action-btn action-neutral">
+                        <i class="fas fa-magnifying-glass-chart mr-2" aria-hidden="true"></i> Use Current View
+                    </button>
                 </div>
             </div>
             <p id="dateRangeError" class="text-red-500 text-xs mt-1 text-center hidden">Invalid date range. Please select a start and end time, and ensure the range is no more than 7 days.</p>
-            <!-- REMOVED: Display for current active date range -->
-            <!-- <div id="currentDateRangeDisplay" class="text-sm text-gray-600 mt-2 text-center hidden"></div> -->
 
             <div id="sensorSupervisionSection" class="mb-4 hidden">
                 <label for="applianceSensorSelect" class="field-label">Ground-Truth Appliance Sensor</label>
@@ -1141,7 +1153,8 @@
     let lastTimestamp = 0; // Timestamp of the last data point of the *full available data*
     let currentChartMinTime = 0; // The actual min time currently displayed in the chart
     let currentChartMaxTime = 0; // The actual max time currently displayed in the chart
-    let dateRangePickerInstance; // Flatpickr instance
+    let trainingRangeStartPickerInstance;
+    let trainingRangeEndPickerInstance;
     let manualStartPickerInstance;
     let manualEndPickerInstance;
 
@@ -1230,8 +1243,11 @@
     let noPreviewsMessage; // Declared here, assigned in initializeTrainingUI
     
     // --- New Date Selector DOM references ---
-    let dateRangePicker; // Reference for the single Flatpickr input
-    let quickRangeSelect;
+    let trainingRangeStartInput;
+    let trainingRangeEndInput;
+    let applyTrainingRangeBtn;
+    let useCurrentViewRangeBtn;
+    let trainingQuickRangeButtons = [];
     let dateRangeError;
     let manualStartInput;
     let manualEndInput;
@@ -1763,38 +1779,77 @@
             return new Date(date.getTime() - date.getMilliseconds()).toISOString().replace(".000Z", "Z");
         }
 
-        function getUtcDayRange(days) {
-            const safeDays = Math.min(Math.max(parseInt(days, 10) || 7, 1), 7);
-            const today = new Date();
-            const endDate = new Date(today.getTime());
-            const startDate = new Date(endDate.getTime() - (safeDays * 24 * 60 * 60 * 1000));
-            return { startDate, endDate, safeDays };
+        function getUtcRangeByHours(hours) {
+            const safeHours = Math.min(Math.max(parseFloat(hours) || 168, 0.25), 168);
+            const endDate = new Date();
+            const startDate = new Date(endDate.getTime() - (safeHours * 60 * 60 * 1000));
+            return { startDate, endDate, safeHours };
         }
 
-        function syncQuickRangeWithDates(startMs, endMs) {
-            if (!quickRangeSelect || !Number.isFinite(startMs) || !Number.isFinite(endMs)) return;
-            const oneDayMs = 24 * 60 * 60 * 1000;
-            const numberOfCalendarDays = Math.round((endMs - startMs) / oneDayMs);
-            if ([1, 3, 7].includes(numberOfCalendarDays)) {
-                quickRangeSelect.value = String(numberOfCalendarDays);
-            } else {
-                quickRangeSelect.value = "";
+        function setTrainingRangeInputs(startMs, endMs) {
+            if (!Number.isFinite(startMs) || !Number.isFinite(endMs)) return;
+            const startValue = formatForDateTimeLocal(startMs);
+            const endValue = formatForDateTimeLocal(endMs);
+            if (trainingRangeStartPickerInstance) {
+                trainingRangeStartPickerInstance.setDate(startValue, false, "Y-m-d H:i");
+            } else if (trainingRangeStartInput) {
+                trainingRangeStartInput.value = startValue;
+            }
+            if (trainingRangeEndPickerInstance) {
+                trainingRangeEndPickerInstance.setDate(endValue, false, "Y-m-d H:i");
+            } else if (trainingRangeEndInput) {
+                trainingRangeEndInput.value = endValue;
             }
         }
 
-        function applyQuickRange(days) {
-            if (!days) return;
-            const { startDate, endDate, safeDays } = getUtcDayRange(days);
+        function applyQuickRangeHours(hours) {
+            const { startDate, endDate } = getUtcRangeByHours(hours);
             if (dateRangeError) dateRangeError.classList.add('hidden');
             trainingIntervalConfirmed = false;
-            if (dateRangePickerInstance) {
-                dateRangePickerInstance.setDate([startDate, endDate], false);
-            } else if (dateRangePicker) {
-                const fmt = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-                dateRangePicker.value = `${fmt(startDate)} to ${fmt(endDate)}`;
-            }
-            if (quickRangeSelect) quickRangeSelect.value = String(safeDays);
+            setTrainingRangeInputs(startDate.getTime(), endDate.getTime());
             fetchSensorHistoryData(startDate.getTime(), endDate.getTime());
+        }
+
+        function applyTrainingRangeFromInputs() {
+            const startMs = parseDateTimeLocal(trainingRangeStartInput?.value);
+            const endMs = parseDateTimeLocal(trainingRangeEndInput?.value);
+            const maxRangeMs = 7 * 24 * 60 * 60 * 1000;
+
+            if (!Number.isFinite(startMs) || !Number.isFinite(endMs)) {
+                if (dateRangeError) {
+                    dateRangeError.textContent = "Please enter both a valid start time and end time.";
+                    dateRangeError.classList.remove('hidden');
+                }
+                return;
+            }
+            if (startMs >= endMs) {
+                if (dateRangeError) {
+                    dateRangeError.textContent = "End time must be after the start time.";
+                    dateRangeError.classList.remove('hidden');
+                }
+                return;
+            }
+            if ((endMs - startMs) > maxRangeMs) {
+                if (dateRangeError) {
+                    dateRangeError.textContent = "The selected range cannot exceed 7 days.";
+                    dateRangeError.classList.remove('hidden');
+                }
+                return;
+            }
+            if (dateRangeError) dateRangeError.classList.add('hidden');
+            trainingIntervalConfirmed = false;
+            fetchSensorHistoryData(startMs, endMs);
+        }
+
+        function applyCurrentChartViewRange() {
+            if (!Number.isFinite(currentChartMinTime) || !Number.isFinite(currentChartMaxTime) || currentChartMaxTime <= currentChartMinTime) {
+                showValidationResultModal("Chart View Not Ready", "Zoom or load the chart before using the current view as the training range.", true);
+                return;
+            }
+            setTrainingRangeInputs(currentChartMinTime, currentChartMaxTime);
+            if (dateRangeError) dateRangeError.classList.add('hidden');
+            trainingIntervalConfirmed = false;
+            fetchSensorHistoryData(currentChartMinTime, currentChartMaxTime);
         }
 
         function currentSupervisionMode() {
@@ -3081,6 +3136,7 @@
                         firstTimestamp = fullSensorHistoryData[0].x; 
                         lastTimestamp = fullSensorHistoryData[fullSensorHistoryData.length - 1].x; 
                         console.log("DEBUG: fetched firstTimestamp:", new Date(firstTimestamp).toLocaleString(), "fetched lastTimestamp:", new Date(lastTimestamp).toLocaleString());
+                        setTrainingRangeInputs(firstTimestamp, lastTimestamp);
                         syncManualInputBounds();
                         setManualIntervalInputs(firstTimestamp, lastTimestamp);
                         
@@ -3106,7 +3162,8 @@
                         applianceSensorHistoryData = [];
                         sensorDerivedWindows = [];
                         initializePowerChart([], 0, 0); 
-                        if (dateRangePicker) dateRangePicker.value = ''; 
+                        if (trainingRangeStartInput) trainingRangeStartInput.value = '';
+                        if (trainingRangeEndInput) trainingRangeEndInput.value = '';
                         if (manualStartInput) manualStartInput.value = '';
                         if (manualEndInput) manualEndInput.value = '';
                         // Removed: if (currentDateRangeDisplay) currentDateRangeDisplay.classList.add('hidden'); 
@@ -3118,7 +3175,8 @@
                     applianceSensorHistoryData = [];
                     sensorDerivedWindows = [];
                     initializePowerChart([], 0, 0); 
-                    if (dateRangePicker) dateRangePicker.value = ''; 
+                    if (trainingRangeStartInput) trainingRangeStartInput.value = '';
+                    if (trainingRangeEndInput) trainingRangeEndInput.value = '';
                     if (manualStartInput) manualStartInput.value = '';
                     if (manualEndInput) manualEndInput.value = '';
                     // Removed: if (currentDateRangeDisplay) currentDateRangeDisplay.classList.add('hidden'); 
@@ -3131,7 +3189,8 @@
                 applianceSensorHistoryData = [];
                 sensorDerivedWindows = [];
                 initializePowerChart([], 0, 0);
-                if (dateRangePicker) dateRangePicker.value = ''; 
+                if (trainingRangeStartInput) trainingRangeStartInput.value = '';
+                if (trainingRangeEndInput) trainingRangeEndInput.value = '';
                 if (manualStartInput) manualStartInput.value = '';
                 if (manualEndInput) manualEndInput.value = '';
                 // Removed: if (currentDateRangeDisplay) currentDateRangeDisplay.classList.add('hidden'); 
@@ -3289,7 +3348,9 @@
             if (checkAllDataBtn) checkAllDataBtn.removeEventListener('click', handleCheckAllData);
             if (applianceNameInput) applianceNameInput.removeEventListener('input', handleApplianceNameInput);
             if (supervisionModeSelect && supervisionModeChangeHandler) supervisionModeSelect.removeEventListener('change', supervisionModeChangeHandler);
-            if (quickRangeSelect && quickRangeChangeHandler) quickRangeSelect.removeEventListener('change', quickRangeChangeHandler);
+            trainingQuickRangeButtons.forEach((button) => button.removeEventListener('click', quickRangeChangeHandler));
+            if (applyTrainingRangeBtn) applyTrainingRangeBtn.removeEventListener('click', applyTrainingRangeFromInputs);
+            if (useCurrentViewRangeBtn) useCurrentViewRangeBtn.removeEventListener('click', applyCurrentChartViewRange);
             if (manualStartInput && manualIntervalInputHandler) manualStartInput.removeEventListener('input', manualIntervalInputHandler);
             if (manualStartInput && manualIntervalInputHandler) manualStartInput.removeEventListener('change', manualIntervalInputHandler);
             if (manualStartInput && manualIntervalInputHandler) manualStartInput.removeEventListener('blur', manualIntervalInputHandler);
@@ -3311,9 +3372,13 @@
             if (closeTrainingHelpModalBtn && trainingHelpCloseHandler) closeTrainingHelpModalBtn.removeEventListener('click', trainingHelpCloseHandler);
             if (trainingHelpModal && trainingHelpOverlayHandler) trainingHelpModal.removeEventListener('click', trainingHelpOverlayHandler);
             
-            if (dateRangePickerInstance) {
-                dateRangePickerInstance.destroy();
-                dateRangePickerInstance = null;
+            if (trainingRangeStartPickerInstance) {
+                trainingRangeStartPickerInstance.destroy();
+                trainingRangeStartPickerInstance = null;
+            }
+            if (trainingRangeEndPickerInstance) {
+                trainingRangeEndPickerInstance.destroy();
+                trainingRangeEndPickerInstance = null;
             }
             if (manualStartPickerInstance) {
                 manualStartPickerInstance.destroy();
@@ -3416,15 +3481,17 @@
         selectionPreviewContainer = document.getElementById('selectionPreview');
         noPreviewsMessage = document.getElementById('noPreviews');
 
-        // --- New Date Selector DOM assignments ---
-        dateRangePicker = document.getElementById('dateRangePicker');
-        quickRangeSelect = document.getElementById('quickRangeSelect');
+        // --- Training range DOM assignments ---
+        trainingRangeStartInput = document.getElementById('trainingRangeStartInput');
+        trainingRangeEndInput = document.getElementById('trainingRangeEndInput');
+        applyTrainingRangeBtn = document.getElementById('applyTrainingRangeBtn');
+        useCurrentViewRangeBtn = document.getElementById('useCurrentViewRangeBtn');
+        trainingQuickRangeButtons = Array.from(document.querySelectorAll('.training-quick-range-btn'));
         dateRangeError = document.getElementById('dateRangeError');
         manualStartInput = document.getElementById('manualStartInput');
         manualEndInput = document.getElementById('manualEndInput');
         addManualIntervalBtn = document.getElementById('addManualIntervalBtn');
         selectionAssistantSection = document.getElementById('selectionAssistantSection');
-        // Removed: currentDateRangeDisplay = document.getElementById('currentDateRangeDisplay'); 
 
         if (overlapModal) { overlapModal.style.display = 'none'; }
         if (clearConfirmModal) { clearConfirmModal.style.display = 'none'; }
@@ -3442,10 +3509,15 @@
 
         // Attach core UI event listeners immediately after DOM references are assigned
         attachChartEventListeners();
-        quickRangeChangeHandler = (e) => applyQuickRange(e.target.value);
-        if (quickRangeSelect) quickRangeSelect.addEventListener('change', quickRangeChangeHandler);
+        quickRangeChangeHandler = (e) => {
+            const hours = e?.currentTarget?.dataset?.hours;
+            if (hours) applyQuickRangeHours(hours);
+        };
+        trainingQuickRangeButtons.forEach((button) => button.addEventListener('click', quickRangeChangeHandler));
         supervisionModeChangeHandler = () => updateSupervisionModeUI();
         if (supervisionModeSelect) supervisionModeSelect.addEventListener('change', supervisionModeChangeHandler);
+        if (applyTrainingRangeBtn) applyTrainingRangeBtn.addEventListener('click', applyTrainingRangeFromInputs);
+        if (useCurrentViewRangeBtn) useCurrentViewRangeBtn.addEventListener('click', applyCurrentChartViewRange);
         setTrainingServerStatusUi({
             ok: false,
             state: "checking",
@@ -3456,62 +3528,8 @@
 
         // Define Flatpickr initialization as a separate, retriable function
         const initFlatpickrWithRetry = (retryCount = 0) => {
-            if (typeof flatpickr !== 'undefined' && dateRangePicker) {
-                const { startDate: defaultStartDate, endDate: defaultEndDate } = getUtcDayRange(7);
-
-                dateRangePickerInstance = flatpickr(dateRangePicker, {
-                    mode: "range",
-                    enableTime: true,
-                    time_24hr: true,
-                    allowInput: true,
-                    disableMobile: true,
-                    dateFormat: "Y-m-d H:i",
-                    altInput: true,
-                    altFormat: "d/m/Y H:i",
-                    defaultDate: [defaultStartDate, defaultEndDate],
-                    onChange: function(selectedDates, dateStr, instance) {
-                        if (selectedDates.length === 2) {
-                            const start = selectedDates[0];
-                            const end = selectedDates[1];
-
-                            const startTimeUTC = start.getTime();
-                            const endTimeUTC = end.getTime();
-                            const maxRangeMs = 7 * 24 * 60 * 60 * 1000;
-
-                            if (startTimeUTC >= endTimeUTC) {
-                                if (dateRangeError) {
-                                    dateRangeError.textContent = "End time must be after the start time.";
-                                    dateRangeError.classList.remove('hidden');
-                                }
-                                return;
-                            }
-
-                            if ((endTimeUTC - startTimeUTC) > maxRangeMs) {
-                                if (dateRangeError) {
-                                    dateRangeError.textContent = "The selected range cannot exceed 7 days.";
-                                    dateRangeError.classList.remove('hidden');
-                                }
-                                return;
-                            }
-
-                            if (dateRangeError) dateRangeError.classList.add('hidden');
-                            syncQuickRangeWithDates(startTimeUTC, endTimeUTC);
-                            fetchSensorHistoryData(startTimeUTC, endTimeUTC);
-                        } else {
-                            if (powerChart) {
-                                powerChart.destroy();
-                                powerChart = null;
-                                fullSensorHistoryData = [];
-                                selectedWindows = [];
-                                renderSelectionPreviews();
-                            }
-                            if (dateRangeError) {
-                                dateRangeError.textContent = "Please select a start and an end time for the range.";
-                                dateRangeError.classList.remove('hidden');
-                            }
-                        }
-                    }
-                });
+            if (typeof flatpickr !== 'undefined' && trainingRangeStartInput && trainingRangeEndInput) {
+                const { startDate: defaultStartDate, endDate: defaultEndDate } = getUtcRangeByHours(168);
                 console.log("DEBUG: Flatpickr initialized successfully.");
 
                 const manualPickerOptions = {
@@ -3524,6 +3542,16 @@
                     altFormat: "d/m/Y H:i",
                     clickOpens: true,
                 };
+
+                if (trainingRangeStartPickerInstance) trainingRangeStartPickerInstance.destroy();
+                trainingRangeStartPickerInstance = flatpickr(trainingRangeStartInput, {
+                    ...manualPickerOptions,
+                });
+
+                if (trainingRangeEndPickerInstance) trainingRangeEndPickerInstance.destroy();
+                trainingRangeEndPickerInstance = flatpickr(trainingRangeEndInput, {
+                    ...manualPickerOptions,
+                });
 
                 if (manualStartInput) {
                     if (manualStartPickerInstance) manualStartPickerInstance.destroy();
@@ -3544,15 +3572,15 @@
                 }
 
                 // Initiate initial data fetch after Flatpickr is set up with default dates
-                if (quickRangeSelect) quickRangeSelect.value = '7';
+                setTrainingRangeInputs(defaultStartDate.getTime(), defaultEndDate.getTime());
                 fetchSensorHistoryData(defaultStartDate.getTime(), defaultEndDate.getTime());
 
             } else if (retryCount < 10) { // Retry up to 10 times with increasing delay
                 const delay = 100 * Math.pow(2, retryCount); // Exponential backoff
-                console.warn(`DEBUG: Flatpickr not defined or dateRangePicker not found. Retrying in ${delay}ms... (Attempt ${retryCount + 1})`);
+                console.warn(`DEBUG: Flatpickr not defined or training range inputs not found. Retrying in ${delay}ms... (Attempt ${retryCount + 1})`);
                 setTimeout(() => initFlatpickrWithRetry(retryCount + 1), delay);
             } else {
-                console.error("ERROR: Flatpickr could not be initialized after multiple retries. The Flatpickr script might not be loaded or 'dateRangePicker' element is missing.");
+                console.error("ERROR: Flatpickr could not be initialized after multiple retries. The Flatpickr script might not be loaded or the training range inputs are missing.");
                 showValidationResultModal("Initialization Error", "The date picker could not be loaded. Please try refreshing the page.", true);
             }
         };
