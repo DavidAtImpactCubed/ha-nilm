@@ -3162,6 +3162,8 @@
             trainingIntervalConfirmed = false;
             updateTrainingStepper();
             try {
+                let requestedStartMs = startMs;
+                let requestedEndMs = endMs;
                 let url = '';
                 if (startMs !== null && endMs !== null) {
                     const startDateObj = new Date(startMs);
@@ -3181,6 +3183,8 @@
                     const startDateForPath = encodeURIComponent(toIsoUtcNoMs(defaultStartDate));
                     const endDateForQuery = encodeURIComponent(toIsoUtcNoMs(defaultEndDate));
                     url = `history/period/${startDateForPath}?end_time=${endDateForQuery}&filter_entity_id=${MAIN_SENSOR_ENTITY_ID}`;
+                    requestedStartMs = defaultStartDate.getTime();
+                    requestedEndMs = defaultEndDate.getTime();
                 }
                 
                 console.log(`DEBUG: Fetching data from: ${url}`);
@@ -3224,11 +3228,17 @@
                         firstTimestamp = fullSensorHistoryData[0].x; 
                         lastTimestamp = fullSensorHistoryData[fullSensorHistoryData.length - 1].x; 
                         console.log("DEBUG: fetched firstTimestamp:", new Date(firstTimestamp).toLocaleString(), "fetched lastTimestamp:", new Date(lastTimestamp).toLocaleString());
-                        setTrainingRangeInputs(firstTimestamp, lastTimestamp);
+                        if (Number.isFinite(requestedStartMs) && Number.isFinite(requestedEndMs)) {
+                            setTrainingRangeInputs(requestedStartMs, requestedEndMs);
+                        } else {
+                            setTrainingRangeInputs(firstTimestamp, lastTimestamp);
+                        }
                         syncManualInputBounds();
                         setManualIntervalInputs(firstTimestamp, lastTimestamp);
-                        
-                        initializePowerChart(fullSensorHistoryData, firstTimestamp, lastTimestamp);
+
+                        const chartMinTime = Number.isFinite(requestedStartMs) ? requestedStartMs : firstTimestamp;
+                        const chartMaxTime = Number.isFinite(requestedEndMs) ? requestedEndMs : lastTimestamp;
+                        initializePowerChart(fullSensorHistoryData, chartMinTime, chartMaxTime);
                         if (currentSupervisionMode() === 'sensor' && applianceSensorSelect?.value) {
                             try {
                                 await refreshApplianceSensorOverlay();
