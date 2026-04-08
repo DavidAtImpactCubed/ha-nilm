@@ -1650,12 +1650,25 @@
             return "prepare";
         }
 
-        function goToTrainingWizardStep(stepKey, { force = false } = {}) {
+        function scrollToCurrentTrainingStep() {
+            const targetPanel = document.querySelector('.training-step-panel.is-visible');
+            if (!targetPanel) return;
+            requestAnimationFrame(() => {
+                targetPanel.scrollIntoView({
+                    behavior: 'smooth',
+                    block: 'start',
+                    inline: 'nearest',
+                });
+            });
+        }
+
+        function goToTrainingWizardStep(stepKey, { force = false, scroll = true } = {}) {
             const state = currentTrainingStepperState();
             if (!TRAINING_WIZARD_STEPS.includes(stepKey)) return;
             if (!force && !isTrainingStepUnlocked(stepKey, state)) return;
             trainingWizardCurrentStep = stepKey;
             updateTrainingStepper();
+            if (scroll) scrollToCurrentTrainingStep();
         }
 
         function updateTrainingStepper() {
