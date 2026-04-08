@@ -130,11 +130,30 @@
         color: #1d4ed8;
         border: 1px solid #93c5fd;
         box-shadow: 0 10px 20px rgba(59, 130, 246, 0.12);
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        white-space: nowrap;
     }
 
     .action-chart-view:hover {
         background: linear-gradient(135deg, #dbeafe, #bfdbfe);
         box-shadow: 0 12px 24px rgba(59, 130, 246, 0.16);
+    }
+
+    .action-chart-view > span[aria-hidden="true"] {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 24px;
+        height: 24px;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.8);
+        color: #1d4ed8;
+        font-size: 0.82rem;
+        font-weight: 900;
+        line-height: 1;
+        border: 1px solid rgba(147, 197, 253, 0.9);
     }
 
     .action-success {
@@ -943,17 +962,18 @@
                 </div>
                 <div class="md:col-span-2">
                     <label class="field-label">Quick Range</label>
+                    <div class="flex flex-wrap items-center justify-between gap-3">
                     <div id="trainingQuickRangeButtons" class="flex flex-wrap gap-2">
                         <button type="button" class="action-btn action-neutral training-quick-range-btn" data-hours="12">12 h</button>
                         <button type="button" class="action-btn action-neutral training-quick-range-btn" data-hours="24">1 d</button>
                         <button type="button" class="action-btn action-neutral training-quick-range-btn" data-hours="72">3 d</button>
                         <button type="button" class="action-btn action-neutral training-quick-range-btn" data-hours="168">7 d</button>
                     </div>
-                </div>
-                <div class="md:col-span-2 flex flex-wrap justify-end gap-2">
                     <button id="useCurrentViewRangeBtn" type="button" class="action-btn action-chart-view">
-                        <i class="fas fa-magnifying-glass-chart mr-2" aria-hidden="true"></i> Use Current Chart View
+                        <span aria-hidden="true">+/-</span>
+                        <span>Use Current Chart View</span>
                     </button>
+                </div>
                 </div>
             </div>
             <p id="dateRangeError" class="text-red-500 text-xs mt-1 text-center hidden">Invalid date range. Please select a start and end time, and ensure the range is no more than 7 days.</p>
@@ -1905,14 +1925,17 @@
         }
 
         function applyCurrentChartViewRange() {
-            if (!Number.isFinite(currentChartMinTime) || !Number.isFinite(currentChartMaxTime) || currentChartMaxTime <= currentChartMinTime) {
+            const xScale = powerChart?.scales?.x;
+            const viewMin = Number.isFinite(xScale?.min) ? xScale.min : currentChartMinTime;
+            const viewMax = Number.isFinite(xScale?.max) ? xScale.max : currentChartMaxTime;
+            if (!Number.isFinite(viewMin) || !Number.isFinite(viewMax) || viewMax <= viewMin) {
                 showValidationResultModal("Chart View Not Ready", "Zoom or load the chart before using the current view as the training range.", true);
                 return;
             }
-            setTrainingRangeInputs(currentChartMinTime, currentChartMaxTime);
+            setTrainingRangeInputs(viewMin, viewMax);
             if (dateRangeError) dateRangeError.classList.add('hidden');
             trainingIntervalConfirmed = false;
-            fetchSensorHistoryData(currentChartMinTime, currentChartMaxTime);
+            fetchSensorHistoryData(viewMin, viewMax);
         }
 
         function currentSupervisionMode() {
@@ -2636,6 +2659,8 @@
 
                 const minX = xScale.min;
                 const maxX = xScale.max;
+                currentChartMinTime = minX;
+                currentChartMaxTime = maxX;
                 powerChart.data.datasets[0].data = decimateForVisibleRange(fullSensorHistoryData, minX, maxX);
                 if (powerChart.data.datasets[1]) {
                     powerChart.data.datasets[1].data = decimateForVisibleRange(applianceSensorHistoryData, minX, maxX);
