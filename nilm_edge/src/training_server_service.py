@@ -65,6 +65,60 @@ def _percent_from_progress(p: Optional[Dict[str, Any]]) -> Optional[int]:
         return None
 
 
+def _sample_replay_payload(
+    embeddings: Any,
+    targets_on: Any,
+    *,
+    max_points: int = 12000,
+) -> Dict[str, Any]:
+    embeddings_arr = np.asarray(embeddings or [], dtype=np.float32)
+    targets_arr = np.asarray(targets_on or [], dtype=np.int32).reshape(-1)
+    if embeddings_arr.ndim != 2 or embeddings_arr.shape[0] == 0 or embeddings_arr.shape[0] != targets_arr.size:
+        return {
+            "embeddings": [],
+            "targets_on": [],
+            "sampled": False,
+            "sample_count": 0,
+            "original_count": int(targets_arr.size),
+        }
+
+    total = int(targets_arr.size)
+    if total <= max_points:
+        return {
+            "embeddings": embeddings_arr.tolist(),
+            "targets_on": targets_arr.tolist(),
+            "sampled": False,
+            "sample_count": total,
+            "original_count": total,
+        }
+
+    on_idx = np.flatnonzero(targets_arr == 1)
+    off_idx = np.flatnonzero(targets_arr == 0)
+    target_on = min(on_idx.size, max_points // 2)
+    target_off = min(off_idx.size, max_points - target_on)
+    remaining = max_points - (target_on + target_off)
+    if remaining > 0:
+        if on_idx.size - target_on >= off_idx.size - target_off:
+            target_on = min(on_idx.size, target_on + remaining)
+        else:
+            target_off = min(off_idx.size, target_off + remaining)
+
+    on_sample = np.linspace(0, max(0, on_idx.size - 1), num=target_on, dtype=np.int64) if target_on > 0 else np.zeros((0,), dtype=np.int64)
+    off_sample = np.linspace(0, max(0, off_idx.size - 1), num=target_off, dtype=np.int64) if target_off > 0 else np.zeros((0,), dtype=np.int64)
+    sampled_idx = np.concatenate([on_idx[on_sample], off_idx[off_sample]])
+    sampled_idx.sort()
+
+    sampled_embeddings = embeddings_arr[sampled_idx]
+    sampled_targets = targets_arr[sampled_idx]
+    return {
+        "embeddings": sampled_embeddings.tolist(),
+        "targets_on": sampled_targets.tolist(),
+        "sampled": True,
+        "sample_count": int(sampled_targets.size),
+        "original_count": total,
+    }
+
+
 def _binary_f1_score(y_true: np.ndarray, y_pred: np.ndarray) -> float:
     y_true = np.asarray(y_true, dtype=np.int32).reshape(-1)
     y_pred = np.asarray(y_pred, dtype=np.int32).reshape(-1)
@@ -374,14 +428,18 @@ class TrainingServerServiceManager:
         bundle_id = str(prepared.get("bundle_id") or "").strip()
         bundle = get_bundle_by_id(app_state.model_bundles, bundle_id) if bundle_id else None
         if bundle is not None:
+            replay_sample = _sample_replay_payload(prepared.get("embeddings"), prepared.get("targets_on"))
             replay_input = {
                 "job_id": job_id,
                 "appliance_name": str(prepared.get("appliance_name") or ""),
                 "bundle_id": bundle_id,
                 "inference_dir": bundle.inference_dir,
                 "embeddings_dir": bundle_models_dir(self.models_root, bundle_id),
-                "embeddings": prepared.get("embeddings") or [],
-                "targets_on": prepared.get("targets_on") or [],
+                "embeddings": replay_sample["embeddings"],
+                "targets_on": replay_sample["targets_on"],
+                "sampled": replay_sample["sampled"],
+                "sample_count": replay_sample["sample_count"],
+                "original_count": replay_sample["original_count"],
             }
             await self._write_replay_input(job_id, replay_input)
 
