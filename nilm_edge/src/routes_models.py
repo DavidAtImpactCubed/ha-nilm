@@ -1398,7 +1398,11 @@ async def preview_embedding_status_handler(request):
                 job = await _pop_preview_job(request.app, job_id)
                 result_path = job.get("result_path")
                 if result_path:
-                    job["result"] = _load_preview_result(result_path)
+                    loaded_result = _load_preview_result(result_path)
+                    if isinstance(loaded_result, dict) and "result" in loaded_result:
+                        job["result"] = loaded_result.get("result") or {}
+                    else:
+                        job["result"] = loaded_result
                     job.pop("result_path", None)
                     _cleanup_preview_result_file(result_path)
                 gc.collect()
