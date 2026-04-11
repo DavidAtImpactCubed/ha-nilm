@@ -305,6 +305,43 @@ class PredictionSpool:
                 pass
 
 
+def write_result_payload_from_spool(result_path, mode, model_entries, spool):
+    if mode == "all":
+        with open(result_path, "w", encoding="utf-8") as f:
+            f.write('{"predictions":[')
+            for index, entry in enumerate(model_entries):
+                if index > 0:
+                    f.write(",")
+                prediction = spool.load_model_payload(entry["safe_name"]) if spool is not None else {
+                    "power_series": [],
+                    "baseload_series": [],
+                    "state_series": [],
+                    "state_summary": {},
+                }
+                json.dump({
+                    "model_key": entry["model_key"],
+                    "model_name": entry["model_name"],
+                    "power_series": prediction.get("power_series", []),
+                    "baseload_series": prediction.get("baseload_series", []),
+                    "state_series": prediction.get("state_series", []),
+                    "state_summary": prediction.get("state_summary", {}),
+                }, f, ensure_ascii=False)
+            f.write("]}")
+        return {"prediction_count": len(model_entries)}
+
+    entry = model_entries[0] if model_entries else None
+    prediction = spool.load_model_payload(entry["safe_name"]) if (spool is not None and entry is not None) else {
+        "power_series": [],
+        "baseload_series": [],
+        "state_series": [],
+        "state_summary": {},
+    }
+    with open(result_path, "w", encoding="utf-8") as f:
+        json.dump({"result": prediction}, f, ensure_ascii=False)
+    state_summary = prediction.get("state_summary") or {}
+    return {"n_points": int(state_summary.get("n_points") or 0)}
+
+
 def _worker_percent(phase, processed, total):
     if total <= 0:
         return 30
@@ -487,8 +524,13 @@ def main():
         return 0
 
     spool = score_predictions_with_progress(model_entries, preview_context)
-    result_payload = None
     try:
+        if result_path:
+            meta = write_result_payload_from_spool(result_path, payload.get("mode"), model_entries, spool)
+            emit({"done": True, "result_path": result_path, **meta})
+            return 0
+
+        result_payload = None
         if payload.get("mode") == "all":
             predictions = []
             for entry in model_entries:
@@ -516,12 +558,7 @@ def main():
                 "state_summary": {},
             }
             result_payload = {"result": prediction}
-        if result_path:
-            with open(result_path, "w", encoding="utf-8") as f:
-                json.dump(result_payload, f, ensure_ascii=False)
-            emit({"done": True, "result_path": result_path})
-        else:
-            emit({"done": True, **(result_payload or {})})
+        emit({"done": True, **(result_payload or {})})
         return 0
     finally:
         if spool is not None:

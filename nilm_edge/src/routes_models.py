@@ -6,6 +6,7 @@ import gc
 import json
 import sys
 import tempfile
+import shutil
 from datetime import datetime, timedelta, timezone
 
 import numpy as np
@@ -58,6 +59,20 @@ def _load_preview_result(path):
     with open(result_path, "r", encoding="utf-8") as f:
         payload = json.load(f)
     return payload if isinstance(payload, dict) else {}
+
+
+def _adopt_preview_result_file(path):
+    source_path = str(path or "").strip()
+    if not source_path or not os.path.exists(source_path):
+        return ""
+    fd, adopted_path = tempfile.mkstemp(prefix="nilm_preview_cache_", suffix=".json")
+    os.close(fd)
+    try:
+        os.replace(source_path, adopted_path)
+    except OSError:
+        shutil.copy2(source_path, adopted_path)
+        _cleanup_preview_result_file(source_path)
+    return adopted_path
 
 
 async def _purge_stale_preview_jobs(app):
@@ -138,13 +153,8 @@ async def _stream_preview_worker(payload):
                 continue
             if isinstance(update, dict):
                 if update.get("done") and update.get("result_path"):
-                    result_path = str(update.get("result_path") or "").strip()
-                    if result_path and os.path.exists(result_path):
-                        with open(result_path, "r", encoding="utf-8") as f:
-                            result_payload = json.load(f)
-                        update = dict(update)
-                        update.pop("result_path", None)
-                        update.update(result_payload if isinstance(result_payload, dict) else {})
+                    update = dict(update)
+                    update["result_path"] = _adopt_preview_result_file(update.get("result_path"))
                 yield update
 
         stderr_bytes = await proc.stderr.read() if proc.stderr is not None else b""
@@ -922,8 +932,12 @@ async def _run_preview_job(app, job_id, bundle_id, safe_name, start_dt, end_dt, 
 
         async for update in _stream_preview_worker(payload):
             if update.get("done"):
-                result = dict(update.get("result") or {})
-                state_summary = result.get("state_summary") or {}
+                result_path = str(update.get("result_path") or "").strip()
+                result_meta = {}
+                if result_path:
+                    loaded = _load_preview_result(result_path)
+                    result_meta = dict(loaded.get("result") or {})
+                state_summary = result_meta.get("state_summary") or {}
                 print(
                     f"Preview summary appliance={safe_name} "
                     f"n_points={state_summary.get('n_points')} "
@@ -933,18 +947,12 @@ async def _run_preview_job(app, job_id, bundle_id, safe_name, start_dt, end_dt, 
                     f"n_above_threshold={state_summary.get('n_above_threshold')}",
                     flush=True,
                 )
-                result_path = _persist_preview_result({
-                    "power_series": result.get("power_series", []),
-                    "baseload_series": result.get("baseload_series", []),
-                    "state_series": result.get("state_series", []),
-                    "state_summary": state_summary,
-                })
                 await _set_preview_job(app, job_id, {
                     "status": "done",
                     "phase": "done",
                     "updated_at": datetime.now(timezone.utc).isoformat(),
-                    "processed": int(state_summary.get("n_points") or 0),
-                    "total": int(state_summary.get("n_points") or 0),
+                    "processed": int(update.get("n_points") or state_summary.get("n_points") or 0),
+                    "total": int(update.get("n_points") or state_summary.get("n_points") or 0),
                     "percent": 100,
                     "result": None,
                     "result_path": result_path,
@@ -1059,16 +1067,14 @@ async def _run_preview_all_job(app, job_id, model_entries, start_dt, end_dt, pro
             "models": payload_models,
         }):
             if update.get("done"):
-                predictions = list(update.get("predictions") or [])
-                result_path = _persist_preview_result({
-                    "predictions": predictions,
-                })
+                result_path = str(update.get("result_path") or "").strip()
+                prediction_count = int(update.get("prediction_count") or 0)
                 await _set_preview_job(app, job_id, {
                     "status": "done",
                     "phase": "done",
                     "updated_at": datetime.now(timezone.utc).isoformat(),
-                    "processed": len(predictions),
-                    "total": len(predictions),
+                    "processed": prediction_count,
+                    "total": prediction_count,
                     "percent": 100,
                     "result": None,
                     "result_path": result_path,
