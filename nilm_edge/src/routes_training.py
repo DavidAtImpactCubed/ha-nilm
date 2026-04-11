@@ -166,6 +166,7 @@ async def receive_training_data_handler(request: web.Request) -> web.Response:
                     inference_dir=selected_bundle.inference_dir,
                     embeddings_only=True,
                     num_threads=2,
+                    batch_size=app_state.get_batch_size(),
                     align_grid="start",
                     max_hold_factor=5.0,
                 )

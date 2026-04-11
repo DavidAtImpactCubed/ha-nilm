@@ -419,6 +419,7 @@ def build_embeddings_training_payload(
     inference_dir: str = "/app/inference",
     embeddings_only: bool = True,
     num_threads: int = 2,
+    batch_size: int = 1024,
     align_grid: str = "start",
     max_hold_factor: float = 5.0,
     on_threshold_w: float = 20.0,
@@ -428,7 +429,7 @@ def build_embeddings_training_payload(
     """
     End-to-end training prep:
       - resample mains to dt
-      - build all windows
+      - build windows in chunks
       - label ON/OFF at pred_idx
       - compute extractor embeddings locally
       - return JSON-safe payload ready to POST to the training server
@@ -484,13 +485,11 @@ def build_embeddings_training_payload(
     mains_energy_wh = float(np.maximum(y_grid, 0.0).sum() * dt / 3600.0) if y_grid.size else 0.0
     mains_mean_w = float(np.mean(y_grid)) if y_grid.size else 0.0
 
-    # Build all windows (N,T) using sliding window view (fast)
+    # Build candidate windows as a lightweight view; we materialize only one chunk at a time.
     M = int(grid_t.size)
     N = M - (T - 1)
     windows_raw = np.lib.stride_tricks.sliding_window_view(y_grid.astype(np.float32), window_shape=T)  # (N,T)
-    windows_shifted = windows_raw - np.min(windows_raw, axis=1, keepdims=True)
     query_std = settings.query_std if abs(settings.query_std) > 1e-12 else 1.0
-    windows = ((windows_shifted - float(settings.query_mean)) / float(query_std)).astype(np.float32)
     valid_windows_mask = np.all(
         np.lib.stride_tricks.sliding_window_view(mains_valid_mask.astype(np.uint8), window_shape=T) == 1,
         axis=1,
@@ -528,31 +527,73 @@ def build_embeddings_training_payload(
         )
         y_on = gt_on_mask[pred_idx:(pred_idx + N)].astype(np.uint8)
 
-    windows = windows[valid_windows_mask]
-    y_on = y_on[valid_windows_mask]
-    grid_t_label = grid_t_label[valid_windows_mask]
-    grid_t_end = grid_t_end[valid_windows_mask]
-    mains_at_label = mains_at_label[valid_windows_mask]
-    if y_power is not None:
-        y_power = y_power[valid_windows_mask]
-
-    if windows.shape[0] == 0:
+    n_windows_after_gap_filter = int(np.count_nonzero(valid_windows_mask))
+    if n_windows_after_gap_filter == 0:
         raise ValueError(
             "No valid training windows remain after removing mains gaps. "
             "Please choose a cleaner range or reduce missing data."
         )
 
-    # Build extractor inputs and compute embeddings
-    X = extractor.build_input_batch(windows)
-    embs, mask = extractor.extract_embeddings(X, return_mask=True)
-    if mask is None:
-        raise RuntimeError("Internal error: mask not returned")
+    # Build extractor inputs and compute embeddings chunk-by-chunk to keep peak RAM bounded.
+    effective_batch_size = max(1, int(batch_size))
+    embeddings_list: List[List[float]] = []
+    targets_on_list: List[int] = []
+    t_label_list: List[float] = []
+    t_end_list: List[float] = []
+    targets_power_list: Optional[List[float]] = [] if y_power is not None else None
+    selected_mains_energy_wh = 0.0
+    appliance_energy_wh = 0.0
 
-    # Filter labels/timestamps to match embeddings that were successfully extracted
-    y_on_f = y_on[mask].astype(np.uint8)
-    t_label_f = grid_t_label[mask].astype(np.float64)
-    t_end_f = grid_t_end[mask].astype(np.float64)
-    mains_at_label_f = mains_at_label[mask].astype(np.float32)
+    for start in range(0, N, effective_batch_size):
+        end = min(N, start + effective_batch_size)
+        batch_valid = valid_windows_mask[start:end]
+        if not np.any(batch_valid):
+            continue
+
+        batch_windows_raw = np.asarray(windows_raw[start:end], dtype=np.float32)
+        batch_baseload = np.min(batch_windows_raw, axis=1).astype(np.float32)
+        batch_windows = ((batch_windows_raw - batch_baseload[:, None] - float(settings.query_mean)) / float(query_std)).astype(np.float32)
+        batch_windows = batch_windows[batch_valid]
+        if batch_windows.shape[0] == 0:
+            continue
+
+        batch_y_on = y_on[start:end][batch_valid].astype(np.uint8, copy=False)
+        batch_t_label = grid_t_label[start:end][batch_valid].astype(np.float64, copy=False)
+        batch_t_end = grid_t_end[start:end][batch_valid].astype(np.float64, copy=False)
+        batch_mains_at_label = mains_at_label[start:end][batch_valid].astype(np.float32, copy=False)
+        batch_y_power = None
+        if y_power is not None:
+            batch_y_power = y_power[start:end][batch_valid].astype(np.float32, copy=False)
+
+        X = extractor.build_input_batch(batch_windows)
+        embs, mask = extractor.extract_embeddings(X, return_mask=True)
+        if mask is None:
+            raise RuntimeError("Internal error: mask not returned")
+        if embs.shape[0] == 0:
+            continue
+
+        batch_y_on_f = batch_y_on[mask].astype(np.uint8, copy=False)
+        batch_t_label_f = batch_t_label[mask].astype(np.float64, copy=False)
+        batch_t_end_f = batch_t_end[mask].astype(np.float64, copy=False)
+        batch_mains_at_label_f = batch_mains_at_label[mask].astype(np.float32, copy=False)
+
+        embeddings_list.extend(embs.tolist())
+        targets_on_list.extend(batch_y_on_f.tolist())
+        t_label_list.extend(batch_t_label_f.tolist())
+        t_end_list.extend(batch_t_end_f.tolist())
+
+        if batch_y_power is not None and targets_power_list is not None:
+            batch_y_power_f = batch_y_power[mask].astype(np.float32, copy=False)
+            targets_power_list.extend(batch_y_power_f.tolist())
+            appliance_energy_wh += float(np.maximum(batch_y_power_f, 0.0).sum() * dt / 3600.0)
+        else:
+            selected_mains_energy_wh += float(batch_mains_at_label_f[batch_y_on_f == 1].sum() * dt / 3600.0)
+
+    if not embeddings_list:
+        raise ValueError(
+            "No training embeddings could be extracted from the selected range. "
+            "Please try a cleaner range or a smaller time span."
+        )
 
     payload: Dict[str, Any] = {
         "appliance_name": appliance_name,
@@ -572,23 +613,23 @@ def build_embeddings_training_payload(
             "power_mean": settings.power_mean,
             "power_std": settings.power_std,
         },
-        "embeddings": embs.tolist(),
-        "targets_on": y_on_f.tolist(),
-        "t_label": t_label_f.tolist(),
-        "t_end": t_end_f.tolist(),
+        "embeddings": embeddings_list,
+        "targets_on": targets_on_list,
+        "t_label": t_label_list,
+        "t_end": t_end_list,
         "stats": {
             "n_raw_points": int(len(fullSensorHistoryData)),
             "n_clean_points": int(len(pts)),
             "grid_points": int(grid_t.size),
             "n_windows_total": int(N),
-            "n_windows_after_gap_filter": int(windows.shape[0]),
-            "n_windows_dropped_mains_gaps": int(N - windows.shape[0]),
-            "n_embeddings_ok": int(embs.shape[0]),
+            "n_windows_after_gap_filter": n_windows_after_gap_filter,
+            "n_windows_dropped_mains_gaps": int(N - n_windows_after_gap_filter),
+            "n_embeddings_ok": len(embeddings_list),
             "supervision_mode": mode,
             "appliance_sensor_id": appliance_sensor_id,
             "n_on_intervals": int(len(on_intervals)),
             "n_ground_truth_points": int(len(gt_pts)),
-            "on_fraction": float(np.mean(y_on_f)) if y_on_f.size else 0.0,
+            "on_fraction": (float(sum(targets_on_list)) / float(len(targets_on_list))) if targets_on_list else 0.0,
             "mains_mean_w": mains_mean_w,
             "mains_energy_wh": mains_energy_wh,
             "range_start": float(t_start),
@@ -600,22 +641,16 @@ def build_embeddings_training_payload(
             "on_threshold_w": float(on_threshold_w),
             "min_on_s": float(min_on_s),
             "min_off_s": float(min_off_s),
+            "batch_size": effective_batch_size,
         },
     }
 
-    if y_power is not None:
-        y_power_f = y_power[mask].astype(np.float32)
-        appliance_energy_wh = float(np.maximum(y_power, 0.0).sum() * dt / 3600.0) if y_power.size else 0.0
-        payload["targets_power"] = y_power_f.tolist()
-        payload["stats"]["power_mean_w"] = float(np.mean(y_power_f)) if y_power_f.size else 0.0
+    if targets_power_list is not None:
+        payload["targets_power"] = targets_power_list
+        payload["stats"]["power_mean_w"] = (float(sum(targets_power_list)) / float(len(targets_power_list))) if targets_power_list else 0.0
         payload["stats"]["appliance_energy_wh"] = appliance_energy_wh
         payload["stats"]["mains_share_pct"] = float((appliance_energy_wh / mains_energy_wh) * 100.0) if mains_energy_wh > 1e-9 else 0.0
     else:
-        selected_mains_energy_wh = (
-            float(mains_at_label_f[y_on_f == 1].sum() * dt / 3600.0)
-            if y_on_f.size
-            else 0.0
-        )
         payload["stats"]["selected_mains_energy_wh"] = selected_mains_energy_wh
         payload["stats"]["mains_share_pct"] = float((selected_mains_energy_wh / mains_energy_wh) * 100.0) if mains_energy_wh > 1e-9 else 0.0
 
