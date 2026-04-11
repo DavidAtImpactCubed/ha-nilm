@@ -1,5 +1,5 @@
 name: "NILM"
-version: "1.1.57"
+version: "1.1.58"
 slug: "nilm"
 description: "Real-time load disaggregation for Home Assistant"
 homeassistant_api: true
@@ -14,10 +14,10 @@ ports:
 ingress: true
 
 options:
-  preview_batch_size: 1024
+  batch_size: 1024
 
 schema:
-  preview_batch_size: "int(32,8192)"
+  batch_size: "int(32,8192)"
 
 arch:
   - aarch64

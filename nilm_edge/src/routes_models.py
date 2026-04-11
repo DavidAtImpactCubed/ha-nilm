@@ -30,8 +30,8 @@ PREVIEW_HISTORY_CHUNK_HOURS = 1.0
 PREVIEW_JOB_TTL_S = 15 * 60
 
 
-def _preview_batch_size():
-    return app_state.get_preview_batch_size()
+def _batch_size():
+    return app_state.get_batch_size()
 
 
 def _cleanup_preview_result_file(path):
@@ -955,7 +955,7 @@ async def _run_preview_job(app, job_id, bundle_id, safe_name, start_dt, end_dt, 
         payload = {
             "mode": "single",
             "stream_chunks": True,
-            "batch_size": _preview_batch_size(),
+            "batch_size": _batch_size(),
             "points": points,
             "models": [{
                 "bundle_id": bundle_id,
@@ -1108,7 +1108,7 @@ async def _run_preview_all_job(app, job_id, model_entries, start_dt, end_dt, pro
 
         async for update in _stream_preview_worker({
             "mode": "all",
-            "batch_size": _preview_batch_size(),
+            "batch_size": _batch_size(),
             "points": points,
             "models": payload_models,
         }):

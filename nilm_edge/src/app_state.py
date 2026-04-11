@@ -18,7 +18,7 @@ INFERENCE_ROOT = "/app/inference"
 CONFIG_FILE_PATH = "/data/config.json"
 OPTIONS_FILE_PATH = "/data/options.json"
 SUPERVISOR_API_URL = os.getenv("SUPERVISOR_API_URL", "http://supervisor")
-DEFAULT_PREVIEW_BATCH_SIZE = 1024
+DEFAULT_BATCH_SIZE = 1024
 
 HA_WS_URL = os.getenv("HA_WS_URL", "ws://supervisor/core/websocket")
 HA_REST_API_URL = os.getenv("HA_REST_API_URL", "http://supervisor/core/api")
@@ -56,26 +56,26 @@ def get_training_server_api_key() -> Optional[str]:
     return TRAINING_SERVER_API_KEY
 
 
-def _clamp_preview_batch_size(value) -> int:
+def _clamp_batch_size(value) -> int:
     try:
         return max(32, min(8192, int(value)))
     except (TypeError, ValueError):
-        return DEFAULT_PREVIEW_BATCH_SIZE
+        return DEFAULT_BATCH_SIZE
 
 
-def get_preview_batch_size() -> int:
+def get_batch_size() -> int:
     if not os.path.exists(OPTIONS_FILE_PATH):
-        return DEFAULT_PREVIEW_BATCH_SIZE
+        return DEFAULT_BATCH_SIZE
 
     try:
         with open(OPTIONS_FILE_PATH, "r", encoding="utf-8") as file_handle:
             loaded_options = json.load(file_handle)
         if not isinstance(loaded_options, dict):
-            return DEFAULT_PREVIEW_BATCH_SIZE
-        return _clamp_preview_batch_size(loaded_options.get("preview_batch_size"))
+            return DEFAULT_BATCH_SIZE
+        return _clamp_batch_size(loaded_options.get("batch_size"))
     except (OSError, json.JSONDecodeError) as exc:
-        print(f"Error reading add-on options from {OPTIONS_FILE_PATH}: {exc}. Using default preview batch size.")
-        return DEFAULT_PREVIEW_BATCH_SIZE
+        print(f"Error reading add-on options from {OPTIONS_FILE_PATH}: {exc}. Using default batch size.")
+        return DEFAULT_BATCH_SIZE
 
 
 async def history_fetcher(start_dt, end_dt):
