@@ -1381,6 +1381,8 @@
     let predictionPreviewChartDebounceTimer;
     let predictionPreviewProgressTimer;
     let activePredictionProgressPercent = 0;
+    let streamedPredictionRefreshTimer;
+    let streamedPredictionNeedsFullRender = false;
     let latestPowerPollTimer;
     let sensorsById = new Map();
     let allSensorsById = new Map();
@@ -1518,6 +1520,11 @@
             clearInterval(predictionPreviewProgressTimer);
             predictionPreviewProgressTimer = null;
         }
+        if (streamedPredictionRefreshTimer) {
+            clearTimeout(streamedPredictionRefreshTimer);
+            streamedPredictionRefreshTimer = null;
+        }
+        streamedPredictionNeedsFullRender = false;
         if (predictionPreviewChart) {
             predictionPreviewChart.destroy();
             predictionPreviewChart = null;
@@ -2352,6 +2359,27 @@
         activeInlinePredictions.push(inlinePrediction);
     }
 
+    function flushStreamedPredictionRender() {
+        streamedPredictionRefreshTimer = null;
+        renderInlinePredictionUi();
+        if (streamedPredictionNeedsFullRender || !mainsSignalChart) {
+            streamedPredictionNeedsFullRender = false;
+            renderSignalChart(fullSignalSeries);
+            return;
+        }
+        updateSignalChartData();
+    }
+
+    function scheduleStreamedPredictionRender(needsFullRender = false) {
+        streamedPredictionNeedsFullRender = streamedPredictionNeedsFullRender || Boolean(needsFullRender);
+        if (streamedPredictionRefreshTimer) {
+            return;
+        }
+        streamedPredictionRefreshTimer = window.setTimeout(() => {
+            flushStreamedPredictionRender();
+        }, 120);
+    }
+
     function appendSeriesPoints(targetSeries, nextSeries) {
         if (!Array.isArray(targetSeries) || !Array.isArray(nextSeries) || !nextSeries.length) {
             return targetSeries;
@@ -2369,6 +2397,7 @@
         }
 
         let changed = 0;
+        let addedModel = false;
         predictions.forEach((prediction, index) => {
             const modelKey = prediction?.model_key;
             if (!modelKey) return;
@@ -2383,6 +2412,7 @@
                 appendSeriesPoints(existing.baseloadSeries, baseloadSeries);
                 appendSeriesPoints(existing.stateSeries, stateSeries);
             } else {
+                addedModel = true;
                 activeInlinePredictions.push({
                     modelKey,
                     modelName: prediction.model_name || modelKey,
@@ -2396,8 +2426,7 @@
         });
 
         if (changed > 0) {
-            renderInlinePredictionUi();
-            renderSignalChart(fullSignalSeries);
+            scheduleStreamedPredictionRender(addedModel);
         }
         return changed;
     }
@@ -3484,6 +3513,11 @@
             clearTimeout(predictionPreviewChartDebounceTimer);
             predictionPreviewChartDebounceTimer = null;
         }
+        if (streamedPredictionRefreshTimer) {
+            clearTimeout(streamedPredictionRefreshTimer);
+            streamedPredictionRefreshTimer = null;
+        }
+        streamedPredictionNeedsFullRender = false;
 
         closeDeleteEmbeddingModal();
         closeRealtimeHelpModal();
@@ -3545,6 +3579,8 @@
         fullSignalSeries = [];
         activeInlinePredictions = [];
         currentEmbeddings = [];
+        streamedPredictionRefreshTimer = null;
+        streamedPredictionNeedsFullRender = false;
         addApplianceButtonHandler = null;
         previewAllEmbeddingsHandler = null;
         sensorChangeHandler = null;
