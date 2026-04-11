@@ -2745,8 +2745,10 @@
         }, 80);
     }
 
-    function renderSignalChart(series) {
+    function renderSignalChart(series, options = {}) {
+        const preserveViewRange = options.preserveViewRange !== false;
         const canReusePreviousRange = Boolean(
+            preserveViewRange &&
             mainsSignalChart
             && Array.isArray(mainsSignalChart.data?.datasets?.[0]?.data)
             && mainsSignalChart.data.datasets[0].data.length
@@ -3188,7 +3190,7 @@
         if (!mainSensorSelect.value) {
             fullSignalSeries = [];
             setStatsFromSeries([]);
-            renderSignalChart([]);
+            renderSignalChart([], { preserveViewRange: false });
             return;
         }
 
@@ -3215,7 +3217,7 @@
 
             setStatsFromSeries(fullSignalSeries);
             updateLatestPowerFromSensors();
-            renderSignalChart(fullSignalSeries);
+            renderSignalChart(fullSignalSeries, { preserveViewRange: false });
         } finally {
             hideChartLoading();
         }
