@@ -305,6 +305,34 @@ class PredictionSpool:
                 pass
 
 
+def write_chunk_payload(model_entries, chunk_predictions_by_model):
+    fd, chunk_path = tempfile.mkstemp(prefix="nilm_preview_chunk_", suffix=".json")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            predictions = []
+            for entry in model_entries:
+                prediction = chunk_predictions_by_model.get(entry["safe_name"]) or {}
+                power_series = prediction.get("power_series") or []
+                state_series = prediction.get("state_series") or []
+                if not power_series and not state_series:
+                    continue
+                predictions.append({
+                    "model_key": entry["model_key"],
+                    "model_name": entry["model_name"],
+                    "power_series": power_series,
+                    "baseload_series": prediction.get("baseload_series") or [],
+                    "state_series": state_series,
+                })
+            json.dump({"predictions": predictions}, f, ensure_ascii=False)
+        return chunk_path
+    except Exception:
+        try:
+            os.remove(chunk_path)
+        except OSError:
+            pass
+        raise
+
+
 def write_result_payload_from_spool(result_path, mode, model_entries, spool):
     if mode == "all":
         with open(result_path, "w", encoding="utf-8") as f:
@@ -353,7 +381,7 @@ def _worker_percent(phase, processed, total):
     return int(round(25 + fraction * 67))
 
 
-def score_predictions_with_progress(model_entries, preview_context):
+def score_predictions_with_progress(model_entries, preview_context, *, stream_by_chunk: bool = False):
     if not model_entries:
         return None
 
@@ -377,7 +405,8 @@ def score_predictions_with_progress(model_entries, preview_context):
     emit({"phase": "embeddings", "processed": 0, "total": total, "percent": _worker_percent("embeddings", 0, total)})
 
     bundle_states = {}
-    spool = PredictionSpool(model_entries)
+    spool = None if stream_by_chunk else PredictionSpool(model_entries)
+    emitted_chunks = 0
     for bundle_id, entries in grouped.items():
         first = entries[0]
         disaggregator = RefQueryDisaggregator(
@@ -446,6 +475,15 @@ def score_predictions_with_progress(model_entries, preview_context):
         batch_label_times = label_times_ms[valid_rows]
         batch_mains = mains_at_label[valid_rows]
         batch_baseload = baseload_at_label[valid_rows]
+        chunk_predictions_by_model = None
+        if stream_by_chunk:
+            chunk_predictions_by_model = {}
+            for entry in model_entries:
+                chunk_predictions_by_model[entry["safe_name"]] = {
+                    "power_series": [],
+                    "baseload_series": [],
+                    "state_series": [],
+                }
 
         for idx in range(int(embeddings.shape[0])):
             query_emb = np.asarray(embeddings[idx], dtype=np.float32).reshape(1, -1)
@@ -461,7 +499,17 @@ def score_predictions_with_progress(model_entries, preview_context):
                     if onoff_value < onoff_threshold:
                         power_w = 0.0
 
-                    spool.append(safe_name, target_ms, power_w, baseload_value, onoff_value, onoff_threshold)
+                    if spool is not None:
+                        spool.append(safe_name, target_ms, power_w, baseload_value, onoff_value, onoff_threshold)
+                    if stream_by_chunk:
+                        chunk_predictions_by_model[safe_name]["power_series"].append({"x": target_ms, "y": power_w})
+                        chunk_predictions_by_model[safe_name]["baseload_series"].append({"x": target_ms, "y": baseload_value})
+                        chunk_predictions_by_model[safe_name]["state_series"].append({
+                            "x": target_ms,
+                            "y": int(onoff_value >= onoff_threshold),
+                            "score": float(onoff_value),
+                            "threshold": float(onoff_threshold),
+                        })
 
             processed_inference += 1
             now_mono = time.monotonic()
@@ -474,6 +522,18 @@ def score_predictions_with_progress(model_entries, preview_context):
                 })
                 last_inference_emit = now_mono
 
+        if stream_by_chunk:
+            chunk_path = write_chunk_payload(model_entries, chunk_predictions_by_model)
+            emitted_chunks += 1
+            emit({
+                "phase": "inference",
+                "processed": processed_inference,
+                "total": total,
+                "percent": _worker_percent("inference", processed_inference, total),
+                "chunk_path": chunk_path,
+                "chunk_index": emitted_chunks,
+            })
+
         del X
         del batch_embeddings
         del batch_rows
@@ -482,9 +542,12 @@ def score_predictions_with_progress(model_entries, preview_context):
         del batch_label_times
         del batch_mains
         del batch_baseload
+        if chunk_predictions_by_model is not None:
+            del chunk_predictions_by_model
         gc.collect()
 
-    spool.close()
+    if spool is not None:
+        spool.close()
     return spool
 
 
@@ -523,8 +586,12 @@ def main():
             emit({"done": True, **(result_payload or {})})
         return 0
 
-    spool = score_predictions_with_progress(model_entries, preview_context)
+    stream_by_chunk = payload.get("mode") == "all"
+    spool = score_predictions_with_progress(model_entries, preview_context, stream_by_chunk=stream_by_chunk)
     try:
+        if stream_by_chunk:
+            emit({"done": True, "prediction_count": len(model_entries)})
+            return 0
         if result_path:
             meta = write_result_payload_from_spool(result_path, payload.get("mode"), model_entries, spool)
             emit({"done": True, "result_path": result_path, **meta})

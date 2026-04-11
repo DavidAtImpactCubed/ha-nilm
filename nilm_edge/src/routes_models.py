@@ -75,6 +75,32 @@ def _adopt_preview_result_file(path):
     return adopted_path
 
 
+async def _append_preview_job_chunk(app, job_id, chunk_path, chunk_index):
+    async with app["preview_jobs_lock"]:
+        current = app["preview_jobs"].get(job_id, {})
+        queue = list(current.get("chunk_queue") or [])
+        queue.append({
+            "path": str(chunk_path or "").strip(),
+            "index": int(chunk_index or (len(queue) + 1)),
+        })
+        current["chunk_queue"] = queue
+        app["preview_jobs"][job_id] = current
+
+
+async def _pop_preview_job_chunk(app, job_id):
+    async with app["preview_jobs_lock"]:
+        current = app["preview_jobs"].get(job_id)
+        if not current:
+            return None
+        queue = list(current.get("chunk_queue") or [])
+        if not queue:
+            return None
+        chunk = dict(queue.pop(0))
+        current["chunk_queue"] = queue
+        app["preview_jobs"][job_id] = current
+        return chunk
+
+
 async def _purge_stale_preview_jobs(app):
     now_ts = time.time()
     async with app["preview_jobs_lock"]:
@@ -90,6 +116,8 @@ async def _purge_stale_preview_jobs(app):
                 continue
             stale_job_ids.append(job_id)
             stale_result_paths.append(job.get("result_path"))
+            for chunk in list(job.get("chunk_queue") or []):
+                stale_result_paths.append(chunk.get("path"))
 
         for job_id in stale_job_ids:
             app["preview_jobs"].pop(job_id, None)
@@ -155,6 +183,9 @@ async def _stream_preview_worker(payload):
                 if update.get("done") and update.get("result_path"):
                     update = dict(update)
                     update["result_path"] = _adopt_preview_result_file(update.get("result_path"))
+                if update.get("chunk_path"):
+                    update = dict(update)
+                    update["chunk_path"] = _adopt_preview_result_file(update.get("chunk_path"))
                 yield update
 
         stderr_bytes = await proc.stderr.read() if proc.stderr is not None else b""
@@ -1066,8 +1097,15 @@ async def _run_preview_all_job(app, job_id, model_entries, start_dt, end_dt, pro
             "points": points,
             "models": payload_models,
         }):
+            if update.get("chunk_path"):
+                await _append_preview_job_chunk(
+                    app,
+                    job_id,
+                    update.get("chunk_path"),
+                    update.get("chunk_index"),
+                )
+
             if update.get("done"):
-                result_path = str(update.get("result_path") or "").strip()
                 prediction_count = int(update.get("prediction_count") or 0)
                 await _set_preview_job(app, job_id, {
                     "status": "done",
@@ -1077,7 +1115,7 @@ async def _run_preview_all_job(app, job_id, model_entries, start_dt, end_dt, pro
                     "total": prediction_count,
                     "percent": 100,
                     "result": None,
-                    "result_path": result_path,
+                    "result_path": None,
                 })
                 return
 
@@ -1339,14 +1377,35 @@ async def preview_embedding_status_handler(request):
         if not job:
             return web.json_response({"status": "error", "message": "Preview job not found"}, status=404)
 
+        chunk_meta = await _pop_preview_job_chunk(request.app, job_id)
+        chunk_payload = None
+        if chunk_meta:
+            chunk_path = str(chunk_meta.get("path") or "").strip()
+            if chunk_path:
+                chunk_payload = _load_preview_result(chunk_path)
+                _cleanup_preview_result_file(chunk_path)
+            job = await _get_preview_job(request.app, job_id)
+
+        remaining_chunks = list(job.get("chunk_queue") or [])
+        if job.get("status") == "done" and remaining_chunks:
+            job["status"] = "running"
+            job["phase"] = "inference"
+            job["percent"] = min(99, int(job.get("percent") or 99))
+
         if job.get("status") in {"done", "error"}:
-            job = await _pop_preview_job(request.app, job_id)
-            result_path = job.get("result_path")
-            if result_path:
-                job["result"] = _load_preview_result(result_path)
-                job.pop("result_path", None)
-                _cleanup_preview_result_file(result_path)
-            gc.collect()
+            remaining_chunks = list(job.get("chunk_queue") or [])
+            if not remaining_chunks:
+                job = await _pop_preview_job(request.app, job_id)
+                result_path = job.get("result_path")
+                if result_path:
+                    job["result"] = _load_preview_result(result_path)
+                    job.pop("result_path", None)
+                    _cleanup_preview_result_file(result_path)
+                gc.collect()
+
+        job.pop("chunk_queue", None)
+        if chunk_payload is not None:
+            job["chunk"] = chunk_payload
 
         return web.json_response({
             "status": "success",

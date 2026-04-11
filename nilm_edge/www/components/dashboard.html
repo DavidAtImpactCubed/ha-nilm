@@ -1593,7 +1593,8 @@
         }
     }
 
-    async function waitForPredictionPreviewJob(jobId) {
+    async function waitForPredictionPreviewJob(jobId, options = {}) {
+        const onChunk = typeof options.onChunk === "function" ? options.onChunk : null;
         activePredictionProgressPercent = 0;
         while (true) {
             const response = await fetch(`preview-jobs/${encodeURIComponent(jobId)}`);
@@ -1606,6 +1607,14 @@
                 previewProgressMessage(payload.phase || payload.status),
                 Number(payload.percent)
             );
+
+            if (onChunk && payload.chunk && typeof payload.chunk === "object") {
+                try {
+                    onChunk(payload.chunk);
+                } catch (chunkError) {
+                    console.error("Prediction chunk handling failed:", chunkError);
+                }
+            }
 
             if (payload.status === "done") {
                 return payload.result || { power_series: [], state_series: [] };
@@ -2343,6 +2352,56 @@
         activeInlinePredictions.push(inlinePrediction);
     }
 
+    function appendSeriesPoints(targetSeries, nextSeries) {
+        if (!Array.isArray(targetSeries) || !Array.isArray(nextSeries) || !nextSeries.length) {
+            return targetSeries;
+        }
+        nextSeries.forEach((point) => {
+            targetSeries.push(point);
+        });
+        return targetSeries;
+    }
+
+    function mergePredictionChunk(chunkPayload) {
+        const predictions = Array.isArray(chunkPayload?.predictions) ? chunkPayload.predictions : [];
+        if (!predictions.length) {
+            return 0;
+        }
+
+        let changed = 0;
+        predictions.forEach((prediction, index) => {
+            const modelKey = prediction?.model_key;
+            if (!modelKey) return;
+            const powerSeries = Array.isArray(prediction.power_series) ? prediction.power_series : [];
+            const baseloadSeries = Array.isArray(prediction.baseload_series) ? prediction.baseload_series : [];
+            const stateSeries = Array.isArray(prediction.state_series) ? prediction.state_series : [];
+            if (!powerSeries.length && !stateSeries.length) return;
+
+            const existing = activeInlinePredictions.find((item) => item.modelKey === modelKey);
+            if (existing) {
+                appendSeriesPoints(existing.powerSeries, powerSeries);
+                appendSeriesPoints(existing.baseloadSeries, baseloadSeries);
+                appendSeriesPoints(existing.stateSeries, stateSeries);
+            } else {
+                activeInlinePredictions.push({
+                    modelKey,
+                    modelName: prediction.model_name || modelKey,
+                    powerSeries: powerSeries.slice(),
+                    baseloadSeries: baseloadSeries.slice(),
+                    stateSeries: stateSeries.slice(),
+                    color: colorForInlinePrediction(modelKey, index),
+                });
+            }
+            changed += 1;
+        });
+
+        if (changed > 0) {
+            renderInlinePredictionUi();
+            renderSignalChart(fullSignalSeries);
+        }
+        return changed;
+    }
+
     async function openAllPredictionPreviews() {
         const { startUtc, endUtc } = getSelectedRangeBounds();
         focusSignalChartOnMobile();
@@ -2368,36 +2427,33 @@
                 throw new Error("Prediction preview job did not start correctly.");
             }
 
-            const payload = await waitForPredictionPreviewJob(startPayload.job_id);
+            activeInlinePredictions = [];
+            renderInlinePredictionUi();
+            renderSignalChart(fullSignalSeries);
+
+            let streamedPredictionChunks = 0;
+            const payload = await waitForPredictionPreviewJob(startPayload.job_id, {
+                onChunk(chunkPayload) {
+                    const merged = mergePredictionChunk(chunkPayload);
+                    streamedPredictionChunks += merged;
+                },
+            });
             const predictions = Array.isArray(payload.predictions) ? payload.predictions : [];
-            if (!predictions.length) {
+            if (predictions.length) {
+                activeInlinePredictions = [];
+                mergePredictionChunk({ predictions });
+            }
+
+            if (!activeInlinePredictions.length) {
                 showMessage("No prediction history is available for the selected range yet.", "error");
                 return;
             }
-
-            const nextInlinePredictions = [];
-            predictions.forEach((prediction, index) => {
-                const modelKey = prediction.model_key;
-                const modelName = prediction.model_name || modelKey;
-                const powerSeries = Array.isArray(prediction.power_series) ? prediction.power_series : [];
-                const baseloadSeries = Array.isArray(prediction.baseload_series) ? prediction.baseload_series : [];
-                const stateSeries = Array.isArray(prediction.state_series) ? prediction.state_series : [];
-                if (!modelKey || (!powerSeries.length && !stateSeries.length)) return;
-                nextInlinePredictions.push({
-                    modelKey,
-                    modelName,
-                    powerSeries,
-                    baseloadSeries,
-                    stateSeries,
-                    color: colorForInlinePrediction(modelKey, index),
-                });
-            });
-
-            activeInlinePredictions = nextInlinePredictions;
-
-            renderInlinePredictionUi();
-            renderSignalChart(fullSignalSeries);
-            showMessage("All appliance predictions were added to the mains chart.", "success");
+            showMessage(
+                streamedPredictionChunks > 0
+                    ? "All appliance predictions were streamed into the mains chart."
+                    : "All appliance predictions were added to the mains chart.",
+                "success"
+            );
         } catch (error) {
             console.error("Disaggregate all failed:", error);
             showMessage(error.message || "Failed to disaggregate all appliance models.", "error");
