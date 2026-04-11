@@ -1383,6 +1383,7 @@
     let activePredictionProgressPercent = 0;
     let streamedPredictionRefreshTimer;
     let streamedPredictionNeedsFullRender = false;
+    let isDisaggregationRunning = false;
     let latestPowerPollTimer;
     let sensorsById = new Map();
     let allSensorsById = new Map();
@@ -1576,6 +1577,22 @@
                 ? message
                 : `${message} ${safePercent}%`
         );
+    }
+
+    function syncDisaggregationButtons() {
+        if (previewAllEmbeddingsButton) {
+            previewAllEmbeddingsButton.disabled = isDisaggregationRunning || !currentEmbeddings.length;
+        }
+        if (embeddingsList) {
+            embeddingsList.querySelectorAll("[data-embedding-preview]").forEach((button) => {
+                button.disabled = isDisaggregationRunning;
+            });
+        }
+    }
+
+    function setDisaggregationRunning(isRunning) {
+        isDisaggregationRunning = Boolean(isRunning);
+        syncDisaggregationButtons();
     }
 
     function previewProgressMessage(phase) {
@@ -2279,6 +2296,8 @@
     }
 
     async function openPredictionPreview(modelKey, modelName) {
+        if (isDisaggregationRunning) return;
+        setDisaggregationRunning(true);
         const { startUtc, endUtc } = getSelectedRangeBounds();
         currentPreviewModelName = modelName;
         currentPreviewStartUtc = startUtc;
@@ -2344,6 +2363,7 @@
             console.error("Prediction preview failed:", error);
             showMessage(error.message || "Failed to load prediction preview.", "error");
         } finally {
+            setDisaggregationRunning(false);
             hideChartLoading();
         }
     }
@@ -2432,6 +2452,8 @@
     }
 
     async function openAllPredictionPreviews() {
+        if (isDisaggregationRunning) return;
+        setDisaggregationRunning(true);
         const { startUtc, endUtc } = getSelectedRangeBounds();
         focusSignalChartOnMobile();
         showChartLoading("Preparing predictions...");
@@ -2487,6 +2509,7 @@
             console.error("Disaggregate all failed:", error);
             showMessage(error.message || "Failed to disaggregate all appliance models.", "error");
         } finally {
+            setDisaggregationRunning(false);
             hideChartLoading();
         }
     }
@@ -2929,7 +2952,7 @@
             });
 
         embeddingsCountStat.textContent = String(safeEmbeddings.length);
-        if (previewAllEmbeddingsButton) previewAllEmbeddingsButton.disabled = safeEmbeddings.length === 0;
+        if (previewAllEmbeddingsButton) previewAllEmbeddingsButton.disabled = isDisaggregationRunning || safeEmbeddings.length === 0;
 
         if (!safeEmbeddings.length) {
             embeddingsList.innerHTML = `
@@ -2996,7 +3019,7 @@
                         <div class="embedding-stat-label">Training Quality</div>
                         <div class="embedding-stat-value">${bestF1Text} <span style="font-size:0.78rem;font-weight:700;color:#64748b;">(0-1)</span></div>
                     </div>
-                    <button class="embedding-preview-btn" type="button" data-embedding-preview="${embedding.model_key}" data-embedding-label="${embedding.name}">
+                    <button class="embedding-preview-btn" type="button" data-embedding-preview="${embedding.model_key}" data-embedding-label="${embedding.name}" ${isDisaggregationRunning ? "disabled" : ""}>
                         <i class="fas fa-chart-line" aria-hidden="true"></i>
                         Disaggregate
                     </button>
@@ -3469,6 +3492,7 @@
 
         renderSignalChart([]);
         renderEmbeddings(null);
+        syncDisaggregationButtons();
         refreshAll();
     };
 
@@ -3581,6 +3605,7 @@
         currentEmbeddings = [];
         streamedPredictionRefreshTimer = null;
         streamedPredictionNeedsFullRender = false;
+        isDisaggregationRunning = false;
         addApplianceButtonHandler = null;
         previewAllEmbeddingsHandler = null;
         sensorChangeHandler = null;
