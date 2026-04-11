@@ -29,6 +29,7 @@ if not INGRESS_URL_BASE.endswith("/"):
 current_config = {
     "main_sensor_id": (os.getenv("MAIN_SENSOR", "").strip() or None),
     "training_server_url": None,
+    "preview_batch_size": 1024,
 }
 
 refquery_instance = None
@@ -141,12 +142,17 @@ def load_config():
             loaded_config = json.load(file_handle)
         loaded_sensor_id = loaded_config.get("main_sensor_id", current_config["main_sensor_id"])
         loaded_training_server_url = loaded_config.get("training_server_url", current_config["training_server_url"])
+        loaded_preview_batch_size = loaded_config.get("preview_batch_size", current_config["preview_batch_size"])
         current_config["main_sensor_id"] = (str(loaded_sensor_id).strip() if loaded_sensor_id is not None else None) or None
         current_config["training_server_url"] = (
             normalize_training_server_url(str(loaded_training_server_url).strip())
             if loaded_training_server_url
             else None
         )
+        try:
+            current_config["preview_batch_size"] = max(32, int(loaded_preview_batch_size))
+        except (TypeError, ValueError):
+            current_config["preview_batch_size"] = 1024
         print(f"Configuration loaded from {CONFIG_FILE_PATH}")
     except json.JSONDecodeError as exc:
         print(f"Error decoding config.json: {exc}. Using current in-memory values.")
@@ -154,7 +160,15 @@ def load_config():
         print(f"Error reading config.json: {exc}. Using current in-memory values.")
 
 
-def save_config(*, main_sensor_id=None, training_server_url=None, update_main_sensor_id=False, update_training_server_url=False):
+def save_config(
+    *,
+    main_sensor_id=None,
+    training_server_url=None,
+    preview_batch_size=None,
+    update_main_sensor_id=False,
+    update_training_server_url=False,
+    update_preview_batch_size=False,
+):
     if update_main_sensor_id:
         current_config["main_sensor_id"] = (str(main_sensor_id).strip() if main_sensor_id is not None else None) or None
     if update_training_server_url:
@@ -163,6 +177,11 @@ def save_config(*, main_sensor_id=None, training_server_url=None, update_main_se
             if training_server_url is not None and str(training_server_url).strip()
             else None
         )
+    if update_preview_batch_size:
+        try:
+            current_config["preview_batch_size"] = max(32, int(preview_batch_size))
+        except (TypeError, ValueError):
+            current_config["preview_batch_size"] = 1024
     try:
         os.makedirs(os.path.dirname(CONFIG_FILE_PATH), exist_ok=True)
         with open(CONFIG_FILE_PATH, "w", encoding="utf-8") as file_handle:

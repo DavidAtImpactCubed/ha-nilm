@@ -1162,6 +1162,16 @@
                 </div>
             </div>
 
+            <div class="control-row">
+                <div>
+                    <label class="field-label" for="previewBatchSizeInput">Preview Batch Size</label>
+                    <input id="previewBatchSizeInput" class="field-input" type="number" min="32" max="8192" step="32" value="1024">
+                </div>
+                <div class="stat-label" style="align-self:end;padding-bottom:10px;">
+                    Lower values reduce RAM spikes on small devices.
+                </div>
+            </div>
+
             <div class="stats-grid">
                 <div class="stat-card">
                     <div class="stat-label">Energy</div>
@@ -1321,6 +1331,7 @@
 <script>
     let mainSensorSelect;
     let historyRangeSelect;
+    let previewBatchSizeInput;
     let statusMessage;
     let mainsSignalChartShell;
     let addApplianceButton;
@@ -1391,6 +1402,7 @@
     let addApplianceButtonHandler;
     let previewAllEmbeddingsHandler;
     let sensorChangeHandler;
+    let previewBatchSizeChangeHandler;
     let rangeChangeHandler;
     let embeddingsListClickHandler;
     let embeddingsListChangeHandler;
@@ -3243,12 +3255,27 @@
 
         const config = await response.json();
         await fetchSensorsAndPopulateSelect(config.main_sensor_id);
+        if (previewBatchSizeInput) {
+            const value = Number.parseInt(config.preview_batch_size, 10);
+            previewBatchSizeInput.value = String(
+                Number.isFinite(value) && value >= 32 ? value : 1024
+            );
+        }
     }
 
     async function saveConfig() {
-        if (!mainSensorSelect.value) {
-            showMessage("Choose a mains sensor before saving.", "error");
-            return;
+        const batchSizeRaw = Number.parseInt(previewBatchSizeInput?.value, 10);
+        const previewBatchSize = Number.isFinite(batchSizeRaw)
+            ? Math.max(32, Math.min(8192, batchSizeRaw))
+            : 1024;
+        if (previewBatchSizeInput) {
+            previewBatchSizeInput.value = String(previewBatchSize);
+        }
+        const configPayload = {
+            preview_batch_size: previewBatchSize,
+        };
+        if (mainSensorSelect?.value) {
+            configPayload.main_sensor_id = mainSensorSelect.value;
         }
 
         const response = await fetch("config", {
@@ -3256,7 +3283,7 @@
             headers: {
                 "Content-Type": "application/json"
             },
-            body: JSON.stringify({ main_sensor_id: mainSensorSelect.value })
+            body: JSON.stringify(configPayload)
         });
 
         if (!response.ok) {
@@ -3284,6 +3311,7 @@
     window.initializeDashboardUI = function() {
         mainSensorSelect = document.getElementById("mainSensorSelect");
         historyRangeSelect = document.getElementById("historyRangeSelect");
+        previewBatchSizeInput = document.getElementById("previewBatchSizeInput");
         mainsSignalChartShell = document.getElementById("mainsSignalChartShell");
         addApplianceButton = document.getElementById("addApplianceButton");
         chartLoadingOverlay = document.getElementById("chartLoadingOverlay");
@@ -3461,6 +3489,15 @@
                 showMessage(error.message || "Failed to save mains sensor.", "error");
             }
         };
+        previewBatchSizeChangeHandler = async () => {
+            try {
+                await saveConfig();
+                showMessage("Preview batch size saved.", "success");
+            } catch (error) {
+                console.error("Preview batch size save failed:", error);
+                showMessage(error.message || "Failed to save preview batch size.", "error");
+            }
+        };
         rangeChangeHandler = async () => {
             try {
                 if (activeInlinePredictions.length) clearInlinePrediction();
@@ -3496,6 +3533,7 @@
         if (addPredictionOverlayButton) addPredictionOverlayButton.addEventListener("click", addPredictionOverlayHandler);
         if (resetPredictionZoomButton) resetPredictionZoomButton.addEventListener("click", resetPredictionZoomHandler);
         mainSensorSelect.addEventListener("change", sensorChangeHandler);
+        if (previewBatchSizeInput) previewBatchSizeInput.addEventListener("change", previewBatchSizeChangeHandler);
         historyRangeSelect.addEventListener("change", rangeChangeHandler);
         latestPowerPollTimer = window.setInterval(latestPowerPollTickHandler, 15000);
 
@@ -3528,6 +3566,7 @@
         if (addPredictionOverlayButton && addPredictionOverlayHandler) addPredictionOverlayButton.removeEventListener("click", addPredictionOverlayHandler);
         if (resetPredictionZoomButton && resetPredictionZoomHandler) resetPredictionZoomButton.removeEventListener("click", resetPredictionZoomHandler);
         if (mainSensorSelect && sensorChangeHandler) mainSensorSelect.removeEventListener("change", sensorChangeHandler);
+        if (previewBatchSizeInput && previewBatchSizeChangeHandler) previewBatchSizeInput.removeEventListener("change", previewBatchSizeChangeHandler);
         if (historyRangeSelect && rangeChangeHandler) historyRangeSelect.removeEventListener("change", rangeChangeHandler);
 
         if (messageTimeoutId) {
@@ -3567,6 +3606,7 @@
 
         mainSensorSelect = null;
         historyRangeSelect = null;
+        previewBatchSizeInput = null;
         mainsSignalChartShell = null;
         addApplianceButton = null;
         chartLoadingOverlay = null;
@@ -3618,6 +3658,7 @@
         addApplianceButtonHandler = null;
         previewAllEmbeddingsHandler = null;
         sensorChangeHandler = null;
+        previewBatchSizeChangeHandler = null;
         rangeChangeHandler = null;
         embeddingsListClickHandler = null;
         embeddingsListChangeHandler = null;

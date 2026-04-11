@@ -161,8 +161,9 @@ def iter_preview_batches(preview_context, batch_size: int = PREVIEW_BATCH_SIZE):
     label_times_ms_all = np.round((grid_t_end - offset) * 1000.0).astype(np.int64)
     mains_at_label_all = y_grid[pred_idx:(pred_idx + total_candidates)].astype(np.float32, copy=False)
 
-    for start in range(0, total_candidates, int(batch_size)):
-        end = min(total_candidates, start + int(batch_size))
+    effective_batch_size = max(1, int(batch_size))
+    for start in range(0, total_candidates, effective_batch_size):
+        end = min(total_candidates, start + effective_batch_size)
         batch_valid = valid_windows_mask[start:end]
         if not np.any(batch_valid):
             continue
@@ -400,6 +401,7 @@ def score_predictions_with_progress(
 
     inference_dir = str(preview_context.get("inference_dir") or "")
     num_threads = int(preview_context.get("num_threads") or 2)
+    batch_size = int(preview_context.get("batch_size") or PREVIEW_BATCH_SIZE)
     if total <= 0 or not inference_dir:
         return PredictionSpool(model_entries) if keep_full_result else None
 
@@ -433,7 +435,7 @@ def score_predictions_with_progress(
             "model_state": model_state,
         }
 
-    for batch in iter_preview_batches(preview_context, batch_size=PREVIEW_BATCH_SIZE):
+    for batch in iter_preview_batches(preview_context, batch_size=batch_size):
         windows = np.asarray(batch.get("windows"), dtype=np.float32)
         if windows.ndim != 2 or windows.shape[0] == 0:
             continue
@@ -578,6 +580,7 @@ def main():
         return 0
 
     preview_context = build_offline_preview_context(points, inference_dir=model_entries[0]["inference_dir"], num_threads=2, align_grid="start", max_hold_factor=5.0)
+    preview_context["batch_size"] = int(payload.get("batch_size") or PREVIEW_BATCH_SIZE)
     if count_preview_points(preview_context) <= 0:
         result_payload = None
         if payload.get("mode") == "all":
