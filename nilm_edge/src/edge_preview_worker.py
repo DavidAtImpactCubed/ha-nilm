@@ -19,7 +19,7 @@ from prepare_training_data import (
 from refquery import RefQueryDisaggregator
 
 
-PREVIEW_BATCH_SIZE = 256
+PREVIEW_BATCH_SIZE = 1024
 
 
 def emit(payload):
