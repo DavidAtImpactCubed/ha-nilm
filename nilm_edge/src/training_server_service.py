@@ -8,6 +8,7 @@ import traceback
 import gc
 import ctypes
 import sys
+import gzip
 import numpy as np
 from datetime import datetime, timezone
 from typing import Any, Dict, Optional
@@ -17,7 +18,7 @@ import app_state
 from training_server_client import (
     TrainingServerError,
     probe_training_server_connection,
-    start_training_job,
+    start_training_job_from_gzip_file,
     poll_training_result,
     fetch_training_status,
 )
@@ -238,6 +239,9 @@ class TrainingServerServiceManager:
     def _replay_input_path(self, job_id: str) -> str:
         return os.path.join(self.jobs_dir, f"{job_id}.replay.json")
 
+    def _payload_gzip_path(self, job_id: str) -> str:
+        return os.path.join(self.jobs_dir, f"{job_id}.payload.json.gz")
+
     def _read_unlocked(self, path: str) -> Dict[str, Any]:
         with open(path, "r", encoding="utf-8") as f:
             return json.load(f)
@@ -251,6 +255,29 @@ class TrainingServerServiceManager:
         path = self._job_path(job_id)
         async with self._io_lock:
             _atomic_write_json(path, data)
+
+    async def _write_payload_gzip(self, job_id: str, data: Dict[str, Any]) -> Dict[str, Any]:
+        path = self._payload_gzip_path(job_id)
+        tmp = f"{path}.tmp"
+        async with self._io_lock:
+            with gzip.open(tmp, "wt", encoding="utf-8") as f:
+                json.dump(data, f, ensure_ascii=False, separators=(",", ":"))
+            os.replace(tmp, path)
+        compressed_size = os.path.getsize(path)
+        embeddings = data.get("embeddings") if isinstance(data.get("embeddings"), list) else []
+        first_embedding = embeddings[0] if embeddings and isinstance(embeddings[0], list) else []
+        return {
+            "payload_gzip_path": path,
+            "payload_gzip_bytes": compressed_size,
+            "payload_summary": summarize_training_server_payload(data),
+            "embedding_dim": len(first_embedding),
+        }
+
+    async def _delete_payload_gzip(self, job_id: str) -> None:
+        path = self._payload_gzip_path(job_id)
+        async with self._io_lock:
+            if os.path.exists(path):
+                os.remove(path)
 
     async def _patch_job(self, job_id: str, patch: Dict[str, Any]) -> None:
         path = self._job_path(job_id)
@@ -307,30 +334,63 @@ class TrainingServerServiceManager:
 
     async def create_job(self, prepared: Dict[str, Any]) -> str:
         job_id = uuid.uuid4().hex
-        prepared["_job"] = {
-            "job_id": job_id,
-            "state": "prepared",
-            "created_at": _utc_now_iso(),
-            "updated_at": _utc_now_iso(),
-            "training_server_job_id": None,
-            "saved_path": None,
-            "embedding_dim": None,
-            "error": None,
-            # progress fields your UI can show
-            "progress": {
-                "phase": "prepared",
-                "epoch": 0,
-                "total_epochs": None,
-                "loss": None,
-                "min_loss": None,
+        training_payload = training_server_payload_from_prepared(prepared)
+        payload_meta = await self._write_payload_gzip(job_id, training_payload)
+        bundle_id = str(prepared.get("bundle_id") or "").strip()
+        bundle = get_bundle_by_id(app_state.model_bundles, bundle_id) if bundle_id else None
+        if bundle is not None:
+            replay_sample = _sample_replay_payload(prepared.get("embeddings"), prepared.get("targets_on"))
+            replay_input = {
+                "job_id": job_id,
+                "appliance_name": str(prepared.get("appliance_name") or ""),
+                "bundle_id": bundle_id,
+                "inference_dir": bundle.inference_dir,
+                "embeddings_dir": bundle_models_dir(self.models_root, bundle_id),
+                "embeddings": replay_sample["embeddings"],
+                "targets_on": replay_sample["targets_on"],
+                "sampled": replay_sample["sampled"],
+                "sample_count": replay_sample["sample_count"],
+                "original_count": replay_sample["original_count"],
+            }
+            await self._write_replay_input(job_id, replay_input)
+
+        job_record = {
+            "appliance_name": prepared.get("appliance_name"),
+            "appliance_type": prepared.get("appliance_type"),
+            "supervision_mode": prepared.get("supervision_mode"),
+            "appliance_sensor_id": prepared.get("appliance_sensor_id"),
+            "bundle_id": prepared.get("bundle_id"),
+            "bundle_mode": prepared.get("bundle_mode"),
+            "bundle_version": prepared.get("bundle_version"),
+            "settings": prepared.get("settings") or {},
+            "stats": prepared.get("stats") or {},
+            "payload_gzip_path": payload_meta["payload_gzip_path"],
+            "payload_gzip_bytes": payload_meta["payload_gzip_bytes"],
+            "payload_summary": payload_meta["payload_summary"],
+            "_job": {
+                "job_id": job_id,
+                "state": "prepared",
+                "created_at": _utc_now_iso(),
+                "updated_at": _utc_now_iso(),
+                "training_server_job_id": None,
+                "saved_path": None,
+                "embedding_dim": None,
+                "error": None,
+                "progress": {
+                    "phase": "prepared",
+                    "epoch": 0,
+                    "total_epochs": None,
+                    "loss": None,
+                    "min_loss": None,
+                },
+                "percent": None,
             },
-            "percent": None,
         }
-        await self._write(job_id, prepared)
+        await self._write(job_id, job_record)
         print(
             f"Created local training job local_job_id={job_id} "
             f"appliance={prepared.get('appliance_name')} bundle_id={prepared.get('bundle_id')} "
-            f"n_embeddings={len(prepared.get('embeddings') or [])}",
+            f"n_embeddings={payload_meta['payload_summary'].get('n_embeddings')}",
             flush=True,
         )
         return job_id
@@ -399,8 +459,9 @@ class TrainingServerServiceManager:
 
     async def start_send(self, job_id: str) -> Dict[str, Any]:
         prepared = await self._read(job_id)
-        training_server_payload = training_server_payload_from_prepared(prepared)
-        payload_summary = summarize_training_server_payload(training_server_payload)
+        payload_summary = prepared.get("payload_summary") or {}
+        payload_gzip_path = str(prepared.get("payload_gzip_path") or "").strip()
+        payload_gzip_bytes = int(prepared.get("payload_gzip_bytes") or 0)
         url_state = await app_state.resolve_training_server_url_state()
         training_server_url = url_state["effective_training_server_url"]
         training_server_api_key = app_state.get_training_server_api_key()
@@ -410,38 +471,21 @@ class TrainingServerServiceManager:
             flush=True,
         )
 
-        start = await start_training_job(
+        start = await start_training_job_from_gzip_file(
             training_server_url=training_server_url,
             api_key=training_server_api_key,
-            payload=training_server_payload,
+            gzip_payload_path=payload_gzip_path,
+            compressed_size_bytes=payload_gzip_bytes,
+            n_embeddings=int(payload_summary.get("n_embeddings") or 0),
+            embedding_dim=int(payload_summary.get("embedding_dim") or 0),
             timeout_s=1120.0,
         )
-        del training_server_payload
 
         training_server_job_id = start["job_id"]
         print(
             f"Training server accepted local_job_id={job_id} training_server_job_id={training_server_job_id}",
             flush=True,
         )
-
-        replay_input = None
-        bundle_id = str(prepared.get("bundle_id") or "").strip()
-        bundle = get_bundle_by_id(app_state.model_bundles, bundle_id) if bundle_id else None
-        if bundle is not None:
-            replay_sample = _sample_replay_payload(prepared.get("embeddings"), prepared.get("targets_on"))
-            replay_input = {
-                "job_id": job_id,
-                "appliance_name": str(prepared.get("appliance_name") or ""),
-                "bundle_id": bundle_id,
-                "inference_dir": bundle.inference_dir,
-                "embeddings_dir": bundle_models_dir(self.models_root, bundle_id),
-                "embeddings": replay_sample["embeddings"],
-                "targets_on": replay_sample["targets_on"],
-                "sampled": replay_sample["sampled"],
-                "sample_count": replay_sample["sample_count"],
-                "original_count": replay_sample["original_count"],
-            }
-            await self._write_replay_input(job_id, replay_input)
 
         await self._patch_job(job_id, {
             "training_server_job_id": training_server_job_id,
@@ -459,12 +503,10 @@ class TrainingServerServiceManager:
             },
             "percent": None,
         })
-        await self._prune_heavy_job_fields(job_id)
 
         # background poller updates progress + finalizes
         asyncio.create_task(self._poll_and_finalize(job_id, training_server_job_id, training_server_url, training_server_api_key))
 
-        del replay_input
         del prepared
         _release_process_memory()
         return {"status": "success", "job_id": job_id, "training_server_job_id": training_server_job_id}
@@ -653,7 +695,7 @@ class TrainingServerServiceManager:
                 },
                 "percent": 100,
             })
-            await self._prune_heavy_job_fields(job_id)
+            await self._delete_payload_gzip(job_id)
             del prepared_job
             _release_process_memory()
             await self._notify_training_result(
@@ -679,6 +721,7 @@ class TrainingServerServiceManager:
                 "error": str(e),
                 "progress": {"phase": "error"},
             })
+            await self._delete_payload_gzip(job_id)
             await self._notify_training_result(
                 job_id=job_id,
                 title="NILM training failed",

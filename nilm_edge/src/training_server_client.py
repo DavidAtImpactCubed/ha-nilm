@@ -109,6 +109,71 @@ async def start_training_job(
                 pass
 
 
+async def start_training_job_from_gzip_file(
+    training_server_url: str,
+    api_key: Optional[str],
+    gzip_payload_path: str,
+    *,
+    compressed_size_bytes: Optional[int] = None,
+    n_embeddings: int = 0,
+    embedding_dim: int = 0,
+    timeout_s: float = 30.0,
+) -> Dict[str, Any]:
+    training_server_url = _normalized_training_server_url(training_server_url)
+    if not gzip_payload_path or not os.path.exists(gzip_payload_path):
+        raise TrainingServerError(f"Training payload file does not exist: {gzip_payload_path}")
+
+    timeout = aiohttp.ClientTimeout(total=timeout_s, connect=10, sock_read=timeout_s)
+    if compressed_size_bytes is None:
+        compressed_size_bytes = os.path.getsize(gzip_payload_path)
+
+    print(
+        f"Training server POST starting url={training_server_url} "
+        f"compressed_bytes={compressed_size_bytes} "
+        f"n_embeddings={n_embeddings} embedding_dim={embedding_dim}",
+        flush=True,
+    )
+
+    try:
+        async with aiohttp.ClientSession(timeout=timeout) as session:
+            headers = _headers(api_key)
+            headers["Content-Encoding"] = "gzip"
+            with open(gzip_payload_path, "rb") as payload_stream:
+                async with session.post(training_server_url, headers=headers, data=payload_stream) as resp:
+                    text = await resp.text()
+                    if resp.status not in (200, 202):
+                        raise TrainingServerError(f"Training server start failed HTTP {resp.status}: {text[:800]}")
+
+                    try:
+                        data = json.loads(text) if text else {}
+                    except Exception:
+                        raise TrainingServerError(f"Training server start returned non-JSON: {text[:200]}")
+
+                    if not isinstance(data, dict) or not data.get("job_id"):
+                        raise TrainingServerError(f"Training server start missing job_id. Response: {data!r}")
+
+                    print(
+                        f"Training server POST accepted url={training_server_url} "
+                        f"compressed_bytes={compressed_size_bytes} "
+                        f"job_id={data.get('job_id')}",
+                        flush=True,
+                    )
+                    return data
+    except asyncio.TimeoutError as e:
+        raise TrainingServerError(
+            f"Training server start timed out after sending compressed_bytes={compressed_size_bytes}"
+        ) from e
+    except aiohttp.ClientError as e:
+        os_error = getattr(e, "os_error", None)
+        os_error_text = f"{type(os_error).__name__}: {os_error}" if os_error is not None else "None"
+        raise TrainingServerError(
+            f"Training server start request error: {e} "
+            f"(url={training_server_url}, compressed_bytes={compressed_size_bytes}, "
+            f"n_embeddings={n_embeddings}, embedding_dim={embedding_dim}, "
+            f"client_error_type={type(e).__name__}, os_error={os_error_text})"
+        ) from e
+
+
 async def probe_training_server_connection(
     training_server_url: str,
     api_key: Optional[str],
