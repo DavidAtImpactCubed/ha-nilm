@@ -954,7 +954,10 @@ async def _run_preview_job(app, job_id, bundle_id, safe_name, start_dt, end_dt, 
             processed = int(update.get("processed", 0))
             total = int(update.get("total", 0))
             phase = str(update.get("phase") or "inference")
-            if total > 0:
+            explicit_percent = update.get("percent")
+            if isinstance(explicit_percent, (int, float)):
+                percent = max(0, min(100, int(round(float(explicit_percent)))))
+            elif total > 0:
                 if phase == "embeddings":
                     percent = max(26, min(55, 25 + int(round((processed / total) * 30))))
                 elif phase == "inference":
@@ -1075,7 +1078,10 @@ async def _run_preview_all_job(app, job_id, model_entries, start_dt, end_dt, pro
             processed = int(update.get("processed", 0))
             total = int(update.get("total", 0))
             phase = str(update.get("phase") or "inference")
-            if total > 0:
+            explicit_percent = update.get("percent")
+            if isinstance(explicit_percent, (int, float)):
+                percent = max(0, min(100, int(round(float(explicit_percent)))))
+            elif total > 0:
                 if phase == "embeddings":
                     percent = max(26, min(55, 25 + int(round((processed / total) * 30))))
                 elif phase == "inference":

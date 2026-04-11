@@ -5,6 +5,7 @@ import os
 import sys
 import time
 import gc
+import tempfile
 from collections import defaultdict
 
 import numpy as np
@@ -195,42 +196,151 @@ def count_preview_points(preview_context):
     return int(np.count_nonzero(valid_windows_mask))
 
 
-def init_prediction_results(model_entries):
-    results = {}
-    for entry in model_entries:
-        results[entry["safe_name"]] = {
-            "power_series": [],
-            "baseload_series": [],
-            "state_series": [],
+class PredictionSpool:
+    def __init__(self, model_entries):
+        self.entries = list(model_entries or [])
+        self.paths = {}
+        self.handles = {}
+        self.first_record = {}
+        self.state_stats = {}
+
+        for entry in self.entries:
+            safe_name = entry["safe_name"]
+            fd, path = tempfile.mkstemp(prefix=f"nilm_preview_{safe_name}_", suffix=".jsonl")
+            os.close(fd)
+            handle = open(path, "w", encoding="utf-8")
+            self.paths[safe_name] = path
+            self.handles[safe_name] = handle
+            self.first_record[safe_name] = True
+            self.state_stats[safe_name] = {
+                "n_points": 0,
+                "max_score": None,
+                "min_score": None,
+                "score_sum": 0.0,
+                "threshold": None,
+                "n_above_threshold": 0,
+            }
+
+    def append(self, safe_name, target_ms, power_w, baseload_value, onoff_value, onoff_threshold):
+        handle = self.handles[safe_name]
+        record = {
+            "x": int(target_ms),
+            "power": float(power_w),
+            "baseload": float(baseload_value),
+            "state": int(onoff_value >= onoff_threshold),
+            "score": float(onoff_value),
+            "threshold": float(onoff_threshold),
         }
-    return results
+        handle.write(json.dumps(record, ensure_ascii=False))
+        handle.write("\n")
+
+        stats = self.state_stats[safe_name]
+        score = float(onoff_value)
+        threshold = float(onoff_threshold)
+        stats["n_points"] += 1
+        stats["score_sum"] += score
+        stats["max_score"] = score if stats["max_score"] is None else max(float(stats["max_score"]), score)
+        stats["min_score"] = score if stats["min_score"] is None else min(float(stats["min_score"]), score)
+        if stats["threshold"] is None:
+            stats["threshold"] = threshold
+        if score >= threshold:
+            stats["n_above_threshold"] += 1
+
+    def build_state_summary(self, safe_name):
+        stats = self.state_stats.get(safe_name) or {}
+        n_points = int(stats.get("n_points") or 0)
+        if n_points <= 0:
+            return summarize_state_series([])
+        return {
+            "n_points": n_points,
+            "max_score": stats.get("max_score"),
+            "min_score": stats.get("min_score"),
+            "mean_score": float(stats.get("score_sum", 0.0) / n_points),
+            "threshold": stats.get("threshold"),
+            "n_above_threshold": int(stats.get("n_above_threshold") or 0),
+        }
+
+    def load_model_payload(self, safe_name):
+        power_series = []
+        baseload_series = []
+        state_series = []
+        path = self.paths[safe_name]
+        with open(path, "r", encoding="utf-8") as f:
+            for line in f:
+                raw = line.strip()
+                if not raw:
+                    continue
+                point = json.loads(raw)
+                x = int(point["x"])
+                power_series.append({"x": x, "y": float(point["power"])})
+                baseload_series.append({"x": x, "y": float(point["baseload"])})
+                state_series.append({
+                    "x": x,
+                    "y": int(point["state"]),
+                    "score": float(point["score"]),
+                    "threshold": float(point["threshold"]),
+                })
+        return {
+            "power_series": power_series,
+            "baseload_series": baseload_series,
+            "state_series": state_series,
+            "state_summary": self.build_state_summary(safe_name),
+        }
+
+    def close(self):
+        for handle in self.handles.values():
+            try:
+                handle.close()
+            except Exception:
+                pass
+        self.handles = {}
+
+    def cleanup(self):
+        self.close()
+        for path in self.paths.values():
+            try:
+                if os.path.exists(path):
+                    os.remove(path)
+            except OSError:
+                pass
+
+
+def _worker_percent(phase, processed, total):
+    if total <= 0:
+        return 30
+    fraction = max(0.0, min(1.0, float(processed) / float(total)))
+    if phase == "embeddings":
+        return int(round(25 + fraction * 30))
+    if phase == "inference":
+        return int(round(55 + fraction * 37))
+    return int(round(25 + fraction * 67))
 
 
 def score_predictions_with_progress(model_entries, preview_context):
     if not model_entries:
-        return {}
+        return None
 
     grouped = defaultdict(list)
     for entry in model_entries:
         grouped[entry["bundle_id"]].append(entry)
 
     total = count_preview_points(preview_context)
-    emit({"phase": "inference", "processed": 0, "total": total})
+    emit({"phase": "inference", "processed": 0, "total": total, "percent": _worker_percent("inference", 0, total)})
 
-    results = init_prediction_results(model_entries)
     inference_dir = str(preview_context.get("inference_dir") or "")
     num_threads = int(preview_context.get("num_threads") or 2)
     if total <= 0 or not inference_dir:
-        return results
+        return PredictionSpool(model_entries)
 
     extractor = QueryExtractor(os.path.join(inference_dir, "extractor.tflite"), num_threads=num_threads)
     last_embedding_emit = 0.0
     last_inference_emit = 0.0
     processed_embeddings = 0
     processed_inference = 0
-    emit({"phase": "embeddings", "processed": 0, "total": total})
+    emit({"phase": "embeddings", "processed": 0, "total": total, "percent": _worker_percent("embeddings", 0, total)})
 
     bundle_states = {}
+    spool = PredictionSpool(model_entries)
     for bundle_id, entries in grouped.items():
         first = entries[0]
         disaggregator = RefQueryDisaggregator(
@@ -281,7 +391,12 @@ def score_predictions_with_progress(model_entries, preview_context):
             processed_embeddings += 1
             now_mono = time.monotonic()
             if processed_embeddings == 1 or processed_embeddings == total or now_mono - last_embedding_emit >= 0.05:
-                emit({"phase": "embeddings", "processed": processed_embeddings, "total": total})
+                emit({
+                    "phase": "embeddings",
+                    "processed": processed_embeddings,
+                    "total": total,
+                    "percent": _worker_percent("embeddings", processed_embeddings, total),
+                })
                 last_embedding_emit = now_mono
 
         if not batch_embeddings:
@@ -309,19 +424,17 @@ def score_predictions_with_progress(model_entries, preview_context):
                     if onoff_value < onoff_threshold:
                         power_w = 0.0
 
-                    results[safe_name]["power_series"].append({"x": target_ms, "y": power_w})
-                    results[safe_name]["baseload_series"].append({"x": target_ms, "y": baseload_value})
-                    results[safe_name]["state_series"].append({
-                        "x": target_ms,
-                        "y": int(onoff_value >= onoff_threshold),
-                        "score": float(onoff_value),
-                        "threshold": float(onoff_threshold),
-                    })
+                    spool.append(safe_name, target_ms, power_w, baseload_value, onoff_value, onoff_threshold)
 
             processed_inference += 1
             now_mono = time.monotonic()
             if processed_inference == 1 or processed_inference == total or now_mono - last_inference_emit >= 0.05:
-                emit({"phase": "inference", "processed": processed_inference, "total": total})
+                emit({
+                    "phase": "inference",
+                    "processed": processed_inference,
+                    "total": total,
+                    "percent": _worker_percent("inference", processed_inference, total),
+                })
                 last_inference_emit = now_mono
 
         del X
@@ -334,7 +447,8 @@ def score_predictions_with_progress(model_entries, preview_context):
         del batch_baseload
         gc.collect()
 
-    return results
+    spool.close()
+    return spool
 
 
 def main():
@@ -372,41 +486,46 @@ def main():
             emit({"done": True, **(result_payload or {})})
         return 0
 
-    results = score_predictions_with_progress(model_entries, preview_context)
+    spool = score_predictions_with_progress(model_entries, preview_context)
     result_payload = None
-    if payload.get("mode") == "all":
-        predictions = []
-        for entry in model_entries:
-            prediction = results.get(entry["safe_name"]) or {}
-            state_series = prediction.get("state_series", [])
-            predictions.append({
-                "model_key": entry["model_key"],
-                "model_name": entry["model_name"],
-                "power_series": prediction.get("power_series", []),
-                "baseload_series": prediction.get("baseload_series", []),
-                "state_series": state_series,
-                "state_summary": summarize_state_series(state_series),
-            })
-        result_payload = {"predictions": predictions}
-    else:
-        entry = model_entries[0]
-        prediction = results.get(entry["safe_name"]) or {}
-        state_series = prediction.get("state_series", [])
-        result_payload = {
-            "result": {
-                "power_series": prediction.get("power_series", []),
-                "baseload_series": prediction.get("baseload_series", []),
-                "state_series": state_series,
-                "state_summary": summarize_state_series(state_series),
+    try:
+        if payload.get("mode") == "all":
+            predictions = []
+            for entry in model_entries:
+                prediction = spool.load_model_payload(entry["safe_name"]) if spool is not None else {
+                    "power_series": [],
+                    "baseload_series": [],
+                    "state_series": [],
+                    "state_summary": {},
+                }
+                predictions.append({
+                    "model_key": entry["model_key"],
+                    "model_name": entry["model_name"],
+                    "power_series": prediction.get("power_series", []),
+                    "baseload_series": prediction.get("baseload_series", []),
+                    "state_series": prediction.get("state_series", []),
+                    "state_summary": prediction.get("state_summary", {}),
+                })
+            result_payload = {"predictions": predictions}
+        else:
+            entry = model_entries[0]
+            prediction = spool.load_model_payload(entry["safe_name"]) if spool is not None else {
+                "power_series": [],
+                "baseload_series": [],
+                "state_series": [],
+                "state_summary": {},
             }
-        }
-    if result_path:
-        with open(result_path, "w", encoding="utf-8") as f:
-            json.dump(result_payload, f, ensure_ascii=False)
-        emit({"done": True, "result_path": result_path})
-    else:
-        emit({"done": True, **(result_payload or {})})
-    return 0
+            result_payload = {"result": prediction}
+        if result_path:
+            with open(result_path, "w", encoding="utf-8") as f:
+                json.dump(result_payload, f, ensure_ascii=False)
+            emit({"done": True, "result_path": result_path})
+        else:
+            emit({"done": True, **(result_payload or {})})
+        return 0
+    finally:
+        if spool is not None:
+            spool.cleanup()
 
 
 if __name__ == "__main__":
