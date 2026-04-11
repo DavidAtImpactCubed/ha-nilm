@@ -2326,7 +2326,14 @@
                 throw new Error("Prediction preview job did not start correctly.");
             }
 
-            const payload = await waitForPredictionPreviewJob(startPayload.job_id);
+            activeInlinePredictions = activeInlinePredictions.filter((prediction) => prediction.modelKey !== modelKey);
+            scheduleStreamedPredictionRender(true);
+
+            const payload = await waitForPredictionPreviewJob(startPayload.job_id, {
+                onChunk(chunkPayload) {
+                    mergePredictionChunk(chunkPayload);
+                },
+            });
             const powerSeries = Array.isArray(payload.power_series) ? payload.power_series : [];
             const baseloadSeries = Array.isArray(payload.baseload_series) ? payload.baseload_series : [];
             const stateSeries = Array.isArray(payload.state_series) ? payload.state_series : [];

@@ -381,7 +381,13 @@ def _worker_percent(phase, processed, total):
     return int(round(25 + fraction * 67))
 
 
-def score_predictions_with_progress(model_entries, preview_context, *, stream_by_chunk: bool = False):
+def score_predictions_with_progress(
+    model_entries,
+    preview_context,
+    *,
+    stream_by_chunk: bool = False,
+    keep_full_result: bool = True,
+):
     if not model_entries:
         return None
 
@@ -395,7 +401,7 @@ def score_predictions_with_progress(model_entries, preview_context, *, stream_by
     inference_dir = str(preview_context.get("inference_dir") or "")
     num_threads = int(preview_context.get("num_threads") or 2)
     if total <= 0 or not inference_dir:
-        return PredictionSpool(model_entries)
+        return PredictionSpool(model_entries) if keep_full_result else None
 
     extractor = QueryExtractor(os.path.join(inference_dir, "extractor.tflite"), num_threads=num_threads)
     last_embedding_emit = 0.0
@@ -405,7 +411,7 @@ def score_predictions_with_progress(model_entries, preview_context, *, stream_by
     emit({"phase": "embeddings", "processed": 0, "total": total, "percent": _worker_percent("embeddings", 0, total)})
 
     bundle_states = {}
-    spool = None if stream_by_chunk else PredictionSpool(model_entries)
+    spool = PredictionSpool(model_entries) if keep_full_result else None
     emitted_chunks = 0
     for bundle_id, entries in grouped.items():
         first = entries[0]
@@ -586,10 +592,16 @@ def main():
             emit({"done": True, **(result_payload or {})})
         return 0
 
-    stream_by_chunk = payload.get("mode") == "all"
-    spool = score_predictions_with_progress(model_entries, preview_context, stream_by_chunk=stream_by_chunk)
+    stream_by_chunk = bool(payload.get("stream_chunks")) or payload.get("mode") == "all"
+    keep_full_result = payload.get("mode") != "all"
+    spool = score_predictions_with_progress(
+        model_entries,
+        preview_context,
+        stream_by_chunk=stream_by_chunk,
+        keep_full_result=keep_full_result,
+    )
     try:
-        if stream_by_chunk:
+        if stream_by_chunk and not keep_full_result:
             emit({"done": True, "prediction_count": len(model_entries)})
             return 0
         if result_path:

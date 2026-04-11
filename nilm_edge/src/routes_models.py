@@ -950,6 +950,7 @@ async def _run_preview_job(app, job_id, bundle_id, safe_name, start_dt, end_dt, 
 
         payload = {
             "mode": "single",
+            "stream_chunks": True,
             "points": points,
             "models": [{
                 "bundle_id": bundle_id,
@@ -962,6 +963,14 @@ async def _run_preview_job(app, job_id, bundle_id, safe_name, start_dt, end_dt, 
         }
 
         async for update in _stream_preview_worker(payload):
+            if update.get("chunk_path"):
+                await _append_preview_job_chunk(
+                    app,
+                    job_id,
+                    update.get("chunk_path"),
+                    update.get("chunk_index"),
+                )
+
             if update.get("done"):
                 result_path = str(update.get("result_path") or "").strip()
                 result_meta = {}
