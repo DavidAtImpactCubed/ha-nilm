@@ -19,33 +19,22 @@ async def post_config_handler(request):
 
         update_main_sensor_id = "main_sensor_id" in data
         update_training_server_url = "training_server_url" in data
-        update_preview_batch_size = "preview_batch_size" in data
-        if not update_main_sensor_id and not update_training_server_url and not update_preview_batch_size:
-            raise ValueError("Nothing to update. Provide 'main_sensor_id', 'training_server_url', and/or 'preview_batch_size'.")
+        if not update_main_sensor_id and not update_training_server_url:
+            raise ValueError("Nothing to update. Provide 'main_sensor_id' and/or 'training_server_url'.")
 
         new_main_sensor_id = data.get("main_sensor_id")
         new_training_server_url = data.get("training_server_url")
-        new_preview_batch_size = data.get("preview_batch_size")
 
         if update_main_sensor_id and new_main_sensor_id is not None and not isinstance(new_main_sensor_id, str):
             raise ValueError("Invalid format for 'main_sensor_id' (must be string).")
         if update_training_server_url and new_training_server_url is not None and not isinstance(new_training_server_url, str):
             raise ValueError("Invalid format for 'training_server_url' (must be string).")
-        if update_preview_batch_size:
-            try:
-                batch_size = int(new_preview_batch_size)
-            except (TypeError, ValueError):
-                raise ValueError("Invalid format for 'preview_batch_size' (must be integer).")
-            if batch_size < 32 or batch_size > 8192:
-                raise ValueError("'preview_batch_size' must be between 32 and 8192.")
 
         app_state.save_config(
             main_sensor_id=new_main_sensor_id,
             training_server_url=new_training_server_url,
-            preview_batch_size=new_preview_batch_size,
             update_main_sensor_id=update_main_sensor_id,
             update_training_server_url=update_training_server_url,
-            update_preview_batch_size=update_preview_batch_size,
         )
         if update_main_sensor_id:
             app_state.reload_algorithm_config()

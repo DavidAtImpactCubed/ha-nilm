@@ -31,10 +31,7 @@ PREVIEW_JOB_TTL_S = 15 * 60
 
 
 def _preview_batch_size():
-    try:
-        return max(32, int(app_state.current_config.get("preview_batch_size") or 1024))
-    except (TypeError, ValueError):
-        return 1024
+    return app_state.get_preview_batch_size()
 
 
 def _cleanup_preview_result_file(path):

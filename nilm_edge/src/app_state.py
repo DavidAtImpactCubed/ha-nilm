@@ -16,7 +16,9 @@ MODELS_ROOT = "/data/models"
 LEGACY_EMBEDDINGS_DIR = "/data/embeddings"
 INFERENCE_ROOT = "/app/inference"
 CONFIG_FILE_PATH = "/data/config.json"
+OPTIONS_FILE_PATH = "/data/options.json"
 SUPERVISOR_API_URL = os.getenv("SUPERVISOR_API_URL", "http://supervisor")
+DEFAULT_PREVIEW_BATCH_SIZE = 1024
 
 HA_WS_URL = os.getenv("HA_WS_URL", "ws://supervisor/core/websocket")
 HA_REST_API_URL = os.getenv("HA_REST_API_URL", "http://supervisor/core/api")
@@ -29,7 +31,6 @@ if not INGRESS_URL_BASE.endswith("/"):
 current_config = {
     "main_sensor_id": (os.getenv("MAIN_SENSOR", "").strip() or None),
     "training_server_url": None,
-    "preview_batch_size": 1024,
 }
 
 refquery_instance = None
@@ -53,6 +54,28 @@ def get_configured_training_server_url() -> str:
 
 def get_training_server_api_key() -> Optional[str]:
     return TRAINING_SERVER_API_KEY
+
+
+def _clamp_preview_batch_size(value) -> int:
+    try:
+        return max(32, min(8192, int(value)))
+    except (TypeError, ValueError):
+        return DEFAULT_PREVIEW_BATCH_SIZE
+
+
+def get_preview_batch_size() -> int:
+    if not os.path.exists(OPTIONS_FILE_PATH):
+        return DEFAULT_PREVIEW_BATCH_SIZE
+
+    try:
+        with open(OPTIONS_FILE_PATH, "r", encoding="utf-8") as file_handle:
+            loaded_options = json.load(file_handle)
+        if not isinstance(loaded_options, dict):
+            return DEFAULT_PREVIEW_BATCH_SIZE
+        return _clamp_preview_batch_size(loaded_options.get("preview_batch_size"))
+    except (OSError, json.JSONDecodeError) as exc:
+        print(f"Error reading add-on options from {OPTIONS_FILE_PATH}: {exc}. Using default preview batch size.")
+        return DEFAULT_PREVIEW_BATCH_SIZE
 
 
 async def history_fetcher(start_dt, end_dt):
@@ -142,17 +165,12 @@ def load_config():
             loaded_config = json.load(file_handle)
         loaded_sensor_id = loaded_config.get("main_sensor_id", current_config["main_sensor_id"])
         loaded_training_server_url = loaded_config.get("training_server_url", current_config["training_server_url"])
-        loaded_preview_batch_size = loaded_config.get("preview_batch_size", current_config["preview_batch_size"])
         current_config["main_sensor_id"] = (str(loaded_sensor_id).strip() if loaded_sensor_id is not None else None) or None
         current_config["training_server_url"] = (
             normalize_training_server_url(str(loaded_training_server_url).strip())
             if loaded_training_server_url
             else None
         )
-        try:
-            current_config["preview_batch_size"] = max(32, int(loaded_preview_batch_size))
-        except (TypeError, ValueError):
-            current_config["preview_batch_size"] = 1024
         print(f"Configuration loaded from {CONFIG_FILE_PATH}")
     except json.JSONDecodeError as exc:
         print(f"Error decoding config.json: {exc}. Using current in-memory values.")
@@ -164,10 +182,8 @@ def save_config(
     *,
     main_sensor_id=None,
     training_server_url=None,
-    preview_batch_size=None,
     update_main_sensor_id=False,
     update_training_server_url=False,
-    update_preview_batch_size=False,
 ):
     if update_main_sensor_id:
         current_config["main_sensor_id"] = (str(main_sensor_id).strip() if main_sensor_id is not None else None) or None
@@ -177,11 +193,6 @@ def save_config(
             if training_server_url is not None and str(training_server_url).strip()
             else None
         )
-    if update_preview_batch_size:
-        try:
-            current_config["preview_batch_size"] = max(32, int(preview_batch_size))
-        except (TypeError, ValueError):
-            current_config["preview_batch_size"] = 1024
     try:
         os.makedirs(os.path.dirname(CONFIG_FILE_PATH), exist_ok=True)
         with open(CONFIG_FILE_PATH, "w", encoding="utf-8") as file_handle:
