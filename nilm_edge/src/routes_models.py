@@ -26,11 +26,70 @@ from refquery import RefQueryDisaggregator
 
 PREVIEW_HISTORY_TIMEOUT_S = 30.0
 PREVIEW_HISTORY_CHUNK_HOURS = 1.0
+PREVIEW_JOB_TTL_S = 15 * 60
+
+
+def _cleanup_preview_result_file(path):
+    result_path = str(path or "").strip()
+    if not result_path:
+        return
+    try:
+        if os.path.exists(result_path):
+            os.remove(result_path)
+    except OSError:
+        pass
+
+
+def _persist_preview_result(result):
+    fd, result_path = tempfile.mkstemp(prefix="nilm_preview_cache_", suffix=".json")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            json.dump(result if isinstance(result, dict) else {}, f, ensure_ascii=False)
+    except Exception:
+        _cleanup_preview_result_file(result_path)
+        raise
+    return result_path
+
+
+def _load_preview_result(path):
+    result_path = str(path or "").strip()
+    if not result_path or not os.path.exists(result_path):
+        return {}
+    with open(result_path, "r", encoding="utf-8") as f:
+        payload = json.load(f)
+    return payload if isinstance(payload, dict) else {}
+
+
+async def _purge_stale_preview_jobs(app):
+    now_ts = time.time()
+    async with app["preview_jobs_lock"]:
+        stale_job_ids = []
+        stale_result_paths = []
+        for job_id, job in list(app["preview_jobs"].items()):
+            updated_at_raw = str(job.get("updated_at") or "").strip()
+            try:
+                updated_at_ts = datetime.fromisoformat(updated_at_raw).timestamp() if updated_at_raw else None
+            except ValueError:
+                updated_at_ts = None
+            if updated_at_ts is None or (now_ts - updated_at_ts) <= PREVIEW_JOB_TTL_S:
+                continue
+            stale_job_ids.append(job_id)
+            stale_result_paths.append(job.get("result_path"))
+
+        for job_id in stale_job_ids:
+            app["preview_jobs"].pop(job_id, None)
+
+    for result_path in stale_result_paths:
+        _cleanup_preview_result_file(result_path)
 
 
 async def _set_preview_job(app, job_id, patch):
     async with app["preview_jobs_lock"]:
         current = app["preview_jobs"].get(job_id, {})
+        if "result_path" in patch and patch.get("result_path") != current.get("result_path"):
+            old_result_path = current.get("result_path")
+            if old_result_path:
+                _cleanup_preview_result_file(old_result_path)
         current.update(patch)
         app["preview_jobs"][job_id] = current
 
@@ -874,6 +933,12 @@ async def _run_preview_job(app, job_id, bundle_id, safe_name, start_dt, end_dt, 
                     f"n_above_threshold={state_summary.get('n_above_threshold')}",
                     flush=True,
                 )
+                result_path = _persist_preview_result({
+                    "power_series": result.get("power_series", []),
+                    "baseload_series": result.get("baseload_series", []),
+                    "state_series": result.get("state_series", []),
+                    "state_summary": state_summary,
+                })
                 await _set_preview_job(app, job_id, {
                     "status": "done",
                     "phase": "done",
@@ -881,12 +946,8 @@ async def _run_preview_job(app, job_id, bundle_id, safe_name, start_dt, end_dt, 
                     "processed": int(state_summary.get("n_points") or 0),
                     "total": int(state_summary.get("n_points") or 0),
                     "percent": 100,
-                    "result": {
-                        "power_series": result.get("power_series", []),
-                        "baseload_series": result.get("baseload_series", []),
-                        "state_series": result.get("state_series", []),
-                        "state_summary": state_summary,
-                    },
+                    "result": None,
+                    "result_path": result_path,
                 })
                 return
 
@@ -958,6 +1019,9 @@ async def _run_preview_all_job(app, job_id, model_entries, start_dt, end_dt, pro
             await asyncio.sleep(0)
 
         if not points:
+            result_path = _persist_preview_result({
+                "predictions": [],
+            })
             await _set_preview_job(app, job_id, {
                 "status": "done",
                 "phase": "done",
@@ -965,9 +1029,8 @@ async def _run_preview_all_job(app, job_id, model_entries, start_dt, end_dt, pro
                 "processed": 0,
                 "total": 0,
                 "percent": 100,
-                "result": {
-                    "predictions": [],
-                },
+                "result": None,
+                "result_path": result_path,
             })
             return
 
@@ -994,6 +1057,9 @@ async def _run_preview_all_job(app, job_id, model_entries, start_dt, end_dt, pro
         }):
             if update.get("done"):
                 predictions = list(update.get("predictions") or [])
+                result_path = _persist_preview_result({
+                    "predictions": predictions,
+                })
                 await _set_preview_job(app, job_id, {
                     "status": "done",
                     "phase": "done",
@@ -1001,9 +1067,8 @@ async def _run_preview_all_job(app, job_id, model_entries, start_dt, end_dt, pro
                     "processed": len(predictions),
                     "total": len(predictions),
                     "percent": 100,
-                    "result": {
-                        "predictions": predictions,
-                    },
+                    "result": None,
+                    "result_path": result_path,
                 })
                 return
 
@@ -1151,6 +1216,7 @@ async def update_embedding_handler(request):
 
 async def start_preview_embedding_handler(request):
     try:
+        await _purge_stale_preview_jobs(request.app)
         model_key = str(request.match_info.get("name") or "").strip()
         if not model_key:
             return web.json_response({"status": "error", "message": "Missing embedding name"}, status=400)
@@ -1200,6 +1266,7 @@ async def start_preview_embedding_handler(request):
 
 async def start_preview_all_embeddings_handler(request):
     try:
+        await _purge_stale_preview_jobs(request.app)
         data = await request.json()
         if not isinstance(data, dict):
             return web.json_response({"status": "error", "message": "Invalid JSON body"}, status=400)
@@ -1251,6 +1318,7 @@ async def start_preview_all_embeddings_handler(request):
 
 async def preview_embedding_status_handler(request):
     try:
+        await _purge_stale_preview_jobs(request.app)
         job_id = str(request.match_info.get("job_id") or "").strip()
         if not job_id:
             return web.json_response({"status": "error", "message": "Missing job_id"}, status=400)
@@ -1261,6 +1329,11 @@ async def preview_embedding_status_handler(request):
 
         if job.get("status") in {"done", "error"}:
             job = await _pop_preview_job(request.app, job_id)
+            result_path = job.get("result_path")
+            if result_path:
+                job["result"] = _load_preview_result(result_path)
+                job.pop("result_path", None)
+                _cleanup_preview_result_file(result_path)
             gc.collect()
 
         return web.json_response({
