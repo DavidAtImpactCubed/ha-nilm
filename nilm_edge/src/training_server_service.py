@@ -17,10 +17,12 @@ import inspect
 import app_state
 from training_server_client import (
     TrainingServerError,
+    complete_training_upload_session,
+    create_training_upload_session,
     probe_training_server_connection,
-    start_training_job_from_gzip_file,
     poll_training_result,
     fetch_training_status,
+    upload_training_chunk,
 )
 from embedding_store import bundle_models_dir, load_embedding_metadata
 from training_payload import training_server_payload_from_prepared, summarize_training_server_payload
@@ -64,6 +66,48 @@ def _percent_from_progress(p: Optional[Dict[str, Any]]) -> Optional[int]:
         return max(0, min(100, int(round((e / t) * 100))))
     except Exception:
         return None
+
+
+async def _upload_gzip_payload_in_chunks(
+    *,
+    training_server_url: str,
+    api_key: Optional[str],
+    gzip_payload_path: str,
+    request_id: str,
+    chunk_size_bytes: int = 2 * 1024 * 1024,
+) -> Dict[str, Any]:
+    session_info = await create_training_upload_session(
+        training_server_url=training_server_url,
+        api_key=api_key,
+        timeout_s=30.0,
+    )
+    upload_id = str(session_info.get("upload_id") or "").strip()
+    if not upload_id:
+        raise TrainingServerError("Training upload session did not return an upload_id.")
+
+    with open(gzip_payload_path, "rb") as f:
+        chunk_index = 0
+        while True:
+            chunk = f.read(chunk_size_bytes)
+            if not chunk:
+                break
+            await upload_training_chunk(
+                training_server_url=training_server_url,
+                api_key=api_key,
+                upload_id=upload_id,
+                chunk_bytes=chunk,
+                chunk_index=chunk_index,
+                timeout_s=240.0,
+            )
+            chunk_index += 1
+
+    return await complete_training_upload_session(
+        training_server_url=training_server_url,
+        api_key=api_key,
+        upload_id=upload_id,
+        request_id=request_id,
+        timeout_s=1120.0,
+    )
 
 
 def _sample_replay_payload(
@@ -471,14 +515,11 @@ class TrainingServerServiceManager:
             flush=True,
         )
 
-        start = await start_training_job_from_gzip_file(
+        start = await _upload_gzip_payload_in_chunks(
             training_server_url=training_server_url,
             api_key=training_server_api_key,
             gzip_payload_path=payload_gzip_path,
-            compressed_size_bytes=payload_gzip_bytes,
-            n_embeddings=int(payload_summary.get("n_embeddings") or 0),
-            embedding_dim=int(payload_summary.get("embedding_dim") or 0),
-            timeout_s=1120.0,
+            request_id=str(prepared.get("_job", {}).get("job_id") or job_id),
         )
 
         training_server_job_id = start["job_id"]

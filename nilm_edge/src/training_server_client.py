@@ -174,6 +174,80 @@ async def start_training_job_from_gzip_file(
         ) from e
 
 
+async def create_training_upload_session(
+    training_server_url: str,
+    api_key: Optional[str],
+    timeout_s: float = 30.0,
+) -> Dict[str, Any]:
+    training_server_url = _normalized_training_server_url(training_server_url)
+    upload_url = f"{training_server_url.rstrip('/')}/uploads"
+    timeout = aiohttp.ClientTimeout(total=timeout_s, connect=10, sock_read=timeout_s)
+    try:
+        async with aiohttp.ClientSession(timeout=timeout) as session:
+            async with session.post(upload_url, headers=_headers(api_key)) as resp:
+                text = await resp.text()
+                if resp.status not in (200, 201):
+                    raise TrainingServerError(f"Training upload session create failed HTTP {resp.status}: {text[:800]}")
+                data = json.loads(text) if text else {}
+                if not isinstance(data, dict) or not data.get("upload_id"):
+                    raise TrainingServerError(f"Training upload session missing upload_id. Response: {data!r}")
+                return data
+    except aiohttp.ClientError as e:
+        raise TrainingServerError(f"Training upload session request error: {e}") from e
+
+
+async def upload_training_chunk(
+    training_server_url: str,
+    api_key: Optional[str],
+    upload_id: str,
+    chunk_bytes: bytes,
+    *,
+    chunk_index: int,
+    timeout_s: float = 120.0,
+) -> Dict[str, Any]:
+    training_server_url = _normalized_training_server_url(training_server_url)
+    upload_url = f"{training_server_url.rstrip('/')}/uploads/{upload_id}/chunk?chunk_index={int(chunk_index)}"
+    timeout = aiohttp.ClientTimeout(total=timeout_s, connect=10, sock_read=timeout_s)
+    headers = _headers(api_key)
+    headers["Content-Type"] = "application/octet-stream"
+    try:
+        async with aiohttp.ClientSession(timeout=timeout) as session:
+            async with session.post(upload_url, headers=headers, data=chunk_bytes) as resp:
+                text = await resp.text()
+                if resp.status not in (200, 202):
+                    raise TrainingServerError(f"Training upload chunk failed HTTP {resp.status}: {text[:800]}")
+                data = json.loads(text) if text else {}
+                return data if isinstance(data, dict) else {}
+    except aiohttp.ClientError as e:
+        raise TrainingServerError(f"Training upload chunk request error: {e}") from e
+
+
+async def complete_training_upload_session(
+    training_server_url: str,
+    api_key: Optional[str],
+    upload_id: str,
+    *,
+    request_id: Optional[str] = None,
+    timeout_s: float = 1120.0,
+) -> Dict[str, Any]:
+    training_server_url = _normalized_training_server_url(training_server_url)
+    complete_url = f"{training_server_url.rstrip('/')}/uploads/{upload_id}/complete"
+    timeout = aiohttp.ClientTimeout(total=timeout_s, connect=10, sock_read=timeout_s)
+    payload = {"request_id": request_id}
+    try:
+        async with aiohttp.ClientSession(timeout=timeout) as session:
+            async with session.post(complete_url, headers=_headers(api_key), json=payload) as resp:
+                text = await resp.text()
+                if resp.status not in (200, 202):
+                    raise TrainingServerError(f"Training upload complete failed HTTP {resp.status}: {text[:800]}")
+                data = json.loads(text) if text else {}
+                if not isinstance(data, dict) or not data.get("job_id"):
+                    raise TrainingServerError(f"Training upload complete missing job_id. Response: {data!r}")
+                return data
+    except aiohttp.ClientError as e:
+        raise TrainingServerError(f"Training upload complete request error: {e}") from e
+
+
 async def probe_training_server_connection(
     training_server_url: str,
     api_key: Optional[str],

@@ -7,6 +7,7 @@ import time
 import uuid
 from typing import Any, Dict, List, Optional
 import os
+import tempfile
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import HTMLResponse
@@ -20,9 +21,13 @@ app = FastAPI()
 # NOTE: single-worker only. For multi-worker, use Redis/DB.
 JOBS: Dict[str, Dict[str, Any]] = {}
 JOBS_LOCK = asyncio.Lock()
+UPLOADS: Dict[str, Dict[str, Any]] = {}
+UPLOADS_LOCK = asyncio.Lock()
 VERSION = "1.0.0"
 BUNDLES_ROOT = "/app/bundles"
 SERVER_BUNDLES = discover_server_bundles(BUNDLES_ROOT)
+UPLOADS_ROOT = os.path.join(tempfile.gettempdir(), "nilm_training_uploads")
+os.makedirs(UPLOADS_ROOT, exist_ok=True)
 # --------------------------
 # SERVER-OWNED TRAINING CONFIG (client cannot change)
 # --------------------------
@@ -59,6 +64,68 @@ class TrainPayload(BaseModel):
     bundle_mode: Optional[str] = None
     bundle_version: Optional[int] = None
     settings: Dict[str, Any]
+
+
+class UploadCompletePayload(BaseModel):
+    request_id: Optional[str] = None
+
+
+async def _accept_training_payload(payload: TrainPayload, *, client_host: str, request_id: Optional[str] = None) -> Dict[str, Any]:
+    request_id = request_id or uuid.uuid4().hex[:8]
+    job_id = uuid.uuid4().hex
+
+    n_emb = len(payload.embeddings)
+    n_y = len(payload.targets_on)
+
+    if n_emb == 0 or n_y == 0 or n_emb != n_y:
+        raise HTTPException(status_code=400, detail="Invalid dataset sizes (embeddings/targets).")
+    if payload.targets_power is not None and len(payload.targets_power) != n_emb:
+        raise HTTPException(status_code=400, detail="Invalid dataset sizes (embeddings/targets_power).")
+
+    selected_bundle = None
+    if payload.bundle_id:
+        selected_bundle = get_bundle_by_id(SERVER_BUNDLES, payload.bundle_id)
+        if selected_bundle is None:
+            raise HTTPException(status_code=400, detail=f"Unknown bundle_id: {payload.bundle_id}")
+    else:
+        selected_bundle = get_latest_bundle_for_mode(SERVER_BUNDLES, payload.bundle_mode or "online")
+        if selected_bundle is None:
+            raise HTTPException(status_code=400, detail=f"No server bundle available for mode: {payload.bundle_mode or 'online'}")
+
+    loop = asyncio.get_running_loop()
+    now = time.time()
+    async with JOBS_LOCK:
+        JOBS[job_id] = {
+            "status": "queued",
+            "request_id": request_id,
+            "created_at": now,
+            "started_at": None,
+            "updated_at": now,
+            "appliance_name": payload.appliance_name,
+            "appliance_type": payload.appliance_type,
+            "supervision_mode": payload.supervision_mode,
+            "bundle_id": selected_bundle.bundle_id,
+            "bundle_mode": selected_bundle.mode,
+            "bundle_version": selected_bundle.model_version,
+            "n_samples": n_emb,
+            "progress": {
+                "phase": "queued",
+                "epoch": 0,
+                "total_epochs": int(SERVER_TRAINING["epochs"]),
+                "loss": None,
+                "min_loss": None,
+            },
+        }
+
+    print(
+        f"[{request_id}] /train accepted job_id={job_id} from {client_host} "
+        f"n={n_emb} bundle={selected_bundle.bundle_id} "
+        f"(epochs={SERVER_TRAINING['epochs']} bs={SERVER_TRAINING['batch_size']})",
+        flush=True,
+    )
+
+    asyncio.create_task(_run_training_job(job_id, payload, selected_bundle, request_id, loop))
+    return {"status": "accepted", "job_id": job_id, "request_id": request_id}
 
 
 def _connection_info() -> Dict[str, str]:
@@ -178,64 +245,88 @@ async def start_train(request: Request):
     except Exception as exc:
         raise HTTPException(status_code=400, detail=f"Invalid training payload: {exc}")
 
+    client_host = request.client.host if request.client else "unknown"
     request_id = uuid.uuid4().hex[:8]
-    job_id = uuid.uuid4().hex
+    return await _accept_training_payload(payload, client_host=client_host, request_id=request_id)
 
-    n_emb = len(payload.embeddings)
-    n_y = len(payload.targets_on)
 
-    if n_emb == 0 or n_y == 0 or n_emb != n_y:
-        raise HTTPException(status_code=400, detail="Invalid dataset sizes (embeddings/targets).")
-    if payload.targets_power is not None and len(payload.targets_power) != n_emb:
-        raise HTTPException(status_code=400, detail="Invalid dataset sizes (embeddings/targets_power).")
+@app.post("/train/uploads", status_code=201)
+async def create_train_upload():
+    upload_id = uuid.uuid4().hex
+    upload_path = os.path.join(UPLOADS_ROOT, f"{upload_id}.json.gz")
+    async with UPLOADS_LOCK:
+        UPLOADS[upload_id] = {
+            "upload_id": upload_id,
+            "path": upload_path,
+            "created_at": time.time(),
+            "updated_at": time.time(),
+            "chunks_received": 0,
+            "bytes_received": 0,
+        }
+    return {"status": "created", "upload_id": upload_id}
 
-    selected_bundle = None
-    if payload.bundle_id:
-        selected_bundle = get_bundle_by_id(SERVER_BUNDLES, payload.bundle_id)
-        if selected_bundle is None:
-            raise HTTPException(status_code=400, detail=f"Unknown bundle_id: {payload.bundle_id}")
-    else:
-        selected_bundle = get_latest_bundle_for_mode(SERVER_BUNDLES, payload.bundle_mode or "online")
-        if selected_bundle is None:
-            raise HTTPException(status_code=400, detail=f"No server bundle available for mode: {payload.bundle_mode or 'online'}")
 
-    # capture loop so thread can safely update progress
-    loop = asyncio.get_running_loop()
+@app.post("/train/uploads/{upload_id}/chunk", status_code=202)
+async def append_train_upload_chunk(upload_id: str, request: Request):
+    chunk_index_raw = request.query.get("chunk_index")
+    try:
+        chunk_index = int(chunk_index_raw) if chunk_index_raw is not None else None
+    except (TypeError, ValueError):
+        raise HTTPException(status_code=400, detail="chunk_index must be an integer")
 
-    now = time.time()
-    async with JOBS_LOCK:
-        JOBS[job_id] = {
-            "status": "queued",  # queued|running|done|error
-            "request_id": request_id,
-            "created_at": now,
-            "started_at": None,
-            "updated_at": now,
-            "appliance_name": payload.appliance_name,
-            "appliance_type": payload.appliance_type,
-            "supervision_mode": payload.supervision_mode,
-            "bundle_id": selected_bundle.bundle_id,
-            "bundle_mode": selected_bundle.mode,
-            "bundle_version": selected_bundle.model_version,
-            "n_samples": n_emb,
-            "progress": {
-                "phase": "queued",
-                "epoch": 0,
-                "total_epochs": int(SERVER_TRAINING["epochs"]),
-                "loss": None,
-                "min_loss": None,
-            },
+    raw_chunk = await request.body()
+    if not raw_chunk:
+        raise HTTPException(status_code=400, detail="Empty upload chunk")
+
+    async with UPLOADS_LOCK:
+        upload = UPLOADS.get(upload_id)
+        if not upload:
+            raise HTTPException(status_code=404, detail="upload_id not found")
+        expected_chunk_index = int(upload.get("chunks_received") or 0)
+        if chunk_index is not None and chunk_index != expected_chunk_index:
+            raise HTTPException(status_code=409, detail=f"Expected chunk_index {expected_chunk_index}, got {chunk_index}")
+        with open(upload["path"], "ab") as f:
+            f.write(raw_chunk)
+        upload["chunks_received"] = expected_chunk_index + 1
+        upload["bytes_received"] = int(upload.get("bytes_received") or 0) + len(raw_chunk)
+        upload["updated_at"] = time.time()
+        return {
+            "status": "accepted",
+            "upload_id": upload_id,
+            "chunk_index": expected_chunk_index,
+            "chunks_received": upload["chunks_received"],
+            "bytes_received": upload["bytes_received"],
         }
 
-    client_host = request.client.host if request.client else "unknown"
-    print(
-        f"[{request_id}] /train accepted job_id={job_id} from {client_host} "
-        f"n={n_emb} bundle={selected_bundle.bundle_id} "
-        f"(epochs={SERVER_TRAINING['epochs']} bs={SERVER_TRAINING['batch_size']})",
-        flush=True,
-    )
 
-    asyncio.create_task(_run_training_job(job_id, payload, selected_bundle, request_id, loop))
-    return {"status": "accepted", "job_id": job_id, "request_id": request_id}
+@app.post("/train/uploads/{upload_id}/complete", status_code=202)
+async def complete_train_upload(upload_id: str, body: UploadCompletePayload, request: Request):
+    async with UPLOADS_LOCK:
+        upload = UPLOADS.get(upload_id)
+        if not upload:
+            raise HTTPException(status_code=404, detail="upload_id not found")
+        upload_path = str(upload.get("path") or "")
+
+    if not upload_path or not os.path.exists(upload_path):
+        raise HTTPException(status_code=404, detail="Uploaded payload file not found")
+
+    try:
+        with gzip.open(upload_path, "rt", encoding="utf-8") as gz:
+            payload_obj = json.load(gz)
+        payload = TrainPayload.parse_obj(payload_obj)
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=f"Invalid uploaded training payload: {exc}")
+    finally:
+        async with UPLOADS_LOCK:
+            upload = UPLOADS.pop(upload_id, None)
+        if upload_path and os.path.exists(upload_path):
+            try:
+                os.remove(upload_path)
+            except OSError:
+                pass
+
+    client_host = request.client.host if request.client else "unknown"
+    return await _accept_training_payload(payload, client_host=client_host, request_id=body.request_id)
 
 
 @app.get("/train/{job_id}", status_code=200)
