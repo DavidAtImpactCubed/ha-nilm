@@ -268,7 +268,7 @@ async def create_train_upload():
 
 @app.post("/train/uploads/{upload_id}/chunk", status_code=202)
 async def append_train_upload_chunk(upload_id: str, request: Request):
-    chunk_index_raw = request.query.get("chunk_index")
+    chunk_index_raw = request.query_params.get("chunk_index")
     try:
         chunk_index = int(chunk_index_raw) if chunk_index_raw is not None else None
     except (TypeError, ValueError):

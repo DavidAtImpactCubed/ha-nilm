@@ -1,7 +1,7 @@
 name: "NILM Training Server"
 slug: nilm_training_server
 description: "Training server for NILM"
-version: "1.0.9"
+version: "1.0.10"
 
 arch:
   - amd64

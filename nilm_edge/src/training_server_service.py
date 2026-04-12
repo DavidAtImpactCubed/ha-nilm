@@ -22,6 +22,7 @@ from training_server_client import (
     probe_training_server_connection,
     poll_training_result,
     fetch_training_status,
+    start_training_job_from_gzip_file,
     upload_training_chunk,
 )
 from embedding_store import bundle_models_dir, load_embedding_metadata
@@ -108,6 +109,39 @@ async def _upload_gzip_payload_in_chunks(
         request_id=request_id,
         timeout_s=1120.0,
     )
+
+
+async def _start_training_job_with_upload_fallback(
+    *,
+    training_server_url: str,
+    api_key: Optional[str],
+    gzip_payload_path: str,
+    request_id: str,
+    compressed_size_bytes: int,
+    n_embeddings: int,
+    embedding_dim: int,
+) -> Dict[str, Any]:
+    try:
+        return await _upload_gzip_payload_in_chunks(
+            training_server_url=training_server_url,
+            api_key=api_key,
+            gzip_payload_path=gzip_payload_path,
+            request_id=request_id,
+        )
+    except Exception as exc:
+        print(
+            f"Chunked training upload failed, falling back to direct gzip POST: {exc}",
+            flush=True,
+        )
+        return await start_training_job_from_gzip_file(
+            training_server_url=training_server_url,
+            api_key=api_key,
+            gzip_payload_path=gzip_payload_path,
+            compressed_size_bytes=compressed_size_bytes,
+            n_embeddings=n_embeddings,
+            embedding_dim=embedding_dim,
+            timeout_s=1120.0,
+        )
 
 
 def _sample_replay_payload(
@@ -515,11 +549,14 @@ class TrainingServerServiceManager:
             flush=True,
         )
 
-        start = await _upload_gzip_payload_in_chunks(
+        start = await _start_training_job_with_upload_fallback(
             training_server_url=training_server_url,
             api_key=training_server_api_key,
             gzip_payload_path=payload_gzip_path,
             request_id=str(prepared.get("_job", {}).get("job_id") or job_id),
+            compressed_size_bytes=payload_gzip_bytes,
+            n_embeddings=int(payload_summary.get("n_embeddings") or 0),
+            embedding_dim=int(payload_summary.get("embedding_dim") or 0),
         )
 
         training_server_job_id = start["job_id"]
