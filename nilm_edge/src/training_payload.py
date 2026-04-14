@@ -9,6 +9,7 @@ def training_server_payload_from_prepared(prepared: Dict[str, Any]) -> Dict[str,
     embeddings = prepared.get("embeddings") or prepared.get("query_embeddings")
     targets_on = prepared.get("targets_on") or prepared.get("y_on") or prepared.get("targets")
     targets_power = prepared.get("targets_power")
+    weak_mains = prepared.get("weak_mains")
     supervision_mode = prepared.get("supervision_mode")
     appliance_sensor_id = prepared.get("appliance_sensor_id")
     bundle_id = prepared.get("bundle_id")
@@ -38,6 +39,7 @@ def training_server_payload_from_prepared(prepared: Dict[str, Any]) -> Dict[str,
         "embeddings": embeddings,
         "targets_on": targets_on,
         "targets_power": targets_power,
+        "weak_mains": weak_mains,
         "t_label": t_label,
         "t_end": t_end,
     }
@@ -47,6 +49,7 @@ def summarize_training_server_payload(payload: Dict[str, Any]) -> Dict[str, Any]
     embeddings = payload.get("embeddings") if isinstance(payload.get("embeddings"), list) else []
     targets_on = payload.get("targets_on") if isinstance(payload.get("targets_on"), list) else []
     targets_power = payload.get("targets_power") if isinstance(payload.get("targets_power"), list) else []
+    weak_mains = payload.get("weak_mains") if isinstance(payload.get("weak_mains"), list) else []
     first_embedding = embeddings[0] if embeddings and isinstance(embeddings[0], list) else []
 
     return {
@@ -58,4 +61,5 @@ def summarize_training_server_payload(payload: Dict[str, Any]) -> Dict[str, Any]
         "embedding_dim": len(first_embedding),
         "n_targets_on": len(targets_on),
         "n_targets_power": len(targets_power),
+        "n_weak_mains": len(weak_mains),
     }

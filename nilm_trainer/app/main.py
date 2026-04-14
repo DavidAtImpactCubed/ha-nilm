@@ -58,6 +58,7 @@ class TrainPayload(BaseModel):
     embeddings: List[List[float]]
     targets_on: List[int]
     targets_power: Optional[List[float]] = None
+    weak_mains: Optional[List[float]] = None
     supervision_mode: Optional[str] = None
     appliance_sensor_id: Optional[str] = None
     bundle_id: Optional[str] = None
@@ -81,6 +82,8 @@ async def _accept_training_payload(payload: TrainPayload, *, client_host: str, r
         raise HTTPException(status_code=400, detail="Invalid dataset sizes (embeddings/targets).")
     if payload.targets_power is not None and len(payload.targets_power) != n_emb:
         raise HTTPException(status_code=400, detail="Invalid dataset sizes (embeddings/targets_power).")
+    if payload.weak_mains is not None and len(payload.weak_mains) != n_emb:
+        raise HTTPException(status_code=400, detail="Invalid dataset sizes (embeddings/weak_mains).")
 
     selected_bundle = None
     if payload.bundle_id:
@@ -404,6 +407,7 @@ async def _run_training_job(job_id: str, payload: TrainPayload, selected_bundle,
             query_embeddings=payload.embeddings,
             targets_on=payload.targets_on,
             targets_power=payload.targets_power,
+            weak_mains=payload.weak_mains,
             settings=payload.settings,
             head_model_path=selected_bundle.head_model_path,
             epochs=int(SERVER_TRAINING["epochs"]),

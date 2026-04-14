@@ -1231,7 +1231,7 @@
             <li>Step 1: select the training server and confirm that the connection is ready.</li>
             <li>Step 2: enter the appliance name and choose the supervision mode.</li>
             <li>Step 3: choose the mains history interval that will be used for training.</li>
-            <li>Step 4: if you use interval supervision, draw the ON intervals; if you use sensor supervision, select the ground-truth appliance sensor.</li>
+            <li>Step 4: if you use interval supervision, draw the ON intervals and the edge will derive weak mains for training; if you use sensor supervision, select the ground-truth appliance sensor.</li>
             <li>Step 5: prepare the training package, send it to the training server, and follow the job in the Training Jobs table.</li>
         </ol>
         <div class="flex justify-end mt-6">
@@ -2036,7 +2036,7 @@
             if (supervisionModeHint) {
                 supervisionModeHint.textContent = isSensor
                     ? "Use sensor supervision when you have a Home Assistant power sensor for this appliance."
-                    : "Use interval supervision when you only know when the appliance was ON inside the mains signal.";
+                    : "Use interval supervision when you only know when the appliance was ON inside the mains signal. The edge will derive weak mains and the trainer will use weak supervision.";
             }
 
             if (isSensor && selectionModeActive) {

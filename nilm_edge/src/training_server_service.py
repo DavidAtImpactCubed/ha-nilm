@@ -369,7 +369,7 @@ class TrainingServerServiceManager:
         path = self._job_path(job_id)
         async with self._io_lock:
             data = self._read_unlocked(path)
-            for key in ("embeddings", "targets_on", "targets_power", "timestamps", "power_windows"):
+            for key in ("embeddings", "targets_on", "targets_power", "weak_mains", "timestamps", "power_windows"):
                 if key in data:
                     data.pop(key, None)
             _atomic_write_json(path, data)

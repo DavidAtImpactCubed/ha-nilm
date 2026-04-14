@@ -541,6 +541,7 @@ def build_embeddings_training_payload(
     t_label_list: List[float] = []
     t_end_list: List[float] = []
     targets_power_list: Optional[List[float]] = [] if y_power is not None else None
+    weak_mains_list: Optional[List[float]] = [] if y_power is None else None
     selected_mains_energy_wh = 0.0
     appliance_energy_wh = 0.0
 
@@ -561,6 +562,7 @@ def build_embeddings_training_payload(
         batch_t_label = grid_t_label[start:end][batch_valid].astype(np.float64, copy=False)
         batch_t_end = grid_t_end[start:end][batch_valid].astype(np.float64, copy=False)
         batch_mains_at_label = mains_at_label[start:end][batch_valid].astype(np.float32, copy=False)
+        batch_weak_mains = np.maximum(batch_mains_at_label - batch_baseload[batch_valid], 0.0).astype(np.float32, copy=False)
         batch_y_power = None
         if y_power is not None:
             batch_y_power = y_power[start:end][batch_valid].astype(np.float32, copy=False)
@@ -588,6 +590,9 @@ def build_embeddings_training_payload(
             appliance_energy_wh += float(np.maximum(batch_y_power_f, 0.0).sum() * dt / 3600.0)
         else:
             selected_mains_energy_wh += float(batch_mains_at_label_f[batch_y_on_f == 1].sum() * dt / 3600.0)
+            if weak_mains_list is not None:
+                batch_weak_mains_f = batch_weak_mains[mask].astype(np.float32, copy=False)
+                weak_mains_list.extend(batch_weak_mains_f.tolist())
 
     if not embeddings_list:
         raise ValueError(
@@ -615,6 +620,7 @@ def build_embeddings_training_payload(
         },
         "embeddings": embeddings_list,
         "targets_on": targets_on_list,
+        "weak_mains": weak_mains_list,
         "t_label": t_label_list,
         "t_end": t_end_list,
         "stats": {
@@ -629,6 +635,7 @@ def build_embeddings_training_payload(
             "appliance_sensor_id": appliance_sensor_id,
             "n_on_intervals": int(len(on_intervals)),
             "n_ground_truth_points": int(len(gt_pts)),
+            "n_weak_mains": len(weak_mains_list) if weak_mains_list is not None else 0,
             "on_fraction": (float(sum(targets_on_list)) / float(len(targets_on_list))) if targets_on_list else 0.0,
             "mains_mean_w": mains_mean_w,
             "mains_energy_wh": mains_energy_wh,
@@ -653,6 +660,7 @@ def build_embeddings_training_payload(
     else:
         payload["stats"]["selected_mains_energy_wh"] = selected_mains_energy_wh
         payload["stats"]["mains_share_pct"] = float((selected_mains_energy_wh / mains_energy_wh) * 100.0) if mains_energy_wh > 1e-9 else 0.0
+        payload["stats"]["weak_mains_mean_w"] = (float(sum(weak_mains_list)) / float(len(weak_mains_list))) if weak_mains_list else 0.0
 
     if not embeddings_only:
         # Debug only — DO NOT send to the training server in production

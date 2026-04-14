@@ -476,11 +476,16 @@ export function createJobsUI({
       const appliance = safeStr(job.appliance_name, "-");
       const timeRange = fmtRange(job.time_start_ms, job.time_end_ms);
       const supervisionMode = String(job.supervision_mode || "").toLowerCase();
+      const fineTuneTarget = String(job?.training_metrics?.fine_tune_target || job?.fine_tune_target || "").toLowerCase();
       const windowsLabel = supervisionMode === "sensor"
         ? "Ground-truth power supervision"
-        : (Number.isFinite(Number(job.n_windows))
+        : (fineTuneTarget === "weak_onoff"
+            ? (Number.isFinite(Number(job.n_windows))
+                ? `${Number(job.n_windows)} ON windows (weak supervision)`
+                : "Weak interval supervision")
+            : (Number.isFinite(Number(job.n_windows))
             ? `${Number(job.n_windows)} ON window${Number(job.n_windows) === 1 ? "" : "s"}`
-            : "Interval supervision");
+            : "Interval supervision"));
 
       const statusBadge = badgeHtml(job.status || "unknown");
       const extra = job.error_message
