@@ -50,7 +50,38 @@ $sections = [
             [
                 'type' => 'callout',
                 'title' => 'Reader orientation',
-                'body' => 'This documentation is written as a practical technical guide. The title and abstract are at the top of the page, this Overview section acts as the introduction, and the remaining sections follow the operational sequence: installation, training, dashboard analysis, live entities, and troubleshooting.',
+                'body' => 'This documentation is written as a practical technical guide. The title and abstract are at the top of the page, this Overview section acts as the introduction, and the remaining sections follow the operational sequence: quick start, installation, training, dashboard analysis, live entities, and troubleshooting.',
+            ],
+        ],
+    ],
+    [
+        'id' => 'quick-start',
+        'title' => 'Quick Start',
+        'eyebrow' => 'Start here',
+        'intro' => 'If you want the shortest path to a working model, follow these three steps. The interval workflow now uses weak supervision automatically under the hood, so you can still train from selected ON intervals even when no appliance sensor exists.',
+        'blocks' => [
+            [
+                'type' => 'cards',
+                'title' => 'The shortest path',
+                'items' => [
+                    [
+                        'title' => '1. Install both apps',
+                        'body' => 'Add the repository, install NILM and NILM Training Server, then start the training server first.',
+                    ],
+                    [
+                        'title' => '2. Pick your supervision style',
+                        'body' => 'Use interval supervision when you only know when the appliance was ON. Use sensor supervision when a real appliance power sensor is available.',
+                    ],
+                    [
+                        'title' => '3. Train and validate',
+                        'body' => 'Prepare the data, send the job, watch the weak supervision stages in the jobs table, then verify the result on the same interval in Energy Dashboard.',
+                    ],
+                ],
+            ],
+            [
+                'type' => 'callout',
+                'title' => 'What changed recently',
+                'body' => 'Interval supervision now feeds a weak mains signal into the trainer. The job runs as a two-stage weak_onoff flow, and the jobs table shows stage 1/2 and stage 2/2 while it runs.',
             ],
         ],
     ],
@@ -109,7 +140,7 @@ $sections = [
         'id' => 'training',
         'title' => 'How to train your first appliance',
         'eyebrow' => 'Section 2',
-        'intro' => 'Training turns historical Home Assistant data into an appliance model. The user defines the appliance, chooses a supervision mode, prepares the data, uploads the job, and then validates the result in Energy Dashboard.',
+        'intro' => 'Training turns historical Home Assistant data into an appliance model. The user defines the appliance, chooses a supervision mode, prepares the data, uploads the job, and then validates the result in Energy Dashboard. Interval training now uses weak supervision automatically behind the scenes.',
         'blocks' => [
             [
                 'type' => 'cards',
@@ -117,7 +148,7 @@ $sections = [
                 'items' => [
                     [
                         'title' => 'Interval supervision',
-                        'body' => 'Use this mode when no dedicated appliance sensor exists. The user manually marks ON intervals for the target appliance in the selected historical range.',
+                        'body' => 'Use this mode when no dedicated appliance sensor exists. You manually mark ON intervals for the target appliance, and NILM derives a weak mains signal and trains in two stages behind the scenes.',
                     ],
                     [
                         'title' => 'Ground-truth appliance sensor',
@@ -146,7 +177,19 @@ $sections = [
                     'Aligns the mains signal to the model sampling grid.',
                     'Builds model windows and removes invalid windows caused by data gaps.',
                     'Extracts the embeddings used for appliance training.',
-                    'Builds power and ON/OFF targets for the target appliance.',
+                    'Builds ON/OFF targets for the target appliance.',
+                    'When you use interval supervision, also derives a weak mains signal that the trainer uses for the weak_onoff flow.',
+                ],
+            ],
+            [
+                'type' => 'list',
+                'title' => 'What weak supervision does',
+                'items' => [
+                    'Uses your selected ON intervals as the starting point.',
+                    'Builds a weak mains target from the aggregate mains signal by removing the local baseline inside each training window.',
+                    'Runs stage 1 to learn a confident classifier embedding.',
+                    'Runs stage 2 to train the regression head on pseudo-power together with ON/OFF labels.',
+                    'Shows stage 1/2 and stage 2/2 in the training jobs table so you can tell where the job is.',
                 ],
             ],
             [
@@ -172,7 +215,7 @@ $sections = [
             [
                 'type' => 'callout',
                 'title' => 'Best first validation',
-                'body' => 'The cleanest first validation is to preview the trained appliance on the same interval used for training. That lets you inspect the predicted power, the predicted ON/OFF state, the probability p, and the threshold thr against a range you already understand.',
+                'body' => 'The cleanest first validation is to preview the trained appliance on the same interval used for training. That lets you inspect the predicted power, the predicted ON/OFF state, the probability p, and the threshold thr against a range you already understand. For weak supervision jobs, the stage labels in the jobs table help you see whether the trainer is still in the classifier warm-up or has moved to the pseudo-power pass.',
             ],
         ],
     ],
@@ -315,6 +358,14 @@ $sections = [
                         'answer' => 'That is expected. The raw line is the aligned display signal, while the intervals come from backend label logic that aligns the sensor, bridges short OFF gaps, and removes short ON runs.',
                     ],
                     [
+                        'question' => 'Why does the jobs table show stage 1/2 or stage 2/2 during training?',
+                        'answer' => 'That only happens for interval supervision jobs. It means NILM is using the new weak supervision path: stage 1 learns a classifier embedding, and stage 2 trains pseudo-power together with ON/OFF labels.',
+                    ],
+                    [
+                        'question' => 'What is weak supervision in NILM?',
+                        'answer' => 'It is the interval-training path used when you only mark ON intervals. The edge app derives a weak mains signal from your selected range, and the trainer uses that signal to guide the regression head without needing a dedicated appliance sensor.',
+                    ],
+                    [
                         'question' => 'Disaggregate All feels much heavier than disaggregating one appliance.',
                         'answer' => 'That is normal. The all-model path computes and transfers multiple prediction series at once. It is useful for overview, not for the lightest or most focused debugging session.',
                     ],
@@ -341,6 +392,7 @@ $sections = [
 
 $sectionOrder = [
     'overview',
+    'quick-start',
     'installation',
     'training',
     'energy-dashboard',
@@ -417,7 +469,7 @@ function render_block(array $block): void
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Non-Intrusive Load Monitoring for Home Assistant</title>
-    <meta name="description" content="Documentation for Non-Intrusive Load Monitoring for Home Assistant, including installation, appliance training, dashboard analysis, live entities, and troubleshooting.">
+    <meta name="description" content="Documentation for Non-Intrusive Load Monitoring for Home Assistant, including quick start, weak interval supervision, installation, appliance training, dashboard analysis, live entities, and troubleshooting.">
     <link rel="stylesheet" href="./assets/docs.css">
 </head>
 <body>
@@ -449,6 +501,7 @@ function render_block(array $block): void
                 <p>
                     This documentation describes a Home Assistant workflow for appliance-level estimation from one mains power signal.
                     It covers installation, appliance training, historical offline disaggregation, live entity publishing, and practical interpretation of the results.
+                    If you only know ON intervals, the latest training flow now uses weak supervision automatically so you can still get a usable model without a dedicated appliance sensor.
                     The goal is to help the user understand when NILM is useful, how to operate the apps correctly, and how to evaluate the quality of a trained appliance model.
                 </p>
 
