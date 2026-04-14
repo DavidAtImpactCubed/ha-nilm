@@ -288,6 +288,7 @@ a {
     background: var(--accent-soft);
     color: var(--accent);
     flex: 0 0 auto;
+    overflow: hidden;
 }
 
 .product-link-icon svg {
@@ -295,11 +296,13 @@ a {
     height: 24px;
 }
 
-.product-link-icon-ha {
-    background-image: url("https://brands.home-assistant.io/homeassistant/icon.png");
-    background-repeat: no-repeat;
-    background-position: center center;
-    background-size: 30px 30px;
+.product-link-icon img.ha-cta-logo {
+    width: 30px;
+    height: 30px;
+    max-width: 30px;
+    max-height: 30px;
+    object-fit: contain;
+    display: block;
 }
 
 .button {
