@@ -1,6 +1,7 @@
 <?php
 $githubRepoUrl = 'https://github.com/lgarciamarrero92/ha-nilm';
 $haAddRepositoryUrl = 'https://my.home-assistant.io/redirect/supervisor_add_addon_repository/?repository_url=https%3A%2F%2Fgithub.com%2Flgarciamarrero92%2Fha-nilm';
+$haLogoUrl = 'https://design.home-assistant.io/images/logo.png';
 
 $sections = [
     [
@@ -520,9 +521,7 @@ function render_block(array $block): void
 
                     <a href="<?= htmlspecialchars($haAddRepositoryUrl) ?>" class="product-link" target="_blank" rel="noopener noreferrer" data-track="cta" data-track-label="Hero Add Repository">
                         <span class="product-link-icon" aria-hidden="true">
-                            <svg viewBox="0 0 24 24" role="img" focusable="false">
-                                <path d="M12 2.5 4 6.6v5.96c0 4.62 3.2 8.92 8 9.94 4.8-1.02 8-5.32 8-9.94V6.6l-8-4.1Zm0 2.02 5.9 3.02-2.24 1.14-3.66-1.88-3.66 1.88L6.1 7.54 12 4.52Zm-6 4.64 5 2.56v8.35c-3.04-.95-5-3.98-5-7.51V9.16Zm7 10.91v-8.35l5-2.56v3.4c0 3.53-1.96 6.56-5 7.51Z" fill="currentColor"/>
-                            </svg>
+                            <img src="<?= htmlspecialchars($haLogoUrl) ?>" alt="" class="ha-cta-logo" loading="eager" decoding="async">
                         </span>
                         <span>
                             <strong>Install In Home Assistant</strong>
