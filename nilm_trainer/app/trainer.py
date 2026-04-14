@@ -453,14 +453,17 @@ def train_ref_embedding(
             stage_epochs=epochs,
         )
         cls_scores = _to_probability(np.asarray(stage1_outputs[onoff_idx], dtype=np.float32).reshape(-1))
-        conf_threshold = _quantile_threshold_from_scores(cls_scores, float(getattr(self, "weak_conf_quantile", 0.90)))
+        conf_threshold = _quantile_threshold_from_scores(
+            cls_scores,
+            float(settings.get("weak_conf_quantile", 0.90)),
+        )
         weak_mains_target, donor_idx = _build_weak_pseudo_target(
             Q_np,
             weak_mains_np if weak_mains_np is not None else np.zeros((N,), dtype=np.float32),
             y_on_np,
             cls_scores,
             conf_threshold,
-            temperature=float(getattr(self, "weak_memory_temperature", 0.10)),
+            temperature=float(settings.get("weak_memory_temperature", 0.10)),
         )
         weak_mains_norm_np = _normalize_power_array(weak_mains_target.reshape(-1), settings)
         stage2_emb, stage2_stats, stage2_outputs = _run_stage(
