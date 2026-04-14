@@ -178,6 +178,16 @@ function progressLine(job) {
     }
 
     const parts = [];
+    const fineTuneTarget = String(p?.fine_tune_target || job?.training_metrics?.fine_tune_target || "").toLowerCase();
+    const stageRaw = String(p?.stage || "").toLowerCase();
+    if (fineTuneTarget === "weak_onoff" && stageRaw) {
+      const stageLabel = stageRaw.includes("stage1")
+        ? "stage 1/2"
+        : stageRaw.includes("stage2")
+          ? "stage 2/2"
+          : stageRaw;
+      parts.push(stageLabel);
+    }
 
     // While running/queued: show epoch if available
     const ep = Number(p?.epoch);
