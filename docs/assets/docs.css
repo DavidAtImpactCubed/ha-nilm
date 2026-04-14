@@ -295,11 +295,11 @@ a {
     height: 24px;
 }
 
-.product-link-icon img.ha-cta-logo {
-    width: 28px;
-    height: 28px;
-    object-fit: contain;
-    display: block;
+.product-link-icon-ha {
+    background-image: url("https://brands.home-assistant.io/homeassistant/icon.png");
+    background-repeat: no-repeat;
+    background-position: center center;
+    background-size: 30px 30px;
 }
 
 .button {
