@@ -455,7 +455,7 @@ def train_ref_embedding(
         cls_scores = _to_probability(np.asarray(stage1_outputs[onoff_idx], dtype=np.float32).reshape(-1))
         conf_threshold = _quantile_threshold_from_scores(
             cls_scores,
-            float(settings.get("weak_conf_quantile", 0.90)),
+            float(settings.get("weak_conf_quantile", 0.95)),
         )
         weak_mains_target, donor_idx = _build_weak_pseudo_target(
             Q_np,
