@@ -291,11 +291,14 @@ a {
     overflow: hidden;
 }
 
-.product-link-icon-ha {
-    background-image: url("./home-assistant-logo.png");
-    background-repeat: no-repeat;
-    background-position: center;
-    background-size: 30px 30px;
+.product-link-icon img.ha-cta-logo {
+    width: 24px;
+    height: 24px;
+    max-width: 24px;
+    max-height: 24px;
+    object-fit: contain;
+    display: block;
+    flex: none;
 }
 
 .button {
