@@ -518,8 +518,8 @@ function render_block(array $block): void
                     </a>
 
                     <a href="<?= htmlspecialchars($haAddRepositoryUrl) ?>" class="product-link" target="_blank" rel="noopener noreferrer" data-track="cta" data-track-label="Hero Add Repository">
-                        <span class="product-link-icon" aria-hidden="true">
-                            <img src="./assets/home-assistant-logo.png" alt="" class="ha-cta-logo" loading="eager" decoding="async">
+                        <span class="product-link-icon" aria-hidden="true" style="width:48px;height:48px;overflow:hidden;display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto;">
+                            <img src="./assets/home-assistant-logo.png" alt="" class="ha-cta-logo" loading="eager" decoding="async" style="width:24px !important;height:24px !important;max-width:24px !important;max-height:24px !important;display:block;object-fit:contain;">
                         </span>
                         <span>
                             <strong>Install In Home Assistant</strong>
