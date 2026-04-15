@@ -1,7 +1,8 @@
 name: "NILM"
-version: "1.1.67"
+version: "1.1.68"
 slug: "nilm"
-description: "Real-time load disaggregation for Home Assistant"
+description: "Non-Intrusive Load Monitoring For Home Assistant"
+url: "https://ha-nilm.bigwicho.com/"
 homeassistant_api: true
 hassio_api: true
 hassio_role: manager
