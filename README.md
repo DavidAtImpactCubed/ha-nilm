@@ -1,82 +1,71 @@
-# NILM Apps For Home Assistant
+# NILM For Home Assistant
 
-This repository provides two Home Assistant apps for NILM:
+This repository contains two Home Assistant apps that work together:
 
-- `NILM`
-- `NILM Training Server`
+- `NILM` (inference app)
+- `NILM Training Server` (training app)
 
-Together, they let you train appliance models from Home Assistant history and run live appliance disaggregation from a mains power sensor.
+NILM estimates appliance behavior from one aggregate mains power sensor. It is useful estimation, not direct per-appliance metering.
 
-## Available Apps
+## Before You Begin
+
+- A working Home Assistant OS installation.
+- A mains power sensor already available in Home Assistant.
+- Recorder history for the time range you want to train.
+- Both apps installed: `NILM` and `NILM Training Server`.
+- At least 4 GB RAM for Home Assistant and the NILM apps.
+
+## What Each App Does
 
 ### NILM
 
-This is the main app used inside Home Assistant.
-
-It:
-
-- monitors one aggregate mains power sensor
-- runs live NILM inference
-- publishes per-appliance power and on/off entities back into Home Assistant
-- provides a web UI for configuration, model management, preview, and training preparation
+- Monitors one mains power sensor in Home Assistant.
+- Runs live NILM inference.
+- Publishes estimated appliance entities (`power` and `on/off`).
+- Provides UI for setup, preview, and training job preparation.
 
 ### NILM Training Server
 
-This app receives prepared training jobs and returns trained model outputs for the `NILM` app.
+- Receives prepared training jobs from NILM.
+- Runs model training in the background.
+- Returns trained embeddings and learned thresholds back to NILM.
 
-It:
-
-- receives training jobs
-- runs training in the background
-- returns the trained embedding and learned thresholds
-
-## Why Training Is Separate From Inference
-
-Training and live inference are separated on purpose.
-
-The `NILM` app needs to stay responsive and lightweight because it runs continuously inside Home Assistant and performs live predictions.
-
-The `NILM Training Server` is heavier because training needs more CPU, memory, and machine-learning dependencies.
-
-The dependency split reflects this:
-
-- `NILM` uses a light inference stack based on `numpy`, `aiohttp`, `websockets`, and `tflite-runtime`
-- `NILM Training Server` uses heavier training dependencies such as `tensorflow`, `fastapi`, and `uvicorn`
-
-## How They Work Together
-
-The normal flow is:
-
-1. Install `NILM` and `NILM Training Server`.
-2. Configure the mains sensor in `NILM`.
-3. Use the training page in `NILM` to prepare appliance training data from Home Assistant history.
-4. Send the prepared job to `NILM Training Server`.
-5. Once training finishes, `NILM` uses the returned model outputs for live disaggregation.
-
-## Add This Repository To Home Assistant
+## Quick Start
 
 1. Open Home Assistant.
-2. Go to `Settings` > `Apps` > `App Store`.
-3. Open the top-right menu and choose `Repositories`.
-4. Add this repository URL:
+2. Go to `Settings` > `Apps` > `Install App`.
+3. Add this repository: `https://github.com/lgarciamarrero92/ha-nilm`.
+4. Install `NILM`.
+5. Install `NILM Training Server`.
+6. Start `NILM Training Server` first.
+7. Start `NILM`.
+8. Open the `NILM` interface.
+9. Select and save your mains sensor.
+10. Open the Training interface and confirm the training server is ready.
+11. Train appliance models, validate in dashboard preview, then enable live publishing.
 
-```text
-https://github.com/lgarciamarrero92/ha-nilm
-```
+## Why Two Apps
 
-5. Install the apps you want from the store.
+Training and live inference are split by design:
 
-## More Information
+- `NILM` stays lightweight and responsive for continuous runtime.
+- `NILM Training Server` handles heavier ML training workloads.
 
-For end-user documentation prepared for the Home Assistant UI workflow:
+## Main Workflow
 
-- [docs/README.md](/c:/Users/lgarc/Repositories/ha-nilm/docs/README.md)
-- [docs/installation.md](/c:/Users/lgarc/Repositories/ha-nilm/docs/installation.md)
-- [docs/energy-dashboard.md](/c:/Users/lgarc/Repositories/ha-nilm/docs/energy-dashboard.md)
-- [docs/training.md](/c:/Users/lgarc/Repositories/ha-nilm/docs/training.md)
-- [docs/troubleshooting.md](/c:/Users/lgarc/Repositories/ha-nilm/docs/troubleshooting.md)
+1. In `NILM` Training, choose manual interval labeling or sensor-based labeling.
+2. Select a mains range that you can label completely.
+3. Prepare and send the training job to `NILM Training Server`.
+4. Wait for job completion in the Training Jobs table.
+5. Validate predictions in the Energy Dashboard.
+6. Enable live publishing for selected models.
 
-For details about each app:
+Notes:
+- Training range is limited to the previous 7 days.
+- Live entities update approximately every 8 seconds.
 
-- [nilm_edge/README.md](/c:/Users/lgarc/Repositories/ha-nilm/nilm_edge/README.md)
-- [nilm_trainer/README.md](/c:/Users/lgarc/Repositories/ha-nilm/nilm_trainer/README.md)
+## Documentation
+
+Main end-user documentation:
+
+- https://ha-nilm.bigwicho.com/
