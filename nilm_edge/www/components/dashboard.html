@@ -1580,9 +1580,6 @@
     const DASHBOARD_PENDING_JOB_STATUSES = new Set(["prepared", "sent", "queued", "running"]);
     const DASHBOARD_POWER_UNITS = new Set(["W", "kW"]);
     const DASHBOARD_ENERGY_UNITS = new Set(["Wh", "kWh", "MWh", "GWh"]);
-    const DASHBOARD_ZERO_CLAMP_W = 1;
-    const DASHBOARD_NEAR_ZERO_NEGATIVE_CLAMP_W = 25;
-
     function formatPower(value) {
         if (!Number.isFinite(value)) return "-";
         return `${Math.round(value)} W`;
@@ -1618,25 +1615,19 @@
         if (unit === "kW") {
             powerValue *= 1000;
         }
-
-        if (Math.abs(powerValue) < DASHBOARD_ZERO_CLAMP_W) {
-            return 0;
-        }
-        if (powerValue < 0 && Math.abs(powerValue) <= DASHBOARD_NEAR_ZERO_NEGATIVE_CLAMP_W) {
-            return 0;
-        }
         return powerValue;
     }
 
     function normalizeDashboardSeries(rawSeries, sensorMeta = null) {
-        const deduped = new Map();
-        (Array.isArray(rawSeries) ? rawSeries : []).forEach((point) => {
+        return (Array.isArray(rawSeries) ? rawSeries : [])
+            .map((point) => {
             const timeValue = typeof point?.x === "number" ? point.x : Date.parse(point?.x);
             const powerValue = normalizeDashboardPowerValue(point?.y, sensorMeta);
-            if (!Number.isFinite(timeValue) || !Number.isFinite(powerValue)) return;
-            deduped.set(timeValue, { x: timeValue, y: powerValue });
-        });
-        return Array.from(deduped.values()).sort((a, b) => a.x - b.x);
+            if (!Number.isFinite(timeValue) || !Number.isFinite(powerValue)) return null;
+            return { x: timeValue, y: powerValue };
+        })
+            .filter((point) => point !== null)
+            .sort((a, b) => a.x - b.x);
     }
 
     function escapeDashboardTrainingHtml(value) {
@@ -3239,7 +3230,6 @@
                         pointRadius: 0,
                         borderWidth: 1.5,
                         tension: 0,
-                        stepped: "after",
                         spanGaps: true,
                     }
                 ].concat(predictionDatasets)
