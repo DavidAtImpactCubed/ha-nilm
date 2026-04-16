@@ -234,7 +234,7 @@
     .dashboard-training-popup {
         position: fixed;
         right: 24px;
-        bottom: 24px;
+        top: 24px;
         width: min(420px, calc(100vw - 32px));
         border-radius: 18px;
         border: 1px solid #bfdbfe;
@@ -346,13 +346,14 @@
         color: #64748b;
         font-size: 0.78rem;
         margin-top: 4px;
+        line-height: 1.4;
     }
 
     @media (max-width: 640px) {
         .dashboard-training-popup {
             right: 16px;
             left: 16px;
-            bottom: 16px;
+            top: 16px;
             width: auto;
             padding: 16px;
         }
@@ -1654,6 +1655,38 @@
         return `${minutes}m ${seconds}s`;
     }
 
+    function dashboardTrainingProgressLine(job) {
+        const normalized = normalizeDashboardTrainingStatus(job?.status);
+        if (!normalized || normalized === "prepared") return "";
+
+        const progress = job?.progress && typeof job.progress === "object" ? job.progress : null;
+        const parts = [];
+        const fineTuneTarget = String(progress?.fine_tune_target || job?.training_metrics?.fine_tune_target || "").toLowerCase();
+        const stageRaw = String(progress?.stage || "").toLowerCase();
+
+        if (fineTuneTarget === "weak_onoff" && stageRaw) {
+            const stageLabel = stageRaw.includes("stage1")
+                ? "stage 1/2"
+                : stageRaw.includes("stage2")
+                    ? "stage 2/2"
+                    : stageRaw;
+            parts.push(stageLabel);
+        }
+
+        const epoch = Number(progress?.epoch);
+        const totalEpochs = Number(progress?.total_epochs ?? progress?.totalEpochs);
+        if (Number.isFinite(epoch) && Number.isFinite(totalEpochs) && totalEpochs > 0) {
+            parts.push(`epoch ${epoch}/${totalEpochs}`);
+        }
+
+        if (normalized === "running" || normalized === "queued") {
+            const elapsed = dashboardFormatElapsed(job?.started_at);
+            if (elapsed) parts.push(elapsed);
+        }
+
+        return parts.join(" • ");
+    }
+
     function dashboardTrainingStatusBadge(status) {
         const normalized = normalizeDashboardTrainingStatus(status) || "unknown";
         const cls = normalized === "running"
@@ -1694,8 +1727,8 @@
             const appliance = escapeDashboardTrainingHtml(job?.appliance_name || "-");
             const range = escapeDashboardTrainingHtml(dashboardFormatTrainingRange(Number(job?.time_start_ms), Number(job?.time_end_ms)));
             const statusBadge = dashboardTrainingStatusBadge(job?.status);
-            const elapsed = dashboardFormatElapsed(job?.started_at);
-            const extra = elapsed ? `<div class="dashboard-training-popup-extra">${escapeDashboardTrainingHtml(elapsed)}</div>` : "";
+            const progressLine = dashboardTrainingProgressLine(job);
+            const extra = progressLine ? `<div class="dashboard-training-popup-extra">${escapeDashboardTrainingHtml(progressLine)}</div>` : "";
             return `
                 <tr>
                     <td>
