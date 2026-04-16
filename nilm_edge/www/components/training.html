@@ -1105,7 +1105,7 @@
             </div>
             <div id="selectionPreview" class="preview-grid">
                 <!-- Preview charts will be dynamically added here -->
-                <p id="noPreviews" class="text-sm text-gray-500 p-2 text-center w-full">No time windows selected yet. Press Draw Interval on the chart or use the manual interval inputs to create one. Existing intervals can be moved or resized directly on the chart.</p>
+                <p id="noPreviews" class="text-sm text-gray-500 p-2 text-center w-full">No time windows selected yet. Press Draw Interval on the chart or use the manual interval inputs to create one. Existing intervals can be moved or resized directly on the chart. On phones, press and hold an interval before dragging it.</p>
             </div>
         </div>
 
@@ -1258,6 +1258,8 @@
     let isSettingEndpoint = false;
     let activeSelectionId = null;
     let activeIntervalDrag = null;
+    let pendingTouchIntervalEdit = null;
+    let pendingTouchIntervalEditTimer = null;
     let selectedWindows = []; // Stores all selected time windows
     let trainingServerConnectionReady = false;
     let trainingStepper;
@@ -2123,6 +2125,7 @@
             isSettingEndpoint = false;
             activeSelectionId = null;
             activeIntervalDrag = null;
+            clearPendingTouchIntervalEdit();
             if (powerChart?.options?.plugins?.zoom) {
                 powerChart.options.plugins.zoom.pan.enabled = true;
                 powerChart.options.plugins.zoom.zoom.wheel.enabled = true;
@@ -2694,6 +2697,36 @@
             chartContainer.style.cursor = cursor;
         }
 
+        function clearPendingTouchIntervalEdit() {
+            if (pendingTouchIntervalEditTimer) {
+                clearTimeout(pendingTouchIntervalEditTimer);
+                pendingTouchIntervalEditTimer = null;
+            }
+            pendingTouchIntervalEdit = null;
+        }
+
+        function beginIntervalDrag(hit, pointerValue) {
+            activeIntervalDrag = {
+                id: hit.id,
+                mode: hit.mode,
+                pointerStartValue: snapToNearestTimestamp(pointerValue),
+                originMin: Math.min(hit.annotation.xMin, hit.annotation.xMax),
+                originMax: Math.max(hit.annotation.xMin, hit.annotation.xMax),
+                previewMin: Math.min(hit.annotation.xMin, hit.annotation.xMax),
+                previewMax: Math.max(hit.annotation.xMin, hit.annotation.xMax),
+                valid: true,
+            };
+
+            if (powerChart?.options?.plugins?.zoom) {
+                powerChart.options.plugins.zoom.pan.enabled = false;
+                powerChart.options.plugins.zoom.zoom.wheel.enabled = false;
+                powerChart.options.plugins.zoom.zoom.pinch.enabled = false;
+                powerChart.update('none');
+            }
+
+            setChartEditCursor(hit.mode === 'move' ? 'grabbing' : 'ew-resize');
+        }
+
         function buildDraggedIntervalCandidate(dragState, pointerValue) {
             const snappedValue = snapToNearestTimestamp(pointerValue);
             const rangeMin = Math.min(firstTimestamp, lastTimestamp);
@@ -2750,6 +2783,7 @@
         }
 
         function finalizeIntervalDrag({ cancel = false } = {}) {
+            clearPendingTouchIntervalEdit();
             if (!activeIntervalDrag || !powerChart?.options?.plugins?.annotation?.annotations?.[activeIntervalDrag.id]) {
                 activeIntervalDrag = null;
                 setChartEditCursor('');
@@ -3018,6 +3052,7 @@
         }
 
         function handleChartClick(e) {
+            clearPendingTouchIntervalEdit();
             if (activeIntervalDrag) {
                 finalizeIntervalDrag();
                 if (typeof e.preventDefault === 'function') e.preventDefault();
@@ -3098,28 +3133,30 @@
             if (!pos) return;
 
             const hit = findEditableSelectionAtPosition(pos);
-            if (!hit) return;
-
-            const pointerValue = powerChart.scales.x.getValueForPixel(pos.x);
-            activeIntervalDrag = {
-                id: hit.id,
-                mode: hit.mode,
-                pointerStartValue: snapToNearestTimestamp(pointerValue),
-                originMin: Math.min(hit.annotation.xMin, hit.annotation.xMax),
-                originMax: Math.max(hit.annotation.xMin, hit.annotation.xMax),
-                previewMin: Math.min(hit.annotation.xMin, hit.annotation.xMax),
-                previewMax: Math.max(hit.annotation.xMin, hit.annotation.xMax),
-                valid: true,
-            };
-
-            if (powerChart?.options?.plugins?.zoom) {
-                powerChart.options.plugins.zoom.pan.enabled = false;
-                powerChart.options.plugins.zoom.zoom.wheel.enabled = false;
-                powerChart.options.plugins.zoom.zoom.pinch.enabled = false;
-                powerChart.update('none');
+            if (!hit) {
+                clearPendingTouchIntervalEdit();
+                return;
             }
 
-            setChartEditCursor(hit.mode === 'move' ? 'grabbing' : 'ew-resize');
+            const pointerValue = powerChart.scales.x.getValueForPixel(pos.x);
+            if (e.pointerType === 'touch') {
+                clearPendingTouchIntervalEdit();
+                pendingTouchIntervalEdit = {
+                    startX: pos.x,
+                    startY: pos.y,
+                    hit,
+                    pointerValue,
+                };
+                pendingTouchIntervalEditTimer = setTimeout(() => {
+                    if (!pendingTouchIntervalEdit) return;
+                    beginIntervalDrag(pendingTouchIntervalEdit.hit, pendingTouchIntervalEdit.pointerValue);
+                    pendingTouchIntervalEdit = null;
+                    pendingTouchIntervalEditTimer = null;
+                }, 350);
+                return;
+            }
+
+            beginIntervalDrag(hit, pointerValue);
             if (typeof e.preventDefault === 'function') e.preventDefault();
         }
 
@@ -3145,6 +3182,14 @@
                 if (customChartInfo) {
                     customChartInfo.innerHTML = `Time: ${formattedTime}<br>Power: ${valueAtMouse.toFixed(1)} W`;
                     customChartInfo.classList.remove('hidden'); 
+                }
+
+                if (pendingTouchIntervalEdit) {
+                    const moveX = pos.x - pendingTouchIntervalEdit.startX;
+                    const moveY = pos.y - pendingTouchIntervalEdit.startY;
+                    if (Math.hypot(moveX, moveY) > 12) {
+                        clearPendingTouchIntervalEdit();
+                    }
                 }
 
                 if (activeIntervalDrag) {
@@ -3180,6 +3225,7 @@
         }
 
         function handleMouseLeave() {
+            clearPendingTouchIntervalEdit();
             if (activeIntervalDrag) {
                 finalizeIntervalDrag();
             }
@@ -3187,8 +3233,18 @@
             if (!selectionModeActive) setChartEditCursor('');
         }
 
+        function handleChartPointerCancel() {
+            clearPendingTouchIntervalEdit();
+            if (activeIntervalDrag) {
+                finalizeIntervalDrag({ cancel: true });
+            }
+            if (customChartInfo) customChartInfo.classList.add('hidden');
+            if (!selectionModeActive) setChartEditCursor('');
+        }
+
         function handleResetZoom() {
             if (powerChart) { 
+                clearPendingTouchIntervalEdit();
                 if (activeIntervalDrag) {
                     finalizeIntervalDrag({ cancel: true });
                 }
@@ -3698,6 +3754,7 @@
                 if (powerChartCanvas) {
                 powerChartCanvas.addEventListener('pointerdown', handleChartPointerDown);
                 powerChartCanvas.addEventListener('pointerup', handleChartClick);
+                powerChartCanvas.addEventListener('pointercancel', handleChartPointerCancel);
                 powerChartCanvas.addEventListener('pointermove', handleMouseMove);
                 powerChartCanvas.addEventListener('pointerleave', handleMouseLeave);
             }
@@ -3839,6 +3896,7 @@
             if (powerChartCanvas) {
                 powerChartCanvas.removeEventListener('pointerdown', handleChartPointerDown);
                 powerChartCanvas.removeEventListener('pointerup', handleChartClick);
+                powerChartCanvas.removeEventListener('pointercancel', handleChartPointerCancel);
                 powerChartCanvas.removeEventListener('pointermove', handleMouseMove);
                 powerChartCanvas.removeEventListener('pointerleave', handleMouseLeave);
             }
@@ -3906,6 +3964,7 @@
             isSettingEndpoint = false;
             activeSelectionId = null;
             activeIntervalDrag = null;
+            clearPendingTouchIntervalEdit();
             selectedWindows = [];
             trainingServerConnectionReady = false;
 
@@ -4008,6 +4067,7 @@
         isSettingEndpoint = false;
         activeSelectionId = null;
         activeIntervalDrag = null;
+        clearPendingTouchIntervalEdit();
         selectedWindows = [];
         trainingWizardCurrentStep = "server";
         updateTrainingStepper();
