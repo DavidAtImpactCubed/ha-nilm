@@ -3074,48 +3074,16 @@
         const visibleLength = Math.max(0, end - start);
         if (visibleLength <= 0) return [];
         if (visibleLength <= targetPoints) return series.slice(start, end);
-
-        const samplesPerBlock = 2;
-        const blocks = Math.max(1, Math.floor(targetPoints / samplesPerBlock));
-        const stride = Math.ceil(visibleLength / blocks);
-        const out = [series[start]];
-
-        for (let i = start; i < end; i += stride) {
-            const blockEnd = Math.min(i + stride, end);
-            let minY = Infinity;
-            let maxY = -Infinity;
-            let minPt = null;
-            let maxPt = null;
-
-            for (let j = i; j < blockEnd; j++) {
-                const pt = series[j];
-                if (pt.y < minY) {
-                    minY = pt.y;
-                    minPt = pt;
-                }
-                if (pt.y > maxY) {
-                    maxY = pt.y;
-                    maxPt = pt;
-                }
-            }
-
-            const lastOut = out[out.length - 1];
-            if (minPt && minPt.x !== lastOut.x) out.push(minPt);
-            if (maxPt && maxPt !== minPt && maxPt.x !== out[out.length - 1].x) out.push(maxPt);
-        }
-
         const last = series[end - 1];
-        if (out[out.length - 1].x !== last.x) out.push(last);
-
-        out.sort((a, b) => a.x - b.x);
-
-        if (out.length <= targetPoints) return out;
-
-        const thinned = [];
-        const step = Math.ceil(out.length / targetPoints);
-        for (let i = 0; i < out.length; i += step) thinned.push(out[i]);
-        if (thinned[thinned.length - 1].x !== last.x) thinned.push(last);
-        return thinned;
+        const out = [];
+        const step = Math.max(1, Math.ceil((visibleLength - 1) / Math.max(1, targetPoints - 1)));
+        for (let i = start; i < end; i += step) {
+            out.push(series[i]);
+        }
+        if (!out.length || out[out.length - 1].x !== last.x) {
+            out.push(last);
+        }
+        return out;
     }
 
     function getSeriesPointAtTimestamp(series, timestamp) {
