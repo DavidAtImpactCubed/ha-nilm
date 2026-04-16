@@ -176,14 +176,43 @@ async def call_ha_service(
             raise RuntimeError(f"Could not call Home Assistant service {domain}.{service}: {e}") from e
 
 
-def points_to_xy_json(points: List[Tuple[float, float]]) -> List[dict]:
+def points_to_xy_json(
+    points: List[Tuple[float, float]],
+    *,
+    expand_held_values: bool = False,
+    end_dt: Optional[datetime] = None,
+) -> List[dict]:
     """
     Convert (epoch_seconds, value) -> [{"x": "...Z", "y": ...}, ...]
+
+    When ``expand_held_values`` is enabled, duplicate the current value right
+    before each subsequent timestamp so UIs that render plain line charts see
+    the Home Assistant history as held power levels instead of diagonal ramps.
     """
     out: List[dict] = []
-    for ts, val in points:
+    if not points:
+        return out
+
+    sorted_points = sorted(points, key=lambda p: p[0])
+    epsilon_s = 0.001
+
+    for index, (ts, val) in enumerate(sorted_points):
         dt = datetime.fromtimestamp(ts, tz=timezone.utc)
-        out.append(
-            {"x": _iso_z(dt, timespec="seconds"), "y": float(val)}
-        )
+        out.append({"x": _iso_z(dt, timespec="milliseconds"), "y": float(val)})
+
+        if not expand_held_values or index >= len(sorted_points) - 1:
+            continue
+
+        next_ts = float(sorted_points[index + 1][0])
+        hold_ts = next_ts - epsilon_s
+        if hold_ts > ts:
+            hold_dt = datetime.fromtimestamp(hold_ts, tz=timezone.utc)
+            out.append({"x": _iso_z(hold_dt, timespec="milliseconds"), "y": float(val)})
+
+    if expand_held_values and end_dt is not None:
+        end_ts = _ensure_utc(end_dt).timestamp()
+        last_ts, last_val = sorted_points[-1]
+        if end_ts > last_ts:
+            out.append({"x": _iso_z(_ensure_utc(end_dt), timespec="milliseconds"), "y": float(last_val)})
+
     return out

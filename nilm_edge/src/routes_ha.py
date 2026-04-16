@@ -119,7 +119,7 @@ async def get_history_handler(request):
             max_span_days=7,
         )
         points = await fetch_history_points(app_state.HA_REST_API_URL, app_state.TOKEN, query)
-        return web.json_response([points_to_xy_json(points)])
+        return web.json_response([points_to_xy_json(points, expand_held_values=True, end_dt=end_date_dt)])
     except ValueError as exc:
         return web.json_response({"status": "error", "message": str(exc)}, status=400)
     except RuntimeError as exc:
