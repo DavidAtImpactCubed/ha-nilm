@@ -471,6 +471,11 @@ export function createJobsUI({
     save();
   }
 
+  function beginNewDraft() {
+    clearSessionTerminalJobs();
+    render();
+  }
+
   function upsert(job) {
     const id = job.job_id;
     const idx = jobs.findIndex(j => j.job_id === id);
@@ -859,6 +864,7 @@ export function createJobsUI({
     requestDeleteJob(jobId) {
       openDeleteModal(jobId);
     },
+    beginNewDraft,
     deleteJob(jobId) {
       jobs = jobs.filter(j => j.job_id !== jobId);
       save();

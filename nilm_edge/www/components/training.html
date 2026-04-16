@@ -1388,6 +1388,7 @@
         const browserLocale = (Array.isArray(navigator.languages) && navigator.languages.length
             ? navigator.languages[0]
             : (navigator.language || "en-GB"));
+        let lastApplianceDraftName = applianceNameInput?.value?.trim() || "";
         const prefers24Hour = (() => {
             try {
                 const hourCycle = new Intl.DateTimeFormat(browserLocale, { hour: "numeric" }).resolvedOptions().hourCycle;
@@ -1474,6 +1475,64 @@
                 renderTrainingOverviewItem("Supervision", supervisionValue, supervisionHelp),
                 renderTrainingOverviewItem("Labels", labelsValue, labelsHelp),
             ].join("");
+        }
+
+        function hasCurrentTrainingDraftState() {
+            return Boolean(trainingJobId)
+                || Boolean(preparedTrainingPackage)
+                || (Array.isArray(pendingJobEvents) && pendingJobEvents.length > 0)
+                || (Array.isArray(selectedWindows) && selectedWindows.length > 0)
+                || (Array.isArray(sensorDerivedWindows) && sensorDerivedWindows.length > 0)
+                || (Array.isArray(applianceSensorHistoryData) && applianceSensorHistoryData.length > 0)
+                || Boolean(applianceSensorSelect?.value);
+        }
+
+        function resetTrainingDraftState({ preserveSensorSelection = false } = {}) {
+            preparedTrainingPackage = null;
+            trainingJobId = null;
+            pendingJobEvents = [];
+            trainingIntervalConfirmed = false;
+            clearBusyProgress();
+            if (checkAllDataBtn) checkAllDataBtn.disabled = !trainingServerConnectionReady;
+            if (retryTrainingServerStatusBtn) retryTrainingServerStatusBtn.disabled = false;
+            if (trainingPrepStatus) {
+                trainingPrepStatus.textContent = "";
+                trainingPrepStatus.classList.add("hidden");
+            }
+
+            if (powerChart?.options?.plugins?.annotation) {
+                powerChart.options.plugins.annotation.annotations = {};
+            }
+            finishIntervalSelectionMode();
+            selectedWindows = [];
+            sensorDerivedWindows = [];
+            applianceSensorHistoryData = [];
+
+            if (!preserveSensorSelection && applianceSensorSelect) {
+                applianceSensorSelect.value = "";
+            }
+
+            if (powerChart) {
+                const nextMin = Number.isFinite(currentChartMinTime) ? currentChartMinTime : firstTimestamp;
+                const nextMax = Number.isFinite(currentChartMaxTime) ? currentChartMaxTime : lastTimestamp;
+                initializePowerChart(fullSensorHistoryData, nextMin, nextMax);
+            }
+
+            syncManualInputBounds();
+            if (Number.isFinite(firstTimestamp) && Number.isFinite(lastTimestamp) && lastTimestamp > firstTimestamp) {
+                setManualIntervalInputs(firstTimestamp, lastTimestamp);
+            } else {
+                if (manualStartInput) manualStartInput.value = "";
+                if (manualEndInput) manualEndInput.value = "";
+            }
+
+            if (noPreviewsMessage) noPreviewsMessage.classList.remove('hidden');
+            if (previewSection) previewSection.classList.add('hidden');
+            if (customChartInfo) customChartInfo.classList.add('hidden');
+            if (dateRangeError) dateRangeError.classList.add('hidden');
+            renderSelectionPreviews();
+            if (jobsUI?.beginNewDraft) jobsUI.beginNewDraft();
+            updateTrainingStepper();
         }
 
         function setUiBusy(isBusy, msg = "") {
@@ -2955,6 +3014,12 @@
         }
 
         function handleApplianceNameInput() {
+            const currentName = applianceNameInput?.value?.trim() || "";
+            const applianceChanged = Boolean(lastApplianceDraftName && currentName !== lastApplianceDraftName);
+            if (applianceChanged && hasCurrentTrainingDraftState()) {
+                resetTrainingDraftState({ preserveSensorSelection: false });
+            }
+            lastApplianceDraftName = currentName;
             if (applianceNameError) applianceNameError.classList.add('hidden'); 
             updateTrainingStepper();
         }
@@ -3274,6 +3339,7 @@
         async function fetchSensorHistoryData(startMs = null, endMs = null) {
             showLoadingIndicator(); 
             trainingIntervalConfirmed = false;
+            resetTrainingDraftState({ preserveSensorSelection: currentSupervisionMode() === 'sensor' });
             updateTrainingStepper();
             try {
                 let requestedStartMs = startMs;
@@ -3428,6 +3494,7 @@
             if (applianceNameInput) applianceNameInput.addEventListener('input', handleApplianceNameInput);
             if (applianceSensorSelect) {
                 applianceSensorSelect.addEventListener('change', async () => {
+                    resetTrainingDraftState({ preserveSensorSelection: true });
                     updateTrainingStepper();
                     try {
                         await refreshApplianceSensorOverlay();
@@ -3736,7 +3803,10 @@
             if (hours) applyQuickRangeHours(hours);
         };
         trainingQuickRangeButtons.forEach((button) => button.addEventListener('click', quickRangeChangeHandler));
-        supervisionModeChangeHandler = () => updateSupervisionModeUI();
+        supervisionModeChangeHandler = () => {
+            resetTrainingDraftState({ preserveSensorSelection: false });
+            updateSupervisionModeUI();
+        };
         if (supervisionModeSelect) supervisionModeSelect.addEventListener('change', supervisionModeChangeHandler);
         if (useCurrentViewRangeBtn) useCurrentViewRangeBtn.addEventListener('click', applyCurrentChartViewRange);
         setTrainingServerStatusUi({
