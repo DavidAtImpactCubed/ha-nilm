@@ -1487,11 +1487,13 @@
                 || Boolean(applianceSensorSelect?.value);
         }
 
-        function resetTrainingDraftState({ preserveSensorSelection = false } = {}) {
+        function resetTrainingDraftState({ preserveSensorSelection = false, preserveIntervalConfirmation = false } = {}) {
             preparedTrainingPackage = null;
             trainingJobId = null;
             pendingJobEvents = [];
-            trainingIntervalConfirmed = false;
+            if (!preserveIntervalConfirmation) {
+                trainingIntervalConfirmed = false;
+            }
             clearBusyProgress();
             if (checkAllDataBtn) checkAllDataBtn.disabled = !trainingServerConnectionReady;
             if (retryTrainingServerStatusBtn) retryTrainingServerStatusBtn.disabled = false;
@@ -3494,7 +3496,7 @@
             if (applianceNameInput) applianceNameInput.addEventListener('input', handleApplianceNameInput);
             if (applianceSensorSelect) {
                 applianceSensorSelect.addEventListener('change', async () => {
-                    resetTrainingDraftState({ preserveSensorSelection: true });
+                    resetTrainingDraftState({ preserveSensorSelection: true, preserveIntervalConfirmation: true });
                     updateTrainingStepper();
                     try {
                         await refreshApplianceSensorOverlay();
@@ -3804,7 +3806,7 @@
         };
         trainingQuickRangeButtons.forEach((button) => button.addEventListener('click', quickRangeChangeHandler));
         supervisionModeChangeHandler = () => {
-            resetTrainingDraftState({ preserveSensorSelection: false });
+            resetTrainingDraftState({ preserveSensorSelection: false, preserveIntervalConfirmation: true });
             updateSupervisionModeUI();
         };
         if (supervisionModeSelect) supervisionModeSelect.addEventListener('change', supervisionModeChangeHandler);
