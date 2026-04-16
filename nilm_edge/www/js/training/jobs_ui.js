@@ -27,6 +27,7 @@ const STATUS = {
 
 const POLLABLE = new Set([STATUS.SENT, STATUS.QUEUED, STATUS.RUNNING]);
 const ACTIVE_STATUSES = new Set([STATUS.PREPARED, STATUS.SENT, STATUS.QUEUED, STATUS.RUNNING]);
+const TERMINAL_STATUSES = new Set([STATUS.DONE, STATUS.ERROR, STATUS.STALE]);
 
 function nowIso() {
   return new Date().toISOString();
@@ -168,6 +169,15 @@ function formatElapsedMs(ms) {
 
 function isDoneStatus(s) {
   return String(s || "").toLowerCase() === STATUS.DONE;
+}
+
+function computeDisplayJobs(allJobs) {
+  const sorted = stableSortByCreatedDesc(allJobs);
+  return sorted.filter((job) => {
+    const normalized = normalizeStatus(job?.status);
+    if (ACTIVE_STATUSES.has(normalized)) return true;
+    return job?.has_been_visible === true && TERMINAL_STATUSES.has(normalized);
+  });
 }
 
 function progressLine(job) {
@@ -467,8 +477,8 @@ export function createJobsUI({
       job?.status === STATUS.PREPARED ||
       ACTIVE_STATUSES.has(normalizeStatus(job?.status))
     );
-    const activeJobs = stableSortByCreatedDesc(jobs).filter((job) => ACTIVE_STATUSES.has(normalizeStatus(job?.status)));
-    const hasActiveJobs = activeJobs.length > 0;
+    const displayJobs = computeDisplayJobs(jobs);
+    const hasDisplayJobs = displayJobs.length > 0;
 
     if (jobsPanelEl) jobsPanelEl.classList.toggle("hidden", !hasPrepared);
     if (!hasPrepared) {
@@ -481,28 +491,33 @@ export function createJobsUI({
     }
 
     if (noJobsEl) {
-      noJobsEl.style.display = hasActiveJobs ? "none" : "block";
+      noJobsEl.style.display = hasDisplayJobs ? "none" : "block";
       noJobsEl.textContent = "No jobs in progress.";
     }
-    if (paginationEl) paginationEl.classList.toggle("hidden", !(hasActiveJobs && activeJobs.length > PAGE_SIZE));
+    if (paginationEl) paginationEl.classList.toggle("hidden", !(hasDisplayJobs && displayJobs.length > PAGE_SIZE));
 
-    const totalPages = Math.max(1, Math.ceil(activeJobs.length / PAGE_SIZE));
+    const totalPages = Math.max(1, Math.ceil(displayJobs.length / PAGE_SIZE));
     currentPage = Math.min(Math.max(currentPage, 1), totalPages);
     const startIndex = (currentPage - 1) * PAGE_SIZE;
-    const visibleJobs = activeJobs.slice(startIndex, startIndex + PAGE_SIZE);
+    const visibleJobs = displayJobs.slice(startIndex, startIndex + PAGE_SIZE);
 
     if (paginationInfoEl) {
-      const from = activeJobs.length ? startIndex + 1 : 0;
-      const to = Math.min(startIndex + PAGE_SIZE, activeJobs.length);
-      paginationInfoEl.textContent = activeJobs.length
-        ? `Showing ${from}-${to} of ${activeJobs.length} jobs`
+      const from = displayJobs.length ? startIndex + 1 : 0;
+      const to = Math.min(startIndex + PAGE_SIZE, displayJobs.length);
+      paginationInfoEl.textContent = displayJobs.length
+        ? `Showing ${from}-${to} of ${displayJobs.length} jobs`
         : "";
     }
 
     if (prevPageBtnEl) prevPageBtnEl.disabled = currentPage <= 1;
     if (nextPageBtnEl) nextPageBtnEl.disabled = currentPage >= totalPages;
 
+    let visibilityChanged = false;
     for (const job of visibleJobs) {
+      if (job?.has_been_visible !== true) {
+        job.has_been_visible = true;
+        visibilityChanged = true;
+      }
       const appliance = safeStr(job.appliance_name, "-");
       const timeRange = fmtRange(job.time_start_ms, job.time_end_ms);
       const supervisionMode = String(job.supervision_mode || "").toLowerCase();
@@ -545,6 +560,7 @@ export function createJobsUI({
 
       tableBodyEl.appendChild(tr);
     }
+    if (visibilityChanged) save();
   }
 
   function recordPrepared({ job_id, appliance_name, appliance_type, selected_windows, supervision_mode, time_start_ms, time_end_ms, message } = {}) {
@@ -719,8 +735,8 @@ export function createJobsUI({
     }
     if (nextPageBtnEl) {
       nextPageHandler = () => {
-        const activeJobs = jobs.filter((job) => ACTIVE_STATUSES.has(normalizeStatus(job?.status)));
-        const totalPages = Math.max(1, Math.ceil(activeJobs.length / PAGE_SIZE));
+        const displayJobs = computeDisplayJobs(jobs);
+        const totalPages = Math.max(1, Math.ceil(displayJobs.length / PAGE_SIZE));
         currentPage = Math.min(totalPages, currentPage + 1);
         render();
       };
@@ -732,7 +748,7 @@ export function createJobsUI({
         jobs = jobs.filter(j => j.job_id !== pendingDeleteJobId);
         save();
         closeDeleteModal();
-        const totalPages = Math.max(1, Math.ceil(jobs.length / PAGE_SIZE));
+        const totalPages = Math.max(1, Math.ceil(computeDisplayJobs(jobs).length / PAGE_SIZE));
         currentPage = Math.min(currentPage, totalPages);
         render();
       };
@@ -825,7 +841,7 @@ export function createJobsUI({
     deleteJob(jobId) {
       jobs = jobs.filter(j => j.job_id !== jobId);
       save();
-      const totalPages = Math.max(1, Math.ceil(jobs.length / PAGE_SIZE));
+      const totalPages = Math.max(1, Math.ceil(computeDisplayJobs(jobs).length / PAGE_SIZE));
       currentPage = Math.min(currentPage, totalPages);
       render();
     },
