@@ -2965,6 +2965,14 @@
         return totalWh;
     }
 
+    function computeSeriesDurationHours(series) {
+        if (!Array.isArray(series) || series.length < 2) return 0;
+        const startX = Number(series[0]?.x);
+        const endX = Number(series[series.length - 1]?.x);
+        if (!Number.isFinite(startX) || !Number.isFinite(endX) || endX <= startX) return 0;
+        return (endX - startX) / 3600000;
+    }
+
     function toIsoUtcNoMs(date) {
         return new Date(date.getTime() - date.getMilliseconds()).toISOString().replace(".000Z", "Z");
     }
@@ -3012,9 +3020,11 @@
         const values = Array.isArray(series) ? series.map(point => Number(point?.y)).filter(Number.isFinite) : [];
         const sampleCount = values.length;
         const totalEnergyWh = computeSeriesEnergyWh(series);
+        const durationHours = computeSeriesDurationHours(series);
+        const averagePower = durationHours > 0 ? totalEnergyWh / durationHours : null;
 
         energyStat.textContent = sampleCount ? formatEnergy(totalEnergyWh) : "-";
-        avgPowerStat.textContent = sampleCount ? formatPower(values.reduce((sum, value) => sum + value, 0) / sampleCount) : "-";
+        avgPowerStat.textContent = Number.isFinite(averagePower) ? formatPower(averagePower) : "-";
         maxPowerStat.textContent = sampleCount ? formatPower(Math.max(...values)) : "-";
         latestPowerStat.textContent = sampleCount ? formatPower(values[values.length - 1]) : "-";
     }
@@ -3228,7 +3238,8 @@
                         fill: true,
                         pointRadius: 0,
                         borderWidth: 1.5,
-                        tension: 0.08,
+                        tension: 0,
+                        stepped: "after",
                         spanGaps: true,
                     }
                 ].concat(predictionDatasets)
