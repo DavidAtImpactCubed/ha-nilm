@@ -180,6 +180,16 @@ function computeDisplayJobs(allJobs) {
   });
 }
 
+function sanitizeForPersistence(allJobs) {
+  return stableSortByCreatedDesc(allJobs)
+    .filter((job) => ACTIVE_STATUSES.has(normalizeStatus(job?.status)))
+    .map((job) => {
+      const { has_been_visible, ...persisted } = job || {};
+      return persisted;
+    })
+    .slice(0, MAX_JOBS);
+}
+
 function progressLine(job) {
     if (job.status === STATUS.PREPARED) return "";
     const p = job.progress && typeof job.progress === "object" ? job.progress : null;
@@ -442,12 +452,23 @@ export function createJobsUI({
     } catch {
       jobs = [];
     }
-    jobs = stableSortByCreatedDesc(jobs).slice(0, MAX_JOBS);
+    jobs = sanitizeForPersistence(jobs);
   }
 
   function save() {
-    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(jobs.slice(0, MAX_JOBS))); }
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(sanitizeForPersistence(jobs))); }
     catch {}
+  }
+
+  function clearSessionTerminalJobs() {
+    jobs = jobs.filter((job) => !TERMINAL_STATUSES.has(normalizeStatus(job?.status)));
+    for (const job of jobs) {
+      if (job && Object.prototype.hasOwnProperty.call(job, "has_been_visible")) {
+        delete job.has_been_visible;
+      }
+    }
+    jobs = stableSortByCreatedDesc(jobs).slice(0, MAX_JOBS);
+    save();
   }
 
   function upsert(job) {
@@ -565,6 +586,7 @@ export function createJobsUI({
 
   function recordPrepared({ job_id, appliance_name, appliance_type, selected_windows, supervision_mode, time_start_ms, time_end_ms, message } = {}) {
     if (!job_id) return;
+    clearSessionTerminalJobs();
     const range = computeSelectedRange(selected_windows);
     const preparedStartMs = Number.isFinite(Number(time_start_ms)) ? Number(time_start_ms) : range.startMs;
     const preparedEndMs = Number.isFinite(Number(time_end_ms)) ? Number(time_end_ms) : range.endMs;
@@ -720,6 +742,7 @@ export function createJobsUI({
 
   function init() {
     load();
+    save();
     render();
 
     if (refreshBtnEl) {
