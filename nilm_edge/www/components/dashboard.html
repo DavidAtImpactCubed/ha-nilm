@@ -2452,8 +2452,10 @@
             if (Number.isFinite(dt) && dt > 0) diffs.push(dt);
         }
         if (!diffs.length) return 8000;
-        diffs.sort((a, b) => a - b);
-        return diffs[Math.floor(diffs.length / 2)] || 8000;
+        const filteredDiffs = diffs.filter((dt) => dt >= 1000);
+        const usableDiffs = filteredDiffs.length ? filteredDiffs : diffs;
+        usableDiffs.sort((a, b) => a - b);
+        return usableDiffs[Math.floor(usableDiffs.length / 2)] || 8000;
     }
 
     function buildPredictionAlignedOverlaySeries(rawSeries, referenceSeries, maxHoldFactor = 5) {
