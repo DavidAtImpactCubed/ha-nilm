@@ -18,6 +18,8 @@ async def get_sensors_handler(request):
                 response.raise_for_status()
                 all_states = await response.json()
 
+            power_units = {"W", "kW"}
+            energy_units = {"Wh", "kWh", "MWh", "GWh"}
             power_sensors = []
             for state in all_states:
                 entity_id = state.get("entity_id")
@@ -25,8 +27,14 @@ async def get_sensors_handler(request):
                 if not entity_id or not entity_id.startswith("sensor."):
                     continue
 
-                is_power_device_class = attributes.get("device_class") in ["power", "energy"]
-                is_power_unit = attributes.get("unit_of_measurement") in ["W", "kW", "kWh"]
+                device_class = attributes.get("device_class")
+                unit = attributes.get("unit_of_measurement")
+                is_power_device_class = device_class == "power"
+                is_energy_device_class = device_class == "energy"
+                is_power_unit = unit in power_units
+                is_energy_unit = unit in energy_units
+                if is_energy_device_class or is_energy_unit:
+                    continue
                 if not (is_power_device_class or is_power_unit):
                     continue
 

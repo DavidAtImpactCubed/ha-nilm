@@ -1578,10 +1578,65 @@
     const PREVIEW_MAINS_COLOR = "#64748b";
     const DASHBOARD_TRAINING_JOBS_STORAGE_KEY = "nilm_training_jobs_v5";
     const DASHBOARD_PENDING_JOB_STATUSES = new Set(["prepared", "sent", "queued", "running"]);
+    const DASHBOARD_POWER_UNITS = new Set(["W", "kW"]);
+    const DASHBOARD_ENERGY_UNITS = new Set(["Wh", "kWh", "MWh", "GWh"]);
+    const DASHBOARD_ZERO_CLAMP_W = 1;
+    const DASHBOARD_NEAR_ZERO_NEGATIVE_CLAMP_W = 25;
 
     function formatPower(value) {
         if (!Number.isFinite(value)) return "-";
         return `${Math.round(value)} W`;
+    }
+
+    function sensorUsesPowerUnit(sensor) {
+        const unit = String(sensor?.unit_of_measurement || "").trim();
+        return DASHBOARD_POWER_UNITS.has(unit);
+    }
+
+    function sensorUsesEnergyUnit(sensor) {
+        const unit = String(sensor?.unit_of_measurement || "").trim();
+        return DASHBOARD_ENERGY_UNITS.has(unit);
+    }
+
+    function isDashboardPowerSensor(sensor) {
+        if (!sensor?.entity_id) return false;
+        if (sensor.is_virtual || sensor.source === "dl") return false;
+        if (sensor.entity_id.startsWith("sensor.nilm_")) return false;
+
+        const deviceClass = String(sensor.device_class || "").trim().toLowerCase();
+        if (deviceClass === "energy") return false;
+        if (deviceClass === "power") return true;
+        if (sensorUsesEnergyUnit(sensor)) return false;
+        return sensorUsesPowerUnit(sensor);
+    }
+
+    function normalizeDashboardPowerValue(rawValue, sensorMeta = null) {
+        let powerValue = Number(rawValue);
+        if (!Number.isFinite(powerValue)) return null;
+
+        const unit = String(sensorMeta?.unit_of_measurement || "").trim();
+        if (unit === "kW") {
+            powerValue *= 1000;
+        }
+
+        if (Math.abs(powerValue) < DASHBOARD_ZERO_CLAMP_W) {
+            return 0;
+        }
+        if (powerValue < 0 && Math.abs(powerValue) <= DASHBOARD_NEAR_ZERO_NEGATIVE_CLAMP_W) {
+            return 0;
+        }
+        return powerValue;
+    }
+
+    function normalizeDashboardSeries(rawSeries, sensorMeta = null) {
+        const deduped = new Map();
+        (Array.isArray(rawSeries) ? rawSeries : []).forEach((point) => {
+            const timeValue = typeof point?.x === "number" ? point.x : Date.parse(point?.x);
+            const powerValue = normalizeDashboardPowerValue(point?.y, sensorMeta);
+            if (!Number.isFinite(timeValue) || !Number.isFinite(powerValue)) return;
+            deduped.set(timeValue, { x: timeValue, y: powerValue });
+        });
+        return Array.from(deduped.values()).sort((a, b) => a.x - b.x);
     }
 
     function escapeDashboardTrainingHtml(value) {
@@ -2417,11 +2472,7 @@
         if (!predictionOverlaySensorSelect) return;
 
         const sensors = Array.from(allSensorsById.values())
-            .filter((sensor) => {
-                if (!sensor?.entity_id) return false;
-                const unit = String(sensor.unit_of_measurement || "").trim();
-                return unit === "W" || unit === "kW";
-            })
+            .filter((sensor) => isDashboardPowerSensor(sensor))
             .sort((a, b) => String(a.friendly_name || a.entity_id).localeCompare(String(b.friendly_name || b.entity_id)));
 
         predictionOverlaySensorSelect.innerHTML = `<option value="">Select sensor</option>`;
@@ -2971,7 +3022,7 @@
     function updateLatestPowerFromSensors() {
         if (!latestPowerStat || !mainSensorSelect?.value) return;
         const sensor = sensorsById.get(mainSensorSelect.value);
-        const liveValue = Number(sensor?.state);
+        const liveValue = normalizeDashboardPowerValue(sensor?.state, sensor);
         if (Number.isFinite(liveValue)) {
             latestPowerStat.textContent = formatPower(liveValue);
         }
@@ -3468,13 +3519,7 @@
     async function fetchSensorsAndPopulateSelect(selectedSensorId) {
         const allSensors = await fetchSensors();
         allSensorsById = new Map(allSensors.map((sensor) => [sensor.entity_id, sensor]));
-        const sensors = allSensors.filter((sensor) =>
-            sensor?.entity_id &&
-            !sensor.is_virtual &&
-            sensor.source !== "dl" &&
-            !sensor.entity_id.startsWith("sensor.nilm_") &&
-            !sensor.entity_id.startsWith("sensor.nilm_")
-        );
+        const sensors = allSensors.filter((sensor) => isDashboardPowerSensor(sensor));
         sensorsById = new Map(sensors.map((sensor) => [sensor.entity_id, sensor]));
         mainSensorSelect.innerHTML = "";
 
@@ -3511,13 +3556,7 @@
         try {
             const allSensors = await fetchSensors();
             allSensorsById = new Map(allSensors.map((sensor) => [sensor.entity_id, sensor]));
-            const sensors = allSensors.filter((sensor) =>
-                sensor?.entity_id &&
-                !sensor.is_virtual &&
-                sensor.source !== "dl" &&
-                !sensor.entity_id.startsWith("sensor.nilm_") &&
-                !sensor.entity_id.startsWith("sensor.nilm_")
-            );
+            const sensors = allSensors.filter((sensor) => isDashboardPowerSensor(sensor));
             sensorsById = new Map(sensors.map((sensor) => [sensor.entity_id, sensor]));
             updateLatestPowerFromSensors();
         } catch (error) {
@@ -3542,7 +3581,6 @@
         if (!sensorEntityId) return [];
 
         const sensorMeta = allSensorsById.get(sensorEntityId);
-        const unit = String(sensorMeta?.unit_of_measurement || "").trim();
         const response = await fetch(buildHistoryUrlForSensor(sensorEntityId, bounds));
         if (!response.ok) {
             return [];
@@ -3550,20 +3588,7 @@
 
         const payload = await response.json().catch(() => []);
         const rawSeries = Array.isArray(payload) && Array.isArray(payload[0]) ? payload[0] : [];
-        return rawSeries
-            .map((point) => {
-                const timeValue = typeof point?.x === "number" ? point.x : Date.parse(point?.x);
-                let powerValue = Number(point?.y);
-                if (unit === "kW" && Number.isFinite(powerValue)) {
-                    powerValue *= 1000;
-                }
-                if (!Number.isFinite(timeValue) || !Number.isFinite(powerValue)) {
-                    return null;
-                }
-                return { x: timeValue, y: powerValue };
-            })
-            .filter((point) => point !== null)
-            .sort((a, b) => a.x - b.x);
+        return normalizeDashboardSeries(rawSeries, sensorMeta);
     }
 
     async function fetchAndRenderSignal() {
@@ -3583,17 +3608,8 @@
 
             const payload = await response.json();
             const rawSeries = Array.isArray(payload) && Array.isArray(payload[0]) ? payload[0] : [];
-            fullSignalSeries = rawSeries
-                .map((point) => {
-                    const timeValue = typeof point?.x === "number" ? point.x : Date.parse(point?.x);
-                    const powerValue = Number(point?.y);
-                    if (!Number.isFinite(timeValue) || !Number.isFinite(powerValue)) {
-                        return null;
-                    }
-                    return { x: timeValue, y: powerValue };
-                })
-                .filter((point) => point !== null)
-                .sort((a, b) => a.x - b.x);
+            const sensorMeta = allSensorsById.get(mainSensorSelect.value);
+            fullSignalSeries = normalizeDashboardSeries(rawSeries, sensorMeta);
 
             setStatsFromSeries(fullSignalSeries);
             updateLatestPowerFromSensors();
