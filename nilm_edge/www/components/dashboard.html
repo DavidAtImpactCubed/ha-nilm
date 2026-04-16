@@ -1795,7 +1795,15 @@
         }
 
         saveDashboardTrainingJobs(jobs);
-        renderDashboardTrainingJobsPopup(loadDashboardTrainingJobs());
+        const refreshedJobs = loadDashboardTrainingJobs();
+        renderDashboardTrainingJobsPopup(refreshedJobs);
+        if (refreshedJobs.length < pendingJobs.length) {
+            try {
+                await fetchEmbeddings();
+            } catch (error) {
+                console.error("Dashboard embeddings refresh after training completion failed:", error);
+            }
+        }
     }
 
     function formatUiDateTime(value) {
