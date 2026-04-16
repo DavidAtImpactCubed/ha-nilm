@@ -231,6 +231,133 @@
         display: block;
     }
 
+    .dashboard-training-popup {
+        position: fixed;
+        right: 24px;
+        bottom: 24px;
+        width: min(420px, calc(100vw - 32px));
+        border-radius: 18px;
+        border: 1px solid #bfdbfe;
+        background: linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(239, 246, 255, 0.96));
+        box-shadow: 0 24px 48px rgba(15, 23, 42, 0.18);
+        padding: 18px;
+        z-index: 1300;
+    }
+
+    .dashboard-training-popup.hidden {
+        display: none;
+    }
+
+    .dashboard-training-popup-header {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 12px;
+        margin-bottom: 12px;
+    }
+
+    .dashboard-training-popup-title {
+        color: #0f172a;
+        font-size: 1rem;
+        font-weight: 800;
+        margin-bottom: 4px;
+    }
+
+    .dashboard-training-popup-copy {
+        color: #475569;
+        font-size: 0.88rem;
+        line-height: 1.45;
+    }
+
+    .dashboard-training-popup-close {
+        width: 34px;
+        height: 34px;
+        border: 1px solid #cbd5e1;
+        border-radius: 999px;
+        background: #ffffff;
+        color: #334155;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        flex: 0 0 auto;
+    }
+
+    .dashboard-training-popup-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.88rem;
+    }
+
+    .dashboard-training-popup-table th {
+        color: #475569;
+        font-size: 0.72rem;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        font-weight: 800;
+        text-align: left;
+        padding-bottom: 8px;
+    }
+
+    .dashboard-training-popup-table td {
+        padding: 10px 0;
+        border-top: 1px solid #dbeafe;
+        vertical-align: top;
+    }
+
+    .dashboard-training-popup-name {
+        color: #0f172a;
+        font-weight: 700;
+    }
+
+    .dashboard-training-popup-meta {
+        color: #64748b;
+        font-size: 0.78rem;
+        margin-top: 3px;
+        white-space: pre-line;
+    }
+
+    .dashboard-training-popup-badge {
+        display: inline-flex;
+        align-items: center;
+        padding: 4px 8px;
+        border-radius: 999px;
+        font-size: 0.76rem;
+        font-weight: 800;
+        text-transform: uppercase;
+    }
+
+    .dashboard-training-popup-badge-prepared {
+        background: #f3f4f6;
+        color: #374151;
+    }
+
+    .dashboard-training-popup-badge-queued {
+        background: #fef3c7;
+        color: #92400e;
+    }
+
+    .dashboard-training-popup-badge-running {
+        background: #dbeafe;
+        color: #1e40af;
+    }
+
+    .dashboard-training-popup-extra {
+        color: #64748b;
+        font-size: 0.78rem;
+        margin-top: 4px;
+    }
+
+    @media (max-width: 640px) {
+        .dashboard-training-popup {
+            right: 16px;
+            left: 16px;
+            bottom: 16px;
+            width: auto;
+            padding: 16px;
+        }
+    }
+
     .status-success {
         background: #dcfce7;
         color: #166534;
@@ -1236,6 +1363,27 @@
     </div>
 </div>
 
+<div id="dashboardTrainingJobsPopup" class="dashboard-training-popup hidden">
+    <div class="dashboard-training-popup-header">
+        <div>
+            <div class="dashboard-training-popup-title">Training In Progress</div>
+            <div class="dashboard-training-popup-copy">Pending appliance training jobs are still running in the background.</div>
+        </div>
+        <button id="dashboardTrainingJobsPopupClose" class="dashboard-training-popup-close" type="button" aria-label="Close training jobs popup">
+            <i class="fas fa-times" aria-hidden="true"></i>
+        </button>
+    </div>
+    <table class="dashboard-training-popup-table">
+        <thead>
+            <tr>
+                <th>Appliance</th>
+                <th>Status</th>
+            </tr>
+        </thead>
+        <tbody id="dashboardTrainingJobsPopupBody"></tbody>
+    </table>
+</div>
+
 <div id="deleteEmbeddingModal" class="config-modal-overlay">
     <div class="config-modal-card">
         <div class="config-modal-title">Delete Appliance Model?</div>
@@ -1340,6 +1488,9 @@
     let signalPredictionShareChartCanvas;
     let signalPredictionShareCenterValue;
     let signalPredictionShareList;
+    let dashboardTrainingJobsPopup;
+    let dashboardTrainingJobsPopupBody;
+    let dashboardTrainingJobsPopupClose;
     let deleteEmbeddingModal;
     let deleteEmbeddingModalMessage;
     let confirmDeleteEmbeddingButton;
@@ -1385,8 +1536,11 @@
     let streamedPredictionNeedsFullRender = false;
     let isDisaggregationRunning = false;
     let latestPowerPollTimer;
+    let dashboardTrainingJobsPollTimer;
     let sensorsById = new Map();
     let allSensorsById = new Map();
+    let dashboardPendingJobsDismissedSignature = null;
+    let dashboardPendingJobsSignature = "";
 
     let addApplianceButtonHandler;
     let previewAllEmbeddingsHandler;
@@ -1408,6 +1562,7 @@
     let signalPredictionShareListHandler;
     let signalPredictionShareLeaveHandler;
     let latestPowerPollTickHandler;
+    let dashboardTrainingJobsPopupCloseHandler;
     let messageTimeoutId;
     let pendingDeleteEmbeddingName = null;
 
@@ -1420,10 +1575,194 @@
         "#d97706",
     ];
     const PREVIEW_MAINS_COLOR = "#64748b";
+    const DASHBOARD_TRAINING_JOBS_STORAGE_KEY = "nilm_training_jobs_v5";
+    const DASHBOARD_PENDING_JOB_STATUSES = new Set(["prepared", "sent", "queued", "running"]);
 
     function formatPower(value) {
         if (!Number.isFinite(value)) return "-";
         return `${Math.round(value)} W`;
+    }
+
+    function escapeDashboardTrainingHtml(value) {
+        return String(value ?? "")
+            .replaceAll("&", "&amp;")
+            .replaceAll("<", "&lt;")
+            .replaceAll(">", "&gt;")
+            .replaceAll('"', "&quot;")
+            .replaceAll("'", "&#039;");
+    }
+
+    function normalizeDashboardTrainingStatus(raw) {
+        const status = String(raw || "").toLowerCase().trim();
+        if (!status) return null;
+        if (status.includes("error") || status.includes("fail") || status.includes("oom")) return "error";
+        if (status === "done" || status === "training_server_done" || status.endsWith("_done") || status.includes("finished") || status.includes("completed") || status.includes("complete")) return "done";
+        if (status.includes("accepted")) return "queued";
+        if (status.includes("queue") || status.includes("pending") || status.includes("enqueued")) return "queued";
+        if (status.includes("run") || status.includes("train") || status.includes("process")) return "running";
+        if (status.includes("sent") || status.includes("upload")) return "sent";
+        if (status.includes("prep") || status.includes("ready")) return "prepared";
+        return status;
+    }
+
+    function loadDashboardTrainingJobs() {
+        try {
+            const raw = localStorage.getItem(DASHBOARD_TRAINING_JOBS_STORAGE_KEY);
+            const parsed = raw ? JSON.parse(raw) : null;
+            return Array.isArray(parsed) ? parsed : [];
+        } catch {
+            return [];
+        }
+    }
+
+    function saveDashboardTrainingJobs(jobs) {
+        try {
+            const activeJobs = (Array.isArray(jobs) ? jobs : [])
+                .filter((job) => DASHBOARD_PENDING_JOB_STATUSES.has(normalizeDashboardTrainingStatus(job?.status)))
+                .slice(0, 200);
+            localStorage.setItem(DASHBOARD_TRAINING_JOBS_STORAGE_KEY, JSON.stringify(activeJobs));
+        } catch {}
+    }
+
+    function dashboardFormatTrainingRange(startMs, endMs) {
+        if (!Number.isFinite(startMs) || !Number.isFinite(endMs)) return "-";
+        try {
+            const fmt = new Intl.DateTimeFormat("en-GB", {
+                year: "numeric",
+                month: "2-digit",
+                day: "2-digit",
+                hour: "2-digit",
+                minute: "2-digit",
+                second: "2-digit",
+                hour12: false,
+            });
+            return `${fmt.format(new Date(startMs))}\n${fmt.format(new Date(endMs))}`;
+        } catch {
+            return "-";
+        }
+    }
+
+    function dashboardFormatElapsed(startedAtIso) {
+        const startedAt = Date.parse(startedAtIso || "");
+        if (!startedAt) return "";
+        const elapsedMs = Date.now() - startedAt;
+        if (!Number.isFinite(elapsedMs) || elapsedMs < 0) return "";
+        const totalSeconds = Math.floor(elapsedMs / 1000);
+        const minutes = Math.floor(totalSeconds / 60);
+        const seconds = totalSeconds % 60;
+        if (minutes <= 0) return `${seconds}s`;
+        return `${minutes}m ${seconds}s`;
+    }
+
+    function dashboardTrainingStatusBadge(status) {
+        const normalized = normalizeDashboardTrainingStatus(status) || "unknown";
+        const cls = normalized === "running"
+            ? "dashboard-training-popup-badge-running"
+            : normalized === "queued" || normalized === "sent"
+                ? "dashboard-training-popup-badge-queued"
+                : "dashboard-training-popup-badge-prepared";
+        return `<span class="dashboard-training-popup-badge ${cls}">${escapeDashboardTrainingHtml(normalized)}</span>`;
+    }
+
+    function computeDashboardPendingJobsSignature(jobs) {
+        return (Array.isArray(jobs) ? jobs : [])
+            .map((job) => `${job?.job_id || ""}:${normalizeDashboardTrainingStatus(job?.status) || ""}:${job?.training_server_job_id || ""}:${job?.error_message || ""}`)
+            .sort()
+            .join("|");
+    }
+
+    function renderDashboardTrainingJobsPopup(jobs) {
+        if (!dashboardTrainingJobsPopup || !dashboardTrainingJobsPopupBody) return;
+
+        const pendingJobs = (Array.isArray(jobs) ? jobs : [])
+            .filter((job) => DASHBOARD_PENDING_JOB_STATUSES.has(normalizeDashboardTrainingStatus(job?.status)))
+            .sort((a, b) => (Date.parse(b?.created_at || "") || 0) - (Date.parse(a?.created_at || "") || 0));
+
+        const nextSignature = computeDashboardPendingJobsSignature(pendingJobs);
+        if (nextSignature !== dashboardPendingJobsSignature) {
+            dashboardPendingJobsDismissedSignature = null;
+        }
+        dashboardPendingJobsSignature = nextSignature;
+
+        if (!pendingJobs.length || dashboardPendingJobsDismissedSignature === nextSignature) {
+            dashboardTrainingJobsPopup.classList.add("hidden");
+            dashboardTrainingJobsPopupBody.innerHTML = "";
+            return;
+        }
+
+        dashboardTrainingJobsPopupBody.innerHTML = pendingJobs.map((job) => {
+            const appliance = escapeDashboardTrainingHtml(job?.appliance_name || "-");
+            const range = escapeDashboardTrainingHtml(dashboardFormatTrainingRange(Number(job?.time_start_ms), Number(job?.time_end_ms)));
+            const statusBadge = dashboardTrainingStatusBadge(job?.status);
+            const elapsed = dashboardFormatElapsed(job?.started_at);
+            const extra = elapsed ? `<div class="dashboard-training-popup-extra">${escapeDashboardTrainingHtml(elapsed)}</div>` : "";
+            return `
+                <tr>
+                    <td>
+                        <div class="dashboard-training-popup-name">${appliance}</div>
+                        <div class="dashboard-training-popup-meta">${range}</div>
+                    </td>
+                    <td>
+                        ${statusBadge}
+                        ${extra}
+                    </td>
+                </tr>
+            `;
+        }).join("");
+
+        dashboardTrainingJobsPopup.classList.remove("hidden");
+    }
+
+    function dismissDashboardTrainingJobsPopup() {
+        dashboardPendingJobsDismissedSignature = dashboardPendingJobsSignature || "";
+        if (dashboardTrainingJobsPopup) dashboardTrainingJobsPopup.classList.add("hidden");
+    }
+
+    async function pollDashboardTrainingJobs() {
+        const jobs = loadDashboardTrainingJobs();
+        const pendingJobs = jobs.filter((job) => DASHBOARD_PENDING_JOB_STATUSES.has(normalizeDashboardTrainingStatus(job?.status)));
+        if (!pendingJobs.length) {
+            renderDashboardTrainingJobsPopup([]);
+            return;
+        }
+
+        for (const job of pendingJobs) {
+            const normalized = normalizeDashboardTrainingStatus(job?.status);
+            if (!job?.training_server_job_id || (normalized !== "sent" && normalized !== "queued" && normalized !== "running")) {
+                continue;
+            }
+
+            try {
+                let response = await fetch(`training?action=status&job_id=${encodeURIComponent(job.job_id)}`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: "{}",
+                });
+                if (!response.ok && (response.status === 404 || response.status === 405)) {
+                    response = await fetch(`training?action=status&job_id=${encodeURIComponent(job.job_id)}`, { method: "GET" });
+                }
+                if (!response.ok) continue;
+                const payload = await response.json().catch(() => null);
+                if (!payload || typeof payload !== "object") continue;
+
+                const source = payload.job && typeof payload.job === "object" ? payload.job : payload;
+                const stateRaw = source.training_server_status ?? source.trainingServerStatus ?? source.state ?? source.job_state ?? source.status ?? payload.status ?? null;
+                const parsedStatus = normalizeDashboardTrainingStatus(stateRaw);
+                if (!parsedStatus) continue;
+
+                job.status = parsedStatus;
+                job.progress = source.progress || payload.progress || job.progress || null;
+                job.message = source.message || payload.message || job.message || "";
+                if ((parsedStatus === "queued" || parsedStatus === "running") && !job.started_at) {
+                    job.started_at = new Date().toISOString();
+                }
+            } catch (error) {
+                console.error("Dashboard training jobs popup poll failed:", error);
+            }
+        }
+
+        saveDashboardTrainingJobs(jobs);
+        renderDashboardTrainingJobsPopup(loadDashboardTrainingJobs());
     }
 
     function formatUiDateTime(value) {
@@ -3273,6 +3612,7 @@
             await Promise.all([
                 fetchAndRenderSignal(),
                 fetchEmbeddings(),
+                pollDashboardTrainingJobs(),
             ]);
             showMessage("Configuration, mains signal, and appliance models loaded.", "success");
         } catch (error) {
@@ -3295,6 +3635,9 @@
         signalPredictionShareChartCanvas = document.getElementById("signalPredictionShareChart");
         signalPredictionShareCenterValue = document.getElementById("signalPredictionShareCenterValue");
         signalPredictionShareList = document.getElementById("signalPredictionShareList");
+        dashboardTrainingJobsPopup = document.getElementById("dashboardTrainingJobsPopup");
+        dashboardTrainingJobsPopupBody = document.getElementById("dashboardTrainingJobsPopupBody");
+        dashboardTrainingJobsPopupClose = document.getElementById("dashboardTrainingJobsPopupClose");
         statusMessage = document.getElementById("statusMessage");
         deleteEmbeddingModal = document.getElementById("deleteEmbeddingModal");
         deleteEmbeddingModalMessage = document.getElementById("deleteEmbeddingModalMessage");
@@ -3473,6 +3816,9 @@
         latestPowerPollTickHandler = () => {
             refreshLatestPowerStat();
         };
+        dashboardTrainingJobsPopupCloseHandler = () => {
+            dismissDashboardTrainingJobsPopup();
+        };
 
         if (previewAllEmbeddingsButton) previewAllEmbeddingsButton.addEventListener("click", previewAllEmbeddingsHandler);
         addApplianceButton.addEventListener("click", addApplianceButtonHandler);
@@ -3495,12 +3841,19 @@
         predictionPreviewModal.addEventListener("click", predictionPreviewOverlayHandler);
         if (addPredictionOverlayButton) addPredictionOverlayButton.addEventListener("click", addPredictionOverlayHandler);
         if (resetPredictionZoomButton) resetPredictionZoomButton.addEventListener("click", resetPredictionZoomHandler);
+        if (dashboardTrainingJobsPopupClose) dashboardTrainingJobsPopupClose.addEventListener("click", dashboardTrainingJobsPopupCloseHandler);
         mainSensorSelect.addEventListener("change", sensorChangeHandler);
         historyRangeSelect.addEventListener("change", rangeChangeHandler);
         latestPowerPollTimer = window.setInterval(latestPowerPollTickHandler, 15000);
+        dashboardTrainingJobsPollTimer = window.setInterval(() => {
+            pollDashboardTrainingJobs().catch((error) => {
+                console.error("Dashboard training jobs refresh failed:", error);
+            });
+        }, 5000);
 
         renderSignalChart([]);
         renderEmbeddings(null);
+        renderDashboardTrainingJobsPopup(loadDashboardTrainingJobs());
         syncDisaggregationButtons();
         refreshAll();
     };
@@ -3527,6 +3880,7 @@
         if (predictionPreviewModal && predictionPreviewOverlayHandler) predictionPreviewModal.removeEventListener("click", predictionPreviewOverlayHandler);
         if (addPredictionOverlayButton && addPredictionOverlayHandler) addPredictionOverlayButton.removeEventListener("click", addPredictionOverlayHandler);
         if (resetPredictionZoomButton && resetPredictionZoomHandler) resetPredictionZoomButton.removeEventListener("click", resetPredictionZoomHandler);
+        if (dashboardTrainingJobsPopupClose && dashboardTrainingJobsPopupCloseHandler) dashboardTrainingJobsPopupClose.removeEventListener("click", dashboardTrainingJobsPopupCloseHandler);
         if (mainSensorSelect && sensorChangeHandler) mainSensorSelect.removeEventListener("change", sensorChangeHandler);
         if (historyRangeSelect && rangeChangeHandler) historyRangeSelect.removeEventListener("change", rangeChangeHandler);
 
@@ -3537,6 +3891,10 @@
         if (latestPowerPollTimer) {
             clearInterval(latestPowerPollTimer);
             latestPowerPollTimer = null;
+        }
+        if (dashboardTrainingJobsPollTimer) {
+            clearInterval(dashboardTrainingJobsPollTimer);
+            dashboardTrainingJobsPollTimer = null;
         }
         if (signalChartDebounceTimer) {
             clearTimeout(signalChartDebounceTimer);
@@ -3578,6 +3936,9 @@
         signalPredictionShareChartCanvas = null;
         signalPredictionShareCenterValue = null;
         signalPredictionShareList = null;
+        dashboardTrainingJobsPopup = null;
+        dashboardTrainingJobsPopupBody = null;
+        dashboardTrainingJobsPopupClose = null;
         statusMessage = null;
         deleteEmbeddingModal = null;
         deleteEmbeddingModalMessage = null;
@@ -3635,8 +3996,11 @@
         signalPredictionShareListHandler = null;
         signalPredictionShareLeaveHandler = null;
         latestPowerPollTickHandler = null;
+        dashboardTrainingJobsPopupCloseHandler = null;
         pendingDeleteEmbeddingName = null;
         sensorsById = new Map();
         allSensorsById = new Map();
+        dashboardPendingJobsDismissedSignature = null;
+        dashboardPendingJobsSignature = "";
     };
 </script>
