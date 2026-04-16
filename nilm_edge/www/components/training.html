@@ -1059,7 +1059,7 @@
             <div class="chart-primary-action">
                 <div class="relative group">
                     <button id="selectModeBtn" class="action-btn action-primary inline-flex items-center justify-center">
-                        <i class="fas fa-plus-circle text-lg mr-2" aria-hidden="true"></i>
+                        <i class="fas fa-paint-brush text-lg mr-2" aria-hidden="true"></i>
                         <span id="selectModeBtnLabel">Draw Interval</span>
                     </button>
                     <span id="selectModeTooltip" class="tooltip absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-1 bg-gray-800 text-white text-xs rounded-md whitespace-nowrap">Start guided interval drawing.</span>
@@ -1077,7 +1077,7 @@
                     </div>
                     <div class="selection-assistant-actions">
                         <button id="addManualIntervalBtn" class="action-btn action-primary">
-                            <i class="fas fa-plus-circle mr-2" aria-hidden="true"></i>Add Interval
+                            <i class="fas fa-plus-circle mr-2" aria-hidden="true"></i>Add This Interval
                         </button>
                     </div>
                 </div>
@@ -1105,7 +1105,7 @@
             </div>
             <div id="selectionPreview" class="preview-grid">
                 <!-- Preview charts will be dynamically added here -->
-                <p id="noPreviews" class="text-sm text-gray-500 p-2 text-center w-full">No time windows selected yet. Press Draw Interval on the chart or use the manual interval inputs to create one.</p>
+                <p id="noPreviews" class="text-sm text-gray-500 p-2 text-center w-full">No time windows selected yet. Press Draw Interval on the chart or use the manual interval inputs to create one. Existing intervals can be moved or resized directly on the chart.</p>
             </div>
         </div>
 
@@ -1257,6 +1257,7 @@
     let selectionModeActive = false; 
     let isSettingEndpoint = false;
     let activeSelectionId = null;
+    let activeIntervalDrag = null;
     let selectedWindows = []; // Stores all selected time windows
     let trainingServerConnectionReady = false;
     let trainingStepper;
@@ -2121,6 +2122,7 @@
             selectionModeActive = false;
             isSettingEndpoint = false;
             activeSelectionId = null;
+            activeIntervalDrag = null;
             if (powerChart?.options?.plugins?.zoom) {
                 powerChart.options.plugins.zoom.pan.enabled = true;
                 powerChart.options.plugins.zoom.zoom.wheel.enabled = true;
@@ -2132,7 +2134,7 @@
             if (selectModeBtnIcon) {
                 selectModeBtnIcon.classList.remove('fa-xmark');
                 selectModeBtnIcon.classList.remove('fa-check');
-                selectModeBtnIcon.classList.add('fa-plus-circle');
+                selectModeBtnIcon.classList.add('fa-paint-brush');
             }
             if (selectModeTooltip) selectModeTooltip.textContent = "Start guided interval drawing.";
             if (selectModeBtn) {
@@ -2140,6 +2142,7 @@
                 selectModeBtn.classList.add('from-sky-500', 'to-sky-600', 'hover:from-sky-600', 'hover:to-sky-700', 'border-sky-700', 'focus:ring-sky-500');
             }
             if (chartContainer) chartContainer.classList.remove('selection-active');
+            setChartEditCursor('');
         }
 
         function beginIntervalSelectionMode() {
@@ -2156,7 +2159,7 @@
             }
             if (selectModeBtnLabel) selectModeBtnLabel.textContent = "Tap Start";
             if (selectModeBtnIcon) {
-                selectModeBtnIcon.classList.remove('fa-plus-circle');
+                selectModeBtnIcon.classList.remove('fa-paint-brush');
                 selectModeBtnIcon.classList.remove('fa-check');
                 selectModeBtnIcon.classList.add('fa-xmark');
             }
@@ -2630,6 +2633,159 @@
             updateTrainingStepper();
         }
 
+        function updateSelectionWindow(id, startMs, endMs) {
+            const orderedStart = Math.min(startMs, endMs);
+            const orderedEnd = Math.max(startMs, endMs);
+            selectedWindows = selectedWindows.map((window) => window.id === id
+                ? { ...window, start: orderedStart, end: orderedEnd, applianceName: applianceNameInput ? applianceNameInput.value.trim() : '' }
+                : window);
+        }
+
+        function canEditIntervalsOnChart() {
+            return currentSupervisionMode() === 'intervals'
+                && trainingWizardCurrentStep === 'labels'
+                && !selectionModeActive
+                && Array.isArray(selectedWindows)
+                && selectedWindows.length > 0;
+        }
+
+        function findEditableSelectionAtPosition(pos) {
+            if (!powerChart?.chartArea || !powerChart?.scales?.x || !canEditIntervalsOnChart()) {
+                return null;
+            }
+
+            const chartArea = powerChart.chartArea;
+            if (pos.x < chartArea.left || pos.x > chartArea.right || pos.y < chartArea.top || pos.y > chartArea.bottom) {
+                return null;
+            }
+
+            const hitPaddingPx = 18;
+            const annotations = powerChart.options?.plugins?.annotation?.annotations || {};
+            for (const window of selectedWindows) {
+                const annotation = annotations[window.id];
+                if (!annotation || annotation.isPending) continue;
+
+                const leftPx = powerChart.scales.x.getPixelForValue(Math.min(annotation.xMin, annotation.xMax));
+                const rightPx = powerChart.scales.x.getPixelForValue(Math.max(annotation.xMin, annotation.xMax));
+                if (!Number.isFinite(leftPx) || !Number.isFinite(rightPx)) continue;
+                if (pos.x < leftPx - hitPaddingPx || pos.x > rightPx + hitPaddingPx) continue;
+
+                if (Math.abs(pos.x - leftPx) <= hitPaddingPx) {
+                    return { id: window.id, mode: 'resize-start', annotation };
+                }
+                if (Math.abs(pos.x - rightPx) <= hitPaddingPx) {
+                    return { id: window.id, mode: 'resize-end', annotation };
+                }
+                if (pos.x > leftPx && pos.x < rightPx) {
+                    return { id: window.id, mode: 'move', annotation };
+                }
+            }
+            return null;
+        }
+
+        function intervalDragCursor(hit) {
+            if (!hit) return '';
+            if (hit.mode === 'move') return 'grab';
+            return 'ew-resize';
+        }
+
+        function setChartEditCursor(cursor = '') {
+            if (!chartContainer) return;
+            chartContainer.style.cursor = cursor;
+        }
+
+        function buildDraggedIntervalCandidate(dragState, pointerValue) {
+            const snappedValue = snapToNearestTimestamp(pointerValue);
+            const rangeMin = Math.min(firstTimestamp, lastTimestamp);
+            const rangeMax = Math.max(firstTimestamp, lastTimestamp);
+            const minWidthMs = Math.max(estimateNominalStepMs(fullSensorHistoryData), 1000);
+            let xMin = dragState.originMin;
+            let xMax = dragState.originMax;
+
+            if (dragState.mode === 'move') {
+                const delta = snappedValue - dragState.pointerStartValue;
+                const width = dragState.originMax - dragState.originMin;
+                xMin = dragState.originMin + delta;
+                xMax = dragState.originMax + delta;
+                if (xMin < rangeMin) {
+                    xMin = rangeMin;
+                    xMax = rangeMin + width;
+                }
+                if (xMax > rangeMax) {
+                    xMax = rangeMax;
+                    xMin = rangeMax - width;
+                }
+            } else if (dragState.mode === 'resize-start') {
+                xMin = Math.min(snappedValue, dragState.originMax - minWidthMs);
+                xMin = Math.max(rangeMin, xMin);
+            } else if (dragState.mode === 'resize-end') {
+                xMax = Math.max(snappedValue, dragState.originMin + minWidthMs);
+                xMax = Math.min(rangeMax, xMax);
+            }
+
+            const valid = xMin < xMax
+                && xMin >= rangeMin
+                && xMax <= rangeMax
+                && !hasOverlap(xMin, xMax, powerChart.options.plugins.annotation.annotations, dragState.id);
+
+            return { xMin, xMax, valid };
+        }
+
+        function applyIntervalDragPreview(pointerValue) {
+            if (!activeIntervalDrag || !powerChart?.options?.plugins?.annotation?.annotations?.[activeIntervalDrag.id]) {
+                return;
+            }
+
+            const annotation = powerChart.options.plugins.annotation.annotations[activeIntervalDrag.id];
+            const candidate = buildDraggedIntervalCandidate(activeIntervalDrag, pointerValue);
+            annotation.xMin = candidate.xMin;
+            annotation.xMax = candidate.xMax;
+            annotation.backgroundColor = candidate.valid ? 'rgba(156, 163, 175, 0.3)' : 'rgba(239, 68, 68, 0.3)';
+            annotation.borderColor = candidate.valid ? 'rgb(107, 114, 128)' : 'rgb(220, 38, 38)';
+            activeIntervalDrag.previewMin = candidate.xMin;
+            activeIntervalDrag.previewMax = candidate.xMax;
+            activeIntervalDrag.valid = candidate.valid;
+            setManualIntervalInputs(candidate.xMin, candidate.xMax);
+            powerChart.update('none');
+        }
+
+        function finalizeIntervalDrag({ cancel = false } = {}) {
+            if (!activeIntervalDrag || !powerChart?.options?.plugins?.annotation?.annotations?.[activeIntervalDrag.id]) {
+                activeIntervalDrag = null;
+                setChartEditCursor('');
+                return;
+            }
+
+            const annotation = powerChart.options.plugins.annotation.annotations[activeIntervalDrag.id];
+            const fallbackMin = activeIntervalDrag.originMin;
+            const fallbackMax = activeIntervalDrag.originMax;
+            const finalMin = cancel || !activeIntervalDrag.valid ? fallbackMin : activeIntervalDrag.previewMin;
+            const finalMax = cancel || !activeIntervalDrag.valid ? fallbackMax : activeIntervalDrag.previewMax;
+
+            annotation.xMin = finalMin;
+            annotation.xMax = finalMax;
+            annotation.backgroundColor = 'rgba(156, 163, 175, 0.3)';
+            annotation.borderColor = 'rgb(107, 114, 128)';
+
+            if (cancel || !activeIntervalDrag.valid) {
+                setManualIntervalInputs(fallbackMin, fallbackMax);
+            } else {
+                updateSelectionWindow(activeIntervalDrag.id, finalMin, finalMax);
+                setManualIntervalInputs(finalMin, finalMax);
+                renderSelectionPreviews();
+                updateTrainingStepper();
+            }
+
+            activeIntervalDrag = null;
+            if (powerChart?.options?.plugins?.zoom) {
+                powerChart.options.plugins.zoom.pan.enabled = true;
+                powerChart.options.plugins.zoom.zoom.wheel.enabled = true;
+                powerChart.options.plugins.zoom.zoom.pinch.enabled = true;
+            }
+            setChartEditCursor('');
+            powerChart.update('none');
+        }
+
         // 4b. Selection Preview Rendering (depends on removeSelection, fullSensorHistoryData, Chart.js, DOM elements)
         function renderSelectionPreviews() {
             if (!selectionPreviewContainer || !previewSection || !noPreviewsMessage) {
@@ -2862,6 +3018,11 @@
         }
 
         function handleChartClick(e) {
+            if (activeIntervalDrag) {
+                finalizeIntervalDrag();
+                if (typeof e.preventDefault === 'function') e.preventDefault();
+                return;
+            }
             if (!powerChart || !selectionModeActive || !powerChart.scales || !powerChart.scales.x) {
                 return; 
             }
@@ -2928,6 +3089,40 @@
             powerChart.update();
         }
 
+        function handleChartPointerDown(e) {
+            if (!powerChart || selectionModeActive || !canEditIntervalsOnChart() || !powerChart.scales?.x) {
+                return;
+            }
+
+            const pos = getCanvasEventPosition(e);
+            if (!pos) return;
+
+            const hit = findEditableSelectionAtPosition(pos);
+            if (!hit) return;
+
+            const pointerValue = powerChart.scales.x.getValueForPixel(pos.x);
+            activeIntervalDrag = {
+                id: hit.id,
+                mode: hit.mode,
+                pointerStartValue: snapToNearestTimestamp(pointerValue),
+                originMin: Math.min(hit.annotation.xMin, hit.annotation.xMax),
+                originMax: Math.max(hit.annotation.xMin, hit.annotation.xMax),
+                previewMin: Math.min(hit.annotation.xMin, hit.annotation.xMax),
+                previewMax: Math.max(hit.annotation.xMin, hit.annotation.xMax),
+                valid: true,
+            };
+
+            if (powerChart?.options?.plugins?.zoom) {
+                powerChart.options.plugins.zoom.pan.enabled = false;
+                powerChart.options.plugins.zoom.zoom.wheel.enabled = false;
+                powerChart.options.plugins.zoom.zoom.pinch.enabled = false;
+                powerChart.update('none');
+            }
+
+            setChartEditCursor(hit.mode === 'move' ? 'grabbing' : 'ew-resize');
+            if (typeof e.preventDefault === 'function') e.preventDefault();
+        }
+
         function handleMouseMove(e) {
             if (!powerChart || !powerChart.chartArea || !powerChart.scales || !powerChart.scales.x || !powerChart.scales.y) {
                 if (customChartInfo) customChartInfo.classList.add('hidden');
@@ -2952,6 +3147,11 @@
                     customChartInfo.classList.remove('hidden'); 
                 }
 
+                if (activeIntervalDrag) {
+                    applyIntervalDragPreview(timeAtMouse);
+                    return;
+                }
+
                 if (selectionModeActive && isSettingEndpoint && activeSelectionId) {
                     const currentAnnotation = powerChart.options.plugins.annotation.annotations[activeSelectionId];
                     if (currentAnnotation) {
@@ -2970,17 +3170,28 @@
                         powerChart.update('none'); 
                     }
                 }
+                if (canEditIntervalsOnChart()) {
+                    setChartEditCursor(intervalDragCursor(findEditableSelectionAtPosition(pos)));
+                }
             } else {
                 if (customChartInfo) customChartInfo.classList.add('hidden');
+                if (!activeIntervalDrag) setChartEditCursor('');
             }
         }
 
         function handleMouseLeave() {
+            if (activeIntervalDrag) {
+                finalizeIntervalDrag();
+            }
             if (customChartInfo) customChartInfo.classList.add('hidden');
+            if (!selectionModeActive) setChartEditCursor('');
         }
 
         function handleResetZoom() {
             if (powerChart) { 
+                if (activeIntervalDrag) {
+                    finalizeIntervalDrag({ cancel: true });
+                }
                 powerChart.zoomScale('x', { min: currentChartMinTime, max: currentChartMaxTime }, 'none');
                 updateChartDataAndAxisBasedOnZoom();
                 if (selectionModeActive && isSettingEndpoint) { 
@@ -3485,6 +3696,7 @@
         function attachChartEventListeners() {
             console.log("DEBUG: Attaching event listeners for the training UI...");
                 if (powerChartCanvas) {
+                powerChartCanvas.addEventListener('pointerdown', handleChartPointerDown);
                 powerChartCanvas.addEventListener('pointerup', handleChartClick);
                 powerChartCanvas.addEventListener('pointermove', handleMouseMove);
                 powerChartCanvas.addEventListener('pointerleave', handleMouseLeave);
@@ -3625,6 +3837,7 @@
             }
             window.trainingUI = null;
             if (powerChartCanvas) {
+                powerChartCanvas.removeEventListener('pointerdown', handleChartPointerDown);
                 powerChartCanvas.removeEventListener('pointerup', handleChartClick);
                 powerChartCanvas.removeEventListener('pointermove', handleMouseMove);
                 powerChartCanvas.removeEventListener('pointerleave', handleMouseLeave);
@@ -3692,6 +3905,7 @@
             selectionModeActive = false;
             isSettingEndpoint = false;
             activeSelectionId = null;
+            activeIntervalDrag = null;
             selectedWindows = [];
             trainingServerConnectionReady = false;
 
@@ -3793,6 +4007,7 @@
         selectionModeActive = false; 
         isSettingEndpoint = false;
         activeSelectionId = null;
+        activeIntervalDrag = null;
         selectedWindows = [];
         trainingWizardCurrentStep = "server";
         updateTrainingStepper();
