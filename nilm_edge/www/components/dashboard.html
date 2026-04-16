@@ -1580,6 +1580,8 @@
     const DASHBOARD_PENDING_JOB_STATUSES = new Set(["prepared", "sent", "queued", "running"]);
     const DASHBOARD_POWER_UNITS = new Set(["W", "kW"]);
     const DASHBOARD_ENERGY_UNITS = new Set(["Wh", "kWh", "MWh", "GWh"]);
+    const DASHBOARD_DISPLAY_SAMPLE_MS = 8000;
+    const DASHBOARD_NEAR_ZERO_W = 20;
     function formatPower(value) {
         if (!Number.isFinite(value)) return "-";
         return `${Math.round(value)} W`;
@@ -1618,6 +1620,12 @@
         return powerValue;
     }
 
+    function clampDashboardDisplayPower(powerValue) {
+        if (!Number.isFinite(powerValue)) return null;
+        if (powerValue <= DASHBOARD_NEAR_ZERO_W) return 0;
+        return Math.max(0, powerValue);
+    }
+
     function normalizeDashboardSeries(rawSeries, sensorMeta = null) {
         return (Array.isArray(rawSeries) ? rawSeries : [])
             .map((point) => {
@@ -1628,6 +1636,37 @@
         })
             .filter((point) => point !== null)
             .sort((a, b) => a.x - b.x);
+    }
+
+    function buildDashboardDisplaySeries(rawSeries, startMs, endMs) {
+        const raw = (Array.isArray(rawSeries) ? rawSeries : [])
+            .map((point) => ({ x: Number(point?.x), y: clampDashboardDisplayPower(Number(point?.y)) }))
+            .filter((point) => Number.isFinite(point.x) && Number.isFinite(point.y))
+            .sort((a, b) => a.x - b.x);
+        if (!raw.length) return [];
+
+        const safeStart = Number.isFinite(startMs) ? startMs : raw[0].x;
+        const safeEnd = Number.isFinite(endMs) ? endMs : raw[raw.length - 1].x;
+        if (!(safeEnd > safeStart)) return raw;
+
+        const out = [];
+        let idx = -1;
+        for (let t = safeStart; t <= safeEnd; t += DASHBOARD_DISPLAY_SAMPLE_MS) {
+            while (idx + 1 < raw.length && raw[idx + 1].x <= t) {
+                idx += 1;
+            }
+            const y = idx >= 0 ? raw[idx].y : 0;
+            out.push({ x: t, y });
+        }
+
+        if (out.length) {
+            const lastValue = idx >= 0 ? raw[Math.max(0, idx)].y : raw[raw.length - 1].y;
+            if (out[out.length - 1].x !== safeEnd) {
+                out.push({ x: safeEnd, y: clampDashboardDisplayPower(lastValue) ?? 0 });
+            }
+        }
+
+        return out;
     }
 
     function escapeDashboardTrainingHtml(value) {
@@ -3023,7 +3062,7 @@
     function updateLatestPowerFromSensors() {
         if (!latestPowerStat || !mainSensorSelect?.value) return;
         const sensor = sensorsById.get(mainSensorSelect.value);
-        const liveValue = normalizeDashboardPowerValue(sensor?.state, sensor);
+        const liveValue = clampDashboardDisplayPower(normalizeDashboardPowerValue(sensor?.state, sensor));
         if (Number.isFinite(liveValue)) {
             latestPowerStat.textContent = formatPower(liveValue);
         }
@@ -3610,7 +3649,13 @@
             const payload = await response.json();
             const rawSeries = Array.isArray(payload) && Array.isArray(payload[0]) ? payload[0] : [];
             const sensorMeta = allSensorsById.get(mainSensorSelect.value);
-            fullSignalSeries = normalizeDashboardSeries(rawSeries, sensorMeta);
+            const normalizedRawSeries = normalizeDashboardSeries(rawSeries, sensorMeta);
+            const { startUtc, endUtc } = getSelectedRangeBounds();
+            fullSignalSeries = buildDashboardDisplaySeries(
+                normalizedRawSeries,
+                startUtc.getTime(),
+                endUtc.getTime()
+            );
 
             setStatsFromSeries(fullSignalSeries);
             updateLatestPowerFromSensors();
