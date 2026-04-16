@@ -660,8 +660,6 @@ export function createJobsUI({
     inFlight = true;
 
     try {
-      load();
-
       // Optional staling
       const now = Date.now();
       for (const job of jobs) {
