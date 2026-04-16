@@ -570,8 +570,6 @@ export function createJobsUI({
             return parts.join("");
           })();
 
-      const deleteBtn = `<button class="btn-delete" title="Remove job" aria-label="Remove job" onclick="window.trainingUI.requestDeleteJob('${job.job_id}')"><i class="fas fa-trash-alt icon-trash" aria-hidden="true"></i></button>`;
-
       const tr = document.createElement("tr");
       tr.className = "border-b last:border-b-0";
       tr.innerHTML = `
@@ -581,7 +579,6 @@ export function createJobsUI({
         </td>
         <td class="py-2 pr-3 text-sm text-gray-500">${escapeHtml(timeRange)}</td>
         <td class="py-2 pr-3">${statusBadge}${extra}</td>
-        <td class="py-2 text-center align-middle">${deleteBtn}</td>
       `;
 
       tableBodyEl.appendChild(tr);
