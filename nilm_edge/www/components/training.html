@@ -1243,6 +1243,7 @@
     // Module-scoped variables - declared once when the script is first parsed
     let powerChart; // Chart.js instance for the power chart
     let fullSensorHistoryData = []; // Stores the full historical data
+    let displaySensorHistoryData = []; // Display-only mains history with low-power cleanup
     let applianceSensorHistoryData = []; // Optional ground-truth appliance power trace
     let sensorDerivedWindows = []; // Read-only ON intervals derived from the appliance sensor
     let firstTimestamp = 0; // Timestamp of the first data point of the *full available data*
@@ -1250,6 +1251,7 @@
     const TRAINING_CHART_MAINS_COLOR = "#64748b";
     const TRAINING_CHART_APPLIANCE_COLOR = "#0284c7";
     const TRAINING_NEAR_ZERO_W = 20;
+    const TRAINING_DISPLAY_SAMPLE_MS = 8000;
     let currentChartMinTime = 0; // The actual min time currently displayed in the chart
     let currentChartMaxTime = 0; // The actual max time currently displayed in the chart
     let trainingRangeStartPickerInstance;
@@ -2287,6 +2289,40 @@
             return Math.max(0, numericValue);
         }
 
+        function buildTrainingDisplaySeries(rawSeries, startMs, endMs) {
+            const raw = (Array.isArray(rawSeries) ? rawSeries : [])
+                .map((point) => ({
+                    x: Number(point?.x),
+                    y: clampTrainingDisplayPower(point?.y),
+                }))
+                .filter((point) => Number.isFinite(point.x) && Number.isFinite(point.y))
+                .sort((a, b) => a.x - b.x);
+            if (!raw.length) return [];
+
+            const safeStart = Number.isFinite(startMs) ? startMs : raw[0].x;
+            const safeEnd = Number.isFinite(endMs) ? endMs : raw[raw.length - 1].x;
+            if (!(safeEnd > safeStart)) return raw;
+
+            const out = [];
+            let idx = -1;
+            for (let t = safeStart; t <= safeEnd; t += TRAINING_DISPLAY_SAMPLE_MS) {
+                while (idx + 1 < raw.length && raw[idx + 1].x <= t) {
+                    idx += 1;
+                }
+                const y = idx >= 0 ? raw[idx].y : 0;
+                out.push({ x: t, y });
+            }
+
+            if (out.length) {
+                const lastValue = idx >= 0 ? raw[Math.max(0, idx)].y : raw[raw.length - 1].y;
+                if (out[out.length - 1].x !== safeEnd) {
+                    out.push({ x: safeEnd, y: clampTrainingDisplayPower(lastValue) ?? 0 });
+                }
+            }
+
+            return out;
+        }
+
         function estimateNominalStepMs(series) {
             if (!Array.isArray(series) || series.length < 2) return 8000;
             const diffs = [];
@@ -2891,7 +2927,7 @@
                     selectionPreviewContainer.appendChild(previewWrapper);
 
                     const previewCtx = canvas.getContext('2d');
-                    const windowData = fullSensorHistoryData.filter(d => d.x >= annotation.start && d.x <= annotation.end);
+                    const windowData = displaySensorHistoryData.filter(d => d.x >= annotation.start && d.x <= annotation.end);
 
                     new Chart(previewCtx, {
                         type: 'line',
@@ -2968,7 +3004,7 @@
 
         let debounceTimer; // Declared outside, used by updateChartDataAndAxisBasedOnZoom
         function updateChartDataAndAxisBasedOnZoom() {
-            if (!powerChart || !fullSensorHistoryData || fullSensorHistoryData.length === 0) return;
+            if (!powerChart || !displaySensorHistoryData || displaySensorHistoryData.length === 0) return;
 
             const TARGET_POINTS = 1200;         // adjust to control density
             const SAMPLES_PER_BLOCK = 2;        // min+max per bin
@@ -3037,7 +3073,7 @@
                 const maxX = xScale.max;
                 currentChartMinTime = minX;
                 currentChartMaxTime = maxX;
-                powerChart.data.datasets[0].data = decimateForVisibleRange(fullSensorHistoryData, minX, maxX);
+                powerChart.data.datasets[0].data = decimateForVisibleRange(displaySensorHistoryData, minX, maxX);
                 if (powerChart.data.datasets[1]) {
                     powerChart.data.datasets[1].data = decimateForVisibleRange(applianceSensorHistoryData, minX, maxX);
                 }
@@ -3481,9 +3517,12 @@
                 return;
             }
 
+            const mainsChartData = Array.isArray(displaySensorHistoryData) && displaySensorHistoryData.length
+                ? displaySensorHistoryData
+                : data;
             const datasets = [{
                 label: 'Mains Power',
-                data: data,
+                data: mainsChartData,
                 parsing: false,
                 normalized: true,
                 borderColor: TRAINING_CHART_MAINS_COLOR,
@@ -3709,6 +3748,7 @@
 
                         const chartMinTime = Number.isFinite(requestedStartMs) ? requestedStartMs : firstTimestamp;
                         const chartMaxTime = Number.isFinite(requestedEndMs) ? requestedEndMs : lastTimestamp;
+                        displaySensorHistoryData = buildTrainingDisplaySeries(fullSensorHistoryData, chartMinTime, chartMaxTime);
                         initializePowerChart(fullSensorHistoryData, chartMinTime, chartMaxTime);
                         if (currentSupervisionMode() === 'sensor' && applianceSensorSelect?.value) {
                             try {
@@ -3728,6 +3768,7 @@
 
                     } else {
                         console.log("DEBUG: fullSensorHistoryData is empty after filtering/processing, defaulting timestamps.");
+                        displaySensorHistoryData = [];
                         applianceSensorHistoryData = [];
                         sensorDerivedWindows = [];
                         initializePowerChart([], 0, 0); 
@@ -3741,6 +3782,7 @@
                 } else {
                     console.warn('DEBUG: No historical data received from backend or data is empty/malformed.');
                     fullSensorHistoryData = []; 
+                    displaySensorHistoryData = [];
                     applianceSensorHistoryData = [];
                     sensorDerivedWindows = [];
                     initializePowerChart([], 0, 0); 
@@ -3755,6 +3797,7 @@
             } catch (error) {
                 console.error('DEBUG: Error fetching sensor history:', error);
                 fullSensorHistoryData = []; 
+                displaySensorHistoryData = [];
                 applianceSensorHistoryData = [];
                 sensorDerivedWindows = [];
                 initializePowerChart([], 0, 0);
@@ -3979,6 +4022,7 @@
                 powerChart = null;
             }
             fullSensorHistoryData = [];
+            displaySensorHistoryData = [];
             firstTimestamp = 0;
             lastTimestamp = 0;
             currentChartMinTime = 0;
