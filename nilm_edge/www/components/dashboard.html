@@ -2500,10 +2500,41 @@
         return out;
     }
 
+    function getInterpolatedSeriesValueAtTimestamp(series, timestamp) {
+        if (!Array.isArray(series) || series.length === 0 || !Number.isFinite(timestamp)) return null;
+
+        const points = series
+            .map((point) => ({ x: Number(point?.x), y: Number(point?.y) }))
+            .filter((point) => Number.isFinite(point.x) && Number.isFinite(point.y))
+            .sort((a, b) => a.x - b.x);
+
+        if (!points.length) return null;
+        if (timestamp <= points[0].x) return points[0].y;
+        if (timestamp >= points[points.length - 1].x) return points[points.length - 1].y;
+
+        let lo = 0;
+        let hi = points.length - 1;
+        while (lo <= hi) {
+            const mid = (lo + hi) >> 1;
+            const point = points[mid];
+            if (point.x === timestamp) return point.y;
+            if (point.x < timestamp) lo = mid + 1;
+            else hi = mid - 1;
+        }
+
+        const left = points[Math.max(0, hi)];
+        const right = points[Math.min(points.length - 1, lo)];
+        if (!left || !right) return left?.y ?? right?.y ?? null;
+        if (right.x <= left.x) return left.y;
+
+        const ratio = (timestamp - left.x) / (right.x - left.x);
+        return left.y + ((right.y - left.y) * ratio);
+    }
+
     const cursorGuideLinePlugin = {
         id: "cursorGuideLine",
         afterInit(chart) {
-            if (!chart?.canvas || chart.$cursorGuideHandlers) return;
+            if (!chart?.canvas || chart.config?.type !== "line" || chart.$cursorGuideHandlers) return;
 
             const canvas = chart.canvas;
             const getPosition = (event) => {
@@ -2523,19 +2554,29 @@
                 const pos = getPosition(event);
                 if (!pos) {
                     chart.$cursorGuideX = null;
+                    chart.$cursorGuidePoint = null;
                     chart.draw();
                     return;
                 }
 
                 const { left, right, top, bottom } = chart.chartArea;
                 const inside = pos.x >= left && pos.x <= right && pos.y >= top && pos.y <= bottom;
-                chart.$cursorGuideX = inside ? pos.x : null;
+                const cursorX = inside ? pos.x : null;
+                const timestamp = cursorX !== null ? chart.scales.x.getValueForPixel(cursorX) : null;
+                const series = chart.data?.datasets?.[0]?.data;
+                const value = Number.isFinite(timestamp) ? getInterpolatedSeriesValueAtTimestamp(series, timestamp) : null;
+                const valueY = Number.isFinite(value) && chart.scales?.y ? chart.scales.y.getPixelForValue(value) : null;
+                chart.$cursorGuideX = cursorX;
+                chart.$cursorGuidePoint = Number.isFinite(cursorX) && Number.isFinite(valueY)
+                    ? { x: cursorX, y: valueY, value }
+                    : null;
                 chart.draw();
             };
 
             const clearCursorGuide = () => {
-                if (chart.$cursorGuideX == null) return;
+                if (chart.$cursorGuideX == null && chart.$cursorGuidePoint == null) return;
                 chart.$cursorGuideX = null;
+                chart.$cursorGuidePoint = null;
                 chart.draw();
             };
 
@@ -2553,7 +2594,9 @@
             chart.$cursorGuideHandlers = listeners;
         },
         afterDatasetsDraw(chart, _args, options) {
+            if (chart.config?.type !== "line") return;
             const x = Number(chart.$cursorGuideX);
+            const point = chart.$cursorGuidePoint;
             if (!Number.isFinite(x) || !chart.chartArea) return;
 
             const { top, bottom } = chart.chartArea;
@@ -2566,6 +2609,15 @@
             ctx.moveTo(Math.round(x) + 0.5, top);
             ctx.lineTo(Math.round(x) + 0.5, bottom);
             ctx.stroke();
+            if (point && Number.isFinite(point.y)) {
+                ctx.fillStyle = options?.pointFillColor || "#ffffff";
+                ctx.strokeStyle = options?.pointStrokeColor || options?.color || "rgba(71, 85, 105, 0.7)";
+                ctx.lineWidth = options?.pointBorderWidth || 2;
+                ctx.beginPath();
+                ctx.arc(Math.round(point.x) + 0.5, point.y, options?.pointRadius || 4, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.stroke();
+            }
             ctx.restore();
         },
         afterDestroy(chart) {
@@ -2576,6 +2628,7 @@
             }
             chart.$cursorGuideHandlers = null;
             chart.$cursorGuideX = null;
+            chart.$cursorGuidePoint = null;
         },
     };
 
