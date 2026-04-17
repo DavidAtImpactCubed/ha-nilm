@@ -2487,7 +2487,7 @@
             afterLayout(chart) {
                 if (chart.canvas?.id !== "powerChart" || chart.config?.type !== "line" || !chartContainer?.style || !chart.chartArea) return;
                 const offsetLeft = Math.max(132, Math.round(chart.chartArea.left + 72));
-                const offsetTop = Math.max(14, Math.round(chart.chartArea.top + 6));
+                const offsetTop = Math.max(44, Math.round(chart.chartArea.top + 36));
                 chartContainer.style.setProperty("--chart-overlay-left", `${offsetLeft}px`);
                 chartContainer.style.setProperty("--chart-overlay-top", `${offsetTop}px`);
             },
