@@ -172,6 +172,19 @@
         border: 1px solid #dbeafe;
     }
 
+    .chart-plot-shell {
+        position: absolute;
+        top: 66px;
+        left: 0;
+        right: 0;
+        bottom: 0;
+    }
+
+    .chart-plot-shell canvas {
+        width: 100% !important;
+        height: 100% !important;
+    }
+
     .chart-shell canvas {
         touch-action: none;
     }
@@ -1086,6 +1099,10 @@
             height: 260px;
         }
 
+        .chart-plot-shell {
+            top: 62px;
+        }
+
         .stats-grid {
             grid-template-columns: repeat(2, minmax(0, 1fr));
             gap: 10px;
@@ -1336,7 +1353,9 @@
                     </div>
                 </div>
                 <div id="dashboardChartInfo" class="chart-fixed-info hidden"></div>
-                <canvas id="mainsSignalChart"></canvas>
+                <div class="chart-plot-shell">
+                    <canvas id="mainsSignalChart"></canvas>
+                </div>
             </div>
 
             <div id="signalPredictionPanel" class="prediction-inline-panel hidden">
@@ -2576,6 +2595,7 @@
                 if (!pos) {
                     chart.$cursorGuideX = null;
                     chart.$cursorGuidePoint = null;
+                    if (chart.canvas?.id === "mainsSignalChart") updateDashboardChartInfo(NaN);
                     chart.draw();
                     return;
                 }
@@ -2591,6 +2611,9 @@
                 chart.$cursorGuidePoint = Number.isFinite(cursorX) && Number.isFinite(valueY)
                     ? { x: cursorX, y: valueY, value }
                     : null;
+                if (chart.canvas?.id === "mainsSignalChart") {
+                    updateDashboardChartInfo(Number.isFinite(timestamp) ? timestamp : NaN);
+                }
                 chart.draw();
             };
 
@@ -2598,6 +2621,7 @@
                 if (chart.$cursorGuideX == null && chart.$cursorGuidePoint == null) return;
                 chart.$cursorGuideX = null;
                 chart.$cursorGuidePoint = null;
+                if (chart.canvas?.id === "mainsSignalChart") updateDashboardChartInfo(NaN);
                 chart.draw();
             };
 
@@ -3490,22 +3514,6 @@
                 responsive: true,
                 maintainAspectRatio: false,
                 animation: false,
-                onHover: (event, _active, chart) => {
-                    const native = event?.native || event;
-                    const x = Number(native?.offsetX);
-                    const y = Number(native?.offsetY);
-                    const chartArea = chart?.chartArea;
-                    if (!chartArea || !Number.isFinite(x) || !Number.isFinite(y)) {
-                        updateDashboardChartInfo(NaN);
-                        return;
-                    }
-                    if (x < chartArea.left || x > chartArea.right || y < chartArea.top || y > chartArea.bottom) {
-                        updateDashboardChartInfo(NaN);
-                        return;
-                    }
-                    const timestamp = chart.scales?.x?.getValueForPixel(x);
-                    updateDashboardChartInfo(timestamp);
-                },
                 plugins: {
                     legend: {
                         display: true,
