@@ -229,10 +229,23 @@
         cursor: crosshair;
     }
 
+    .chart-plot-shell {
+        position: absolute;
+        top: 84px;
+        left: 0;
+        right: 0;
+        bottom: 0;
+    }
+
+    .chart-plot-shell canvas {
+        width: 100% !important;
+        height: 100% !important;
+    }
+
     .chart-overlay-controls {
         position: absolute;
-        top: var(--chart-overlay-top, 12px);
-        left: var(--chart-overlay-left, 32px);
+        top: 12px;
+        left: 16px;
         z-index: 20;
         display: flex;
         flex-direction: column;
@@ -295,6 +308,10 @@
     }
 
     @media (max-width: 640px) {
+        .chart-plot-shell {
+            top: 72px;
+        }
+
         .chart-overlay-controls {
             top: 8px;
             left: 8px;
@@ -1142,7 +1159,9 @@
                     </div>
                     <div id="selectModeHint" class="chart-overlay-hint">Start guided interval drawing.</div>
                 </div>
-                <canvas id="powerChart"></canvas>
+                <div class="chart-plot-shell">
+                    <canvas id="powerChart"></canvas>
+                </div>
                 <!-- Custom fixed info display - NOW FIXED TOP RIGHT -->
                 <div id="custom-chart-info" class="absolute top-2 right-2 bg-gray-800 text-white text-xs p-2 rounded-md z-10 hidden pointer-events-none"></div>
                 <!-- Localized Loading Spinner -->
@@ -2484,13 +2503,6 @@
 
         const cursorGuideLinePlugin = {
             id: "cursorGuideLine",
-            afterLayout(chart) {
-                if (chart.canvas?.id !== "powerChart" || chart.config?.type !== "line" || !chartContainer?.style || !chart.chartArea) return;
-                const offsetLeft = Math.max(132, Math.round(chart.chartArea.left + 72));
-                const offsetTop = Math.max(44, Math.round(chart.chartArea.top + 36));
-                chartContainer.style.setProperty("--chart-overlay-left", `${offsetLeft}px`);
-                chartContainer.style.setProperty("--chart-overlay-top", `${offsetTop}px`);
-            },
             afterInit(chart) {
                 if (!chart?.canvas || chart.config?.type !== "line" || chart.$cursorGuideHandlers) return;
 
