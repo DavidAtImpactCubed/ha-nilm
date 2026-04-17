@@ -2579,7 +2579,7 @@
             },
             afterDatasetsDraw(chart, _args, options) {
                 if (chart.config?.type !== "line") return;
-                const x = Number(chart.$cursorGuideX);
+                const x = chart.$cursorGuideX;
                 const point = chart.$cursorGuidePoint;
                 if (!Number.isFinite(x) || !chart.chartArea) return;
 

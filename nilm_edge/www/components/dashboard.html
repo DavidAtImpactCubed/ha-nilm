@@ -1224,7 +1224,7 @@
         }
 
         .chart-shell {
-            height: 286px;
+            height: 306px;
             border-radius: 12px;
             margin-left: -6px;
             margin-right: -6px;
@@ -2640,7 +2640,7 @@
         },
         afterDatasetsDraw(chart, _args, options) {
             if (chart.config?.type !== "line") return;
-            const x = Number(chart.$cursorGuideX);
+            const x = chart.$cursorGuideX;
             const point = chart.$cursorGuidePoint;
             if (!Number.isFinite(x) || !chart.chartArea) return;
 
