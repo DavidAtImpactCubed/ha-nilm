@@ -231,7 +231,7 @@
 
     .chart-overlay-controls {
         position: absolute;
-        top: 10px;
+        top: var(--chart-overlay-top, 12px);
         left: var(--chart-overlay-left, 32px);
         z-index: 20;
         display: flex;
@@ -2486,8 +2486,10 @@
             id: "cursorGuideLine",
             afterLayout(chart) {
                 if (chart.canvas?.id !== "powerChart" || chart.config?.type !== "line" || !chartContainer?.style || !chart.chartArea) return;
-                const offset = Math.max(86, Math.round(chart.chartArea.left + 16));
-                chartContainer.style.setProperty("--chart-overlay-left", `${offset}px`);
+                const offsetLeft = Math.max(132, Math.round(chart.chartArea.left + 72));
+                const offsetTop = Math.max(14, Math.round(chart.chartArea.top + 6));
+                chartContainer.style.setProperty("--chart-overlay-left", `${offsetLeft}px`);
+                chartContainer.style.setProperty("--chart-overlay-top", `${offsetTop}px`);
             },
             afterInit(chart) {
                 if (!chart?.canvas || chart.config?.type !== "line" || chart.$cursorGuideHandlers) return;
