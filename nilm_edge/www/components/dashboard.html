@@ -191,6 +191,25 @@
         display: flex;
     }
 
+    .chart-fixed-info {
+        position: absolute;
+        top: 10px;
+        right: 10px;
+        z-index: 3;
+        background: rgba(30, 41, 59, 0.96);
+        color: #fff;
+        font-size: 0.82rem;
+        line-height: 1.45;
+        padding: 10px 12px;
+        border-radius: 12px;
+        box-shadow: 0 14px 28px rgba(15, 23, 42, 0.2);
+        pointer-events: none;
+    }
+
+    .chart-fixed-info.hidden {
+        display: none;
+    }
+
     .chart-loading-card {
         display: flex;
         align-items: center;
@@ -1316,6 +1335,7 @@
                         <span id="chartLoadingText">Loading mains signal…</span>
                     </div>
                 </div>
+                <div id="dashboardChartInfo" class="chart-fixed-info hidden"></div>
                 <canvas id="mainsSignalChart"></canvas>
             </div>
 
@@ -1482,6 +1502,7 @@
     let previewAllEmbeddingsButton;
     let chartLoadingOverlay;
     let chartLoadingText;
+    let dashboardChartInfo;
     let signalPredictionPanel;
     let signalPredictionMeta;
     let signalPredictionList;
@@ -3312,6 +3333,58 @@
         return null;
     }
 
+    function getInterpolatedSeriesValueAtTimestamp(series, timestamp) {
+        if (!Array.isArray(series) || series.length === 0 || !Number.isFinite(timestamp)) return null;
+
+        const points = series
+            .map((point) => ({ x: Number(point?.x), y: Number(point?.y) }))
+            .filter((point) => Number.isFinite(point.x) && Number.isFinite(point.y))
+            .sort((a, b) => a.x - b.x);
+
+        if (!points.length) return null;
+        if (timestamp <= points[0].x) return points[0].y;
+        if (timestamp >= points[points.length - 1].x) return points[points.length - 1].y;
+
+        let lo = 0;
+        let hi = points.length - 1;
+        while (lo <= hi) {
+            const mid = (lo + hi) >> 1;
+            const point = points[mid];
+            if (point.x === timestamp) return point.y;
+            if (point.x < timestamp) lo = mid + 1;
+            else hi = mid - 1;
+        }
+
+        const left = points[Math.max(0, hi)];
+        const right = points[Math.min(points.length - 1, lo)];
+        if (!left || !right) return left?.y ?? right?.y ?? null;
+        if (right.x <= left.x) return left.y;
+
+        const ratio = (timestamp - left.x) / (right.x - left.x);
+        return left.y + ((right.y - left.y) * ratio);
+    }
+
+    function updateDashboardChartInfo(timestamp) {
+        if (!dashboardChartInfo || !mainsSignalChart || !Array.isArray(fullSignalSeries) || !fullSignalSeries.length) {
+            return;
+        }
+        if (!Number.isFinite(timestamp)) {
+            dashboardChartInfo.classList.add("hidden");
+            dashboardChartInfo.textContent = "";
+            return;
+        }
+
+        const value = getInterpolatedSeriesValueAtTimestamp(fullSignalSeries, timestamp);
+        if (!Number.isFinite(value)) {
+            dashboardChartInfo.classList.add("hidden");
+            dashboardChartInfo.textContent = "";
+            return;
+        }
+
+        dashboardChartInfo.innerHTML = `Time: ${formatUiDateTime(timestamp)}<br>Power: ${Number(value).toFixed(1)} W`;
+        dashboardChartInfo.classList.remove("hidden");
+    }
+
     function updateSignalChartData() {
         if (!mainsSignalChart || !fullSignalSeries.length) {
             if (mainsSignalChart) {
@@ -3321,6 +3394,7 @@
                 });
                 mainsSignalChart.update("none");
             }
+            updateDashboardChartInfo(NaN);
             return;
         }
 
@@ -3416,6 +3490,22 @@
                 responsive: true,
                 maintainAspectRatio: false,
                 animation: false,
+                onHover: (event, _active, chart) => {
+                    const native = event?.native || event;
+                    const x = Number(native?.offsetX);
+                    const y = Number(native?.offsetY);
+                    const chartArea = chart?.chartArea;
+                    if (!chartArea || !Number.isFinite(x) || !Number.isFinite(y)) {
+                        updateDashboardChartInfo(NaN);
+                        return;
+                    }
+                    if (x < chartArea.left || x > chartArea.right || y < chartArea.top || y > chartArea.bottom) {
+                        updateDashboardChartInfo(NaN);
+                        return;
+                    }
+                    const timestamp = chart.scales?.x?.getValueForPixel(x);
+                    updateDashboardChartInfo(timestamp);
+                },
                 plugins: {
                     legend: {
                         display: true,
@@ -3544,6 +3634,7 @@
             }
         });
 
+        updateDashboardChartInfo(NaN);
         updateSignalChartData();
     }
 
@@ -3870,6 +3961,7 @@
         addApplianceButton = document.getElementById("addApplianceButton");
         chartLoadingOverlay = document.getElementById("chartLoadingOverlay");
         chartLoadingText = document.getElementById("chartLoadingText");
+        dashboardChartInfo = document.getElementById("dashboardChartInfo");
         signalPredictionPanel = document.getElementById("signalPredictionPanel");
         signalPredictionMeta = document.getElementById("signalPredictionMeta");
         signalPredictionList = document.getElementById("signalPredictionList");
@@ -4159,6 +4251,10 @@
         if (mainsSignalChart) {
             mainsSignalChart.destroy();
             mainsSignalChart = null;
+        }
+        if (dashboardChartInfo) {
+            dashboardChartInfo.classList.add("hidden");
+            dashboardChartInfo.textContent = "";
         }
         if (signalPredictionShareChart) {
             signalPredictionShareChart.destroy();

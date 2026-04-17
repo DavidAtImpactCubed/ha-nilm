@@ -367,6 +367,10 @@
         visibility: visible;
         opacity: 1;
     }
+    .tooltip.is-visible {
+        visibility: visible;
+        opacity: 1;
+    }
     .training-help-btn {
         display: inline-flex;
         align-items: center;
@@ -1399,6 +1403,7 @@
     let selectModeBtn;
     let selectModeBtnIcon;
     let selectModeBtnLabel;
+    let selectModeTooltipTimer = null;
 
     let applianceNameInput;
     let supervisionModeSelect;
@@ -2207,6 +2212,17 @@
         function setSelectionModeGuidance(text) {
             if (selectModeTooltip) selectModeTooltip.textContent = text;
             if (selectModeHint) selectModeHint.textContent = text;
+            if (
+                selectModeTooltip
+                && (window.matchMedia("(hover: none)").matches || window.matchMedia("(max-width: 640px)").matches)
+            ) {
+                selectModeTooltip.classList.add('is-visible');
+                if (selectModeTooltipTimer) clearTimeout(selectModeTooltipTimer);
+                selectModeTooltipTimer = setTimeout(() => {
+                    if (selectModeTooltip) selectModeTooltip.classList.remove('is-visible');
+                    selectModeTooltipTimer = null;
+                }, 2200);
+            }
         }
 
         function finishIntervalSelectionMode() {
