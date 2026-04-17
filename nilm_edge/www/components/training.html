@@ -231,7 +231,7 @@
 
     .chart-plot-shell {
         position: absolute;
-        top: 84px;
+        top: 68px;
         left: 0;
         right: 0;
         bottom: 0;
@@ -244,7 +244,7 @@
 
     .chart-overlay-controls {
         position: absolute;
-        top: 12px;
+        top: 10px;
         left: 16px;
         z-index: 20;
         display: flex;
@@ -262,9 +262,10 @@
     .chart-overlay-btn {
         display: inline-flex;
         align-items: center;
-        gap: 10px;
-        min-height: 42px;
-        box-shadow: 0 12px 26px rgba(2, 132, 199, 0.22);
+        gap: 8px;
+        min-height: 38px;
+        padding: 8px 16px;
+        box-shadow: 0 10px 22px rgba(2, 132, 199, 0.2);
         backdrop-filter: blur(6px);
     }
 
@@ -309,7 +310,7 @@
 
     @media (max-width: 640px) {
         .chart-plot-shell {
-            top: 72px;
+            top: 62px;
         }
 
         .chart-overlay-controls {
@@ -319,7 +320,7 @@
         }
 
         .chart-overlay-btn {
-            min-height: 40px;
+            min-height: 36px;
             padding: 0 12px;
             gap: 0;
         }
@@ -1155,7 +1156,7 @@
                             <i class="fas fa-paint-brush text-lg" aria-hidden="true"></i>
                             <span id="selectModeBtnLabel" class="chart-overlay-btn-label">Draw Interval</span>
                         </button>
-                        <span id="selectModeTooltip" class="tooltip chart-overlay-tooltip absolute bottom-full left-0 mb-2 px-3 py-1 bg-gray-800 text-white text-xs rounded-md whitespace-nowrap">Start guided interval drawing.</span>
+                        <span id="selectModeTooltip" class="tooltip chart-overlay-tooltip absolute top-full left-0 mt-2 px-3 py-1 bg-gray-800 text-white text-xs rounded-md whitespace-nowrap">Start guided interval drawing.</span>
                     </div>
                     <div id="selectModeHint" class="chart-overlay-hint">Start guided interval drawing.</div>
                 </div>
