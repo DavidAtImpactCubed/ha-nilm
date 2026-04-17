@@ -2224,7 +2224,7 @@
             }
             if (selectModeBtnLabel) selectModeBtnLabel.textContent = "Draw Interval";
             if (selectModeBtnIcon) {
-                selectModeBtnIcon.classList.remove('fa-xmark');
+                selectModeBtnIcon.classList.remove('fa-times');
                 selectModeBtnIcon.classList.remove('fa-check');
                 selectModeBtnIcon.classList.add('fa-paint-brush');
             }
@@ -2253,7 +2253,7 @@
             if (selectModeBtnIcon) {
                 selectModeBtnIcon.classList.remove('fa-paint-brush');
                 selectModeBtnIcon.classList.remove('fa-check');
-                selectModeBtnIcon.classList.add('fa-xmark');
+                selectModeBtnIcon.classList.add('fa-times');
             }
             setSelectionModeGuidance("Tap the chart to place the interval start.");
             if (selectModeBtn) {
@@ -3349,7 +3349,7 @@
                 if (manualEndInput) manualEndInput.value = '';
                 if (selectModeBtnLabel) selectModeBtnLabel.textContent = "Tap End";
                 if (selectModeBtnIcon) {
-                    selectModeBtnIcon.classList.remove('fa-xmark');
+                    selectModeBtnIcon.classList.remove('fa-times');
                     selectModeBtnIcon.classList.add('fa-check');
                 }
                 setSelectionModeGuidance("Tap the chart again to place the interval end.");
