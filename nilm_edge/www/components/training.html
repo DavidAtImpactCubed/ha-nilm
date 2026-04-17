@@ -2829,8 +2829,8 @@
             const candidate = buildDraggedIntervalCandidate(activeIntervalDrag, pointerValue);
             annotation.xMin = candidate.xMin;
             annotation.xMax = candidate.xMax;
-            annotation.backgroundColor = candidate.valid ? 'rgba(156, 163, 175, 0.3)' : 'rgba(239, 68, 68, 0.3)';
-            annotation.borderColor = candidate.valid ? 'rgb(107, 114, 128)' : 'rgb(220, 38, 38)';
+            annotation.backgroundColor = candidate.valid ? TRAINING_INTERVAL_FILL_COLOR : 'rgba(239, 68, 68, 0.3)';
+            annotation.borderColor = candidate.valid ? TRAINING_INTERVAL_BORDER_COLOR : 'rgb(220, 38, 38)';
             activeIntervalDrag.previewMin = candidate.xMin;
             activeIntervalDrag.previewMax = candidate.xMax;
             activeIntervalDrag.valid = candidate.valid;
