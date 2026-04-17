@@ -232,7 +232,7 @@
     .chart-overlay-controls {
         position: absolute;
         top: 10px;
-        left: var(--chart-overlay-left, 12px);
+        left: var(--chart-overlay-left, 32px);
         z-index: 20;
         display: flex;
         flex-direction: column;
@@ -257,6 +257,27 @@
 
     .chart-overlay-btn:active {
         transform: translateY(0);
+    }
+
+    .selection-assistant {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+        gap: 12px;
+        align-items: end;
+    }
+
+    .selection-assistant-grid {
+        min-width: 0;
+        grid-column: 1 / span 2;
+    }
+
+    .selection-assistant-actions {
+        align-self: end;
+    }
+
+    .selection-assistant-actions > button {
+        width: auto;
+        white-space: nowrap;
     }
 
     .chart-overlay-hint {
@@ -856,6 +877,10 @@
         .selection-assistant-grid {
             grid-template-columns: 1fr;
             min-width: 100%;
+            grid-column: auto;
+        }
+        .selection-assistant {
+            grid-template-columns: 1fr;
         }
         .action-btn {
             width: 100%;
@@ -865,6 +890,10 @@
         }
         .selection-assistant-actions {
             align-self: stretch;
+            width: 100%;
+        }
+        .selection-assistant-actions > button {
+            width: 100%;
         }
     }
 
@@ -2457,7 +2486,7 @@
             id: "cursorGuideLine",
             afterLayout(chart) {
                 if (chart.canvas?.id !== "powerChart" || chart.config?.type !== "line" || !chartContainer?.style || !chart.chartArea) return;
-                const offset = Math.max(12, Math.round(chart.chartArea.left + 12));
+                const offset = Math.max(32, Math.round(chart.chartArea.left + 28));
                 chartContainer.style.setProperty("--chart-overlay-left", `${offset}px`);
             },
             afterInit(chart) {
@@ -2527,9 +2556,10 @@
                 if (!Number.isFinite(x) || !chart.chartArea) return;
 
                 const { top, bottom } = chart.chartArea;
+                const lineColor = chart.data?.datasets?.[0]?.borderColor || options?.color || "rgba(71, 85, 105, 0.7)";
                 const ctx = chart.ctx;
                 ctx.save();
-                ctx.strokeStyle = options?.color || "rgba(71, 85, 105, 0.7)";
+                ctx.strokeStyle = lineColor;
                 ctx.lineWidth = options?.lineWidth || 1;
                 ctx.setLineDash(options?.dash || [6, 6]);
                 ctx.beginPath();
@@ -2537,11 +2567,11 @@
                 ctx.lineTo(Math.round(x) + 0.5, bottom);
                 ctx.stroke();
                 if (point && Number.isFinite(point.y)) {
-                    ctx.fillStyle = options?.pointFillColor || "#ffffff";
-                    ctx.strokeStyle = options?.pointStrokeColor || options?.color || "rgba(71, 85, 105, 0.7)";
-                    ctx.lineWidth = options?.pointBorderWidth || 2;
+                    ctx.fillStyle = options?.pointFillColor || lineColor;
+                    ctx.strokeStyle = options?.pointStrokeColor || lineColor;
+                    ctx.lineWidth = options?.pointBorderWidth || 1.5;
                     ctx.beginPath();
-                    ctx.arc(Math.round(point.x) + 0.5, point.y, options?.pointRadius || 4, 0, Math.PI * 2);
+                    ctx.arc(Math.round(point.x) + 0.5, point.y, options?.pointRadius || 2.75, 0, Math.PI * 2);
                     ctx.fill();
                     ctx.stroke();
                 }
