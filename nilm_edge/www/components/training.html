@@ -2233,7 +2233,12 @@
                     firstTimestamp,
                     lastTimestamp
                 );
-                applianceSensorHistoryData = buildTrainingAlignedOverlaySeries(rawApplianceSeries, fullSensorHistoryData);
+                applianceSensorHistoryData = buildTrainingAlignedOverlaySeries(
+                    rawApplianceSeries,
+                    Array.isArray(displaySensorHistoryData) && displaySensorHistoryData.length
+                        ? displaySensorHistoryData
+                        : fullSensorHistoryData
+                );
                 const intervalResp = await fetch(`training?action=sensor_intervals`, {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
