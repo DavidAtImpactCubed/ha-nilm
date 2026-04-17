@@ -2500,6 +2500,89 @@
         return out;
     }
 
+    const cursorGuideLinePlugin = {
+        id: "cursorGuideLine",
+        afterInit(chart) {
+            if (!chart?.canvas || chart.$cursorGuideHandlers) return;
+
+            const canvas = chart.canvas;
+            const getPosition = (event) => {
+                const rect = canvas.getBoundingClientRect();
+                const source = event?.touches?.[0] || event?.changedTouches?.[0] || event;
+                if (!source || typeof source.clientX !== "number" || typeof source.clientY !== "number") {
+                    return null;
+                }
+                return {
+                    x: source.clientX - rect.left,
+                    y: source.clientY - rect.top,
+                };
+            };
+
+            const syncCursorGuide = (event) => {
+                if (!chart.chartArea || !chart.scales?.x) return;
+                const pos = getPosition(event);
+                if (!pos) {
+                    chart.$cursorGuideX = null;
+                    chart.draw();
+                    return;
+                }
+
+                const { left, right, top, bottom } = chart.chartArea;
+                const inside = pos.x >= left && pos.x <= right && pos.y >= top && pos.y <= bottom;
+                chart.$cursorGuideX = inside ? pos.x : null;
+                chart.draw();
+            };
+
+            const clearCursorGuide = () => {
+                if (chart.$cursorGuideX == null) return;
+                chart.$cursorGuideX = null;
+                chart.draw();
+            };
+
+            const listeners = [
+                ["pointermove", syncCursorGuide],
+                ["mousemove", syncCursorGuide],
+                ["pointerleave", clearCursorGuide],
+                ["mouseleave", clearCursorGuide],
+                ["pointercancel", clearCursorGuide],
+                ["touchmove", syncCursorGuide],
+                ["touchend", clearCursorGuide],
+            ];
+
+            listeners.forEach(([eventName, handler]) => canvas.addEventListener(eventName, handler, { passive: true }));
+            chart.$cursorGuideHandlers = listeners;
+        },
+        afterDatasetsDraw(chart, _args, options) {
+            const x = Number(chart.$cursorGuideX);
+            if (!Number.isFinite(x) || !chart.chartArea) return;
+
+            const { top, bottom } = chart.chartArea;
+            const ctx = chart.ctx;
+            ctx.save();
+            ctx.strokeStyle = options?.color || "rgba(71, 85, 105, 0.7)";
+            ctx.lineWidth = options?.lineWidth || 1;
+            ctx.setLineDash(options?.dash || [6, 6]);
+            ctx.beginPath();
+            ctx.moveTo(Math.round(x) + 0.5, top);
+            ctx.lineTo(Math.round(x) + 0.5, bottom);
+            ctx.stroke();
+            ctx.restore();
+        },
+        afterDestroy(chart) {
+            const canvas = chart?.canvas;
+            const listeners = chart?.$cursorGuideHandlers;
+            if (canvas && Array.isArray(listeners)) {
+                listeners.forEach(([eventName, handler]) => canvas.removeEventListener(eventName, handler));
+            }
+            chart.$cursorGuideHandlers = null;
+            chart.$cursorGuideX = null;
+        },
+    };
+
+    if (typeof Chart !== "undefined") {
+        Chart.register(cursorGuideLinePlugin);
+    }
+
     function populatePredictionOverlaySensorSelect() {
         if (!predictionOverlaySensorSelect) return;
 

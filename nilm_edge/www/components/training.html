@@ -228,6 +228,73 @@
     .chart-container.selection-active {
         cursor: crosshair;
     }
+
+    .chart-overlay-controls {
+        position: absolute;
+        top: 12px;
+        left: 12px;
+        z-index: 20;
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 6px;
+        pointer-events: none;
+        max-width: calc(100% - 24px);
+    }
+
+    .chart-overlay-controls .group {
+        pointer-events: auto;
+    }
+
+    .chart-overlay-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        min-height: 42px;
+        box-shadow: 0 12px 26px rgba(2, 132, 199, 0.22);
+        backdrop-filter: blur(6px);
+    }
+
+    .chart-overlay-btn:active {
+        transform: translateY(0);
+    }
+
+    .chart-overlay-hint {
+        display: none;
+        max-width: 200px;
+        padding: 6px 10px;
+        border-radius: 999px;
+        background: rgba(15, 23, 42, 0.82);
+        color: #fff;
+        font-size: 0.72rem;
+        line-height: 1.2;
+        font-weight: 700;
+        letter-spacing: 0.01em;
+        box-shadow: 0 10px 22px rgba(15, 23, 42, 0.18);
+    }
+
+    @media (max-width: 640px) {
+        .chart-overlay-controls {
+            top: 8px;
+            left: 8px;
+            gap: 4px;
+        }
+
+        .chart-overlay-btn {
+            min-height: 40px;
+            padding: 0 12px;
+            gap: 0;
+        }
+
+        .chart-overlay-btn .chart-overlay-btn-label {
+            display: none;
+        }
+
+        .chart-overlay-hint {
+            display: block;
+        }
+    }
+
     .modal-overlay {
         position: fixed;
         inset: 0;
@@ -364,38 +431,10 @@
         align-self: end;
     }
 
-    .chart-primary-action {
-        display: grid;
-        grid-template-columns: auto auto minmax(0, 1fr);
-        align-items: start;
-        gap: 12px;
-        margin-bottom: 16px;
-    }
-
-    .chart-primary-action > .relative.group {
-        align-self: center;
-    }
-
-    .chart-primary-action .selection-assistant {
-        display: flex;
-        align-items: end;
-        flex-wrap: nowrap;
-        gap: 10px;
-        padding: 10px 12px;
-        width: 100%;
-        margin-left: 0;
-        min-width: 0;
-    }
-
     .selection-assistant .flatpickr-wrapper,
     .selection-assistant .flatpickr-input[readonly],
     .selection-assistant .field-input {
         width: 100%;
-    }
-
-    .chart-primary-action .selection-assistant-actions > button {
-        width: auto;
-        white-space: nowrap;
     }
 
     .training-table th {
@@ -814,26 +853,15 @@
         .chart-container {
             min-height: 28rem;
         }
-        .chart-primary-action {
-            grid-template-columns: 1fr;
-        }
         .selection-assistant-grid {
             grid-template-columns: 1fr;
             min-width: 100%;
         }
-        .chart-primary-action .selection-assistant {
-            flex-direction: column;
-            width: 100%;
-            align-items: stretch;
-            margin-left: 0;
-            gap: 12px;
-        }
         .action-btn {
             width: 100%;
         }
-        .chart-primary-action .selection-assistant-actions,
-        .chart-primary-action .selection-assistant-actions > button {
-            width: 100%;
+        .chart-overlay-btn {
+            width: auto;
         }
         .selection-assistant-actions {
             align-self: stretch;
@@ -1056,15 +1084,7 @@
                 <p class="text-xs text-slate-500 mt-2">Choose the Home Assistant sensor that directly measures the appliance power over the same mains range.</p>
             </div>
 
-            <div class="chart-primary-action">
-                <div class="relative group">
-                    <button id="selectModeBtn" class="action-btn action-primary inline-flex items-center justify-center">
-                        <i class="fas fa-paint-brush text-lg mr-2" aria-hidden="true"></i>
-                        <span id="selectModeBtnLabel">Draw Interval</span>
-                    </button>
-                    <span id="selectModeTooltip" class="tooltip absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-1 bg-gray-800 text-white text-xs rounded-md whitespace-nowrap">Start guided interval drawing.</span>
-                </div>
-                <div id="selectionAssistantSection" class="selection-assistant">
+            <div id="selectionAssistantSection" class="selection-assistant mb-4">
                     <div class="selection-assistant-grid">
                         <div>
                             <label for="manualStartInput" class="block text-xs font-semibold uppercase tracking-wide text-slate-500 mb-1">Start</label>
@@ -1081,9 +1101,18 @@
                         </button>
                     </div>
                 </div>
-            </div>
 
             <div id="chartContainer" class="relative h-96 chart-container">
+                <div class="chart-overlay-controls">
+                    <div class="relative group">
+                        <button id="selectModeBtn" class="action-btn action-primary chart-overlay-btn inline-flex items-center justify-center">
+                            <i class="fas fa-paint-brush text-lg" aria-hidden="true"></i>
+                            <span id="selectModeBtnLabel" class="chart-overlay-btn-label">Draw Interval</span>
+                        </button>
+                        <span id="selectModeTooltip" class="tooltip chart-overlay-tooltip absolute bottom-full left-0 mb-2 px-3 py-1 bg-gray-800 text-white text-xs rounded-md whitespace-nowrap">Start guided interval drawing.</span>
+                    </div>
+                    <div id="selectModeHint" class="chart-overlay-hint">Start guided interval drawing.</div>
+                </div>
                 <canvas id="powerChart"></canvas>
                 <!-- Custom fixed info display - NOW FIXED TOP RIGHT -->
                 <div id="custom-chart-info" class="absolute top-2 right-2 bg-gray-800 text-white text-xs p-2 rounded-md z-10 hidden pointer-events-none"></div>
@@ -1320,6 +1349,7 @@
     let cancelClearBtn;
 
     let selectModeTooltip;
+    let selectModeHint;
     let selectModeBtn;
     let selectModeBtnIcon;
     let selectModeBtnLabel;
@@ -2128,6 +2158,11 @@
             updateTrainingStepper();
         }
 
+        function setSelectionModeGuidance(text) {
+            if (selectModeTooltip) selectModeTooltip.textContent = text;
+            if (selectModeHint) selectModeHint.textContent = text;
+        }
+
         function finishIntervalSelectionMode() {
             selectionModeActive = false;
             isSettingEndpoint = false;
@@ -2147,7 +2182,7 @@
                 selectModeBtnIcon.classList.remove('fa-check');
                 selectModeBtnIcon.classList.add('fa-paint-brush');
             }
-            if (selectModeTooltip) selectModeTooltip.textContent = "Start guided interval drawing.";
+            setSelectionModeGuidance("Start guided interval drawing.");
             if (selectModeBtn) {
                 selectModeBtn.classList.remove('from-emerald-500', 'to-emerald-600', 'hover:from-emerald-600', 'hover:to-emerald-700', 'border-emerald-700', 'focus:ring-emerald-500');
                 selectModeBtn.classList.add('from-sky-500', 'to-sky-600', 'hover:from-sky-600', 'hover:to-sky-700', 'border-sky-700', 'focus:ring-sky-500');
@@ -2174,7 +2209,7 @@
                 selectModeBtnIcon.classList.remove('fa-check');
                 selectModeBtnIcon.classList.add('fa-xmark');
             }
-            if (selectModeTooltip) selectModeTooltip.textContent = "Tap the chart to place the interval start.";
+            setSelectionModeGuidance("Tap the chart to place the interval start.");
             if (selectModeBtn) {
                 selectModeBtn.classList.remove('from-sky-500', 'to-sky-600', 'hover:from-sky-600', 'hover:to-sky-700', 'border-sky-700', 'focus:ring-sky-500');
                 selectModeBtn.classList.add('from-emerald-500', 'to-emerald-600', 'hover:from-emerald-600', 'hover:to-emerald-700', 'border-emerald-700', 'focus:ring-emerald-500');
@@ -2385,6 +2420,89 @@
             }
 
             return out;
+        }
+
+        const cursorGuideLinePlugin = {
+            id: "cursorGuideLine",
+            afterInit(chart) {
+                if (!chart?.canvas || chart.$cursorGuideHandlers) return;
+
+                const canvas = chart.canvas;
+                const getPosition = (event) => {
+                    const rect = canvas.getBoundingClientRect();
+                    const source = event?.touches?.[0] || event?.changedTouches?.[0] || event;
+                    if (!source || typeof source.clientX !== "number" || typeof source.clientY !== "number") {
+                        return null;
+                    }
+                    return {
+                        x: source.clientX - rect.left,
+                        y: source.clientY - rect.top,
+                    };
+                };
+
+                const syncCursorGuide = (event) => {
+                    if (!chart.chartArea || !chart.scales?.x) return;
+                    const pos = getPosition(event);
+                    if (!pos) {
+                        chart.$cursorGuideX = null;
+                        chart.draw();
+                        return;
+                    }
+
+                    const { left, right, top, bottom } = chart.chartArea;
+                    const inside = pos.x >= left && pos.x <= right && pos.y >= top && pos.y <= bottom;
+                    chart.$cursorGuideX = inside ? pos.x : null;
+                    chart.draw();
+                };
+
+                const clearCursorGuide = () => {
+                    if (chart.$cursorGuideX == null) return;
+                    chart.$cursorGuideX = null;
+                    chart.draw();
+                };
+
+                const listeners = [
+                    ["pointermove", syncCursorGuide],
+                    ["mousemove", syncCursorGuide],
+                    ["pointerleave", clearCursorGuide],
+                    ["mouseleave", clearCursorGuide],
+                    ["pointercancel", clearCursorGuide],
+                    ["touchmove", syncCursorGuide],
+                    ["touchend", clearCursorGuide],
+                ];
+
+                listeners.forEach(([eventName, handler]) => canvas.addEventListener(eventName, handler, { passive: true }));
+                chart.$cursorGuideHandlers = listeners;
+            },
+            afterDatasetsDraw(chart, _args, options) {
+                const x = Number(chart.$cursorGuideX);
+                if (!Number.isFinite(x) || !chart.chartArea) return;
+
+                const { top, bottom } = chart.chartArea;
+                const ctx = chart.ctx;
+                ctx.save();
+                ctx.strokeStyle = options?.color || "rgba(71, 85, 105, 0.7)";
+                ctx.lineWidth = options?.lineWidth || 1;
+                ctx.setLineDash(options?.dash || [6, 6]);
+                ctx.beginPath();
+                ctx.moveTo(Math.round(x) + 0.5, top);
+                ctx.lineTo(Math.round(x) + 0.5, bottom);
+                ctx.stroke();
+                ctx.restore();
+            },
+            afterDestroy(chart) {
+                const canvas = chart?.canvas;
+                const listeners = chart?.$cursorGuideHandlers;
+                if (canvas && Array.isArray(listeners)) {
+                    listeners.forEach(([eventName, handler]) => canvas.removeEventListener(eventName, handler));
+                }
+                chart.$cursorGuideHandlers = null;
+                chart.$cursorGuideX = null;
+            },
+        };
+
+        if (typeof Chart !== "undefined") {
+            Chart.register(cursorGuideLinePlugin);
         }
 
         function buildChartAnnotations() {
@@ -3134,7 +3252,7 @@
                     selectModeBtnIcon.classList.remove('fa-xmark');
                     selectModeBtnIcon.classList.add('fa-check');
                 }
-                if (selectModeTooltip) selectModeTooltip.textContent = "Tap the chart again to place the interval end.";
+                setSelectionModeGuidance("Tap the chart again to place the interval end.");
                 activeSelectionId = 'selection_' + Date.now(); 
                 powerChart.options.plugins.annotation.annotations[activeSelectionId] = {
                     id: activeSelectionId,
@@ -4064,6 +4182,7 @@
         cancelClearBtn = document.getElementById('cancelClearBtn'); 
 
         selectModeTooltip = document.getElementById('selectModeTooltip');
+        selectModeHint = document.getElementById('selectModeHint');
         selectModeBtn = document.getElementById('selectModeBtn');
         selectModeBtnIcon = selectModeBtn ? selectModeBtn.querySelector('i') : null;
         selectModeBtnLabel = document.getElementById('selectModeBtnLabel');
