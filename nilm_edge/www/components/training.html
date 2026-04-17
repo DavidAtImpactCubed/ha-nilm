@@ -2854,8 +2854,8 @@
 
             annotation.xMin = finalMin;
             annotation.xMax = finalMax;
-            annotation.backgroundColor = 'rgba(156, 163, 175, 0.3)';
-            annotation.borderColor = 'rgb(107, 114, 128)';
+            annotation.backgroundColor = TRAINING_INTERVAL_FILL_COLOR;
+            annotation.borderColor = TRAINING_INTERVAL_BORDER_COLOR;
 
             if (cancel || !activeIntervalDrag.valid) {
                 setManualIntervalInputs(fallbackMin, fallbackMax);
@@ -3141,8 +3141,8 @@
                     type: 'box',
                     xMin: clickValue,
                     xMax: clickValue, 
-                    backgroundColor: 'rgba(156, 163, 175, 0.3)', 
-                    borderColor: 'rgb(107, 114, 128)', 
+                    backgroundColor: TRAINING_INTERVAL_FILL_COLOR, 
+                    borderColor: TRAINING_INTERVAL_BORDER_COLOR, 
                     borderWidth: 1,
                     isPending: true, 
                     applianceName: applianceNameInput ? applianceNameInput.value.trim() : ''
@@ -3164,6 +3164,8 @@
                         beginIntervalSelectionMode();
                     } else {
                         currentAnnotation.isPending = false; 
+                        currentAnnotation.backgroundColor = TRAINING_INTERVAL_FILL_COLOR;
+                        currentAnnotation.borderColor = TRAINING_INTERVAL_BORDER_COLOR;
                         setManualIntervalInputs(currentAnnotation.xMin, currentAnnotation.xMax);
                         addSelectionPreview(currentAnnotation); 
                         finishIntervalSelectionMode();
