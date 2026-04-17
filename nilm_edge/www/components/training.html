@@ -1247,6 +1247,9 @@
     let sensorDerivedWindows = []; // Read-only ON intervals derived from the appliance sensor
     let firstTimestamp = 0; // Timestamp of the first data point of the *full available data*
     let lastTimestamp = 0; // Timestamp of the last data point of the *full available data*
+    const TRAINING_CHART_MAINS_COLOR = "#64748b";
+    const TRAINING_CHART_APPLIANCE_COLOR = "#0284c7";
+    const TRAINING_NEAR_ZERO_W = 20;
     let currentChartMinTime = 0; // The actual min time currently displayed in the chart
     let currentChartMaxTime = 0; // The actual max time currently displayed in the chart
     let trainingRangeStartPickerInstance;
@@ -2277,6 +2280,13 @@
                 .sort((a, b) => a.x - b.x);
         }
 
+        function clampTrainingDisplayPower(powerValue) {
+            const numericValue = Number(powerValue);
+            if (!Number.isFinite(numericValue)) return null;
+            if (numericValue <= TRAINING_NEAR_ZERO_W) return 0;
+            return Math.max(0, numericValue);
+        }
+
         function estimateNominalStepMs(series) {
             if (!Array.isArray(series) || series.length < 2) return 8000;
             const diffs = [];
@@ -2323,7 +2333,7 @@
                 if (idx >= 0) {
                     const age = ref.x - raw[idx].x;
                     if (age >= 0 && age <= maxHoldMs) {
-                        y = Math.max(0, raw[idx].y);
+                        y = clampTrainingDisplayPower(raw[idx].y) ?? 0;
                     }
                 }
 
@@ -3472,13 +3482,13 @@
             }
 
             const datasets = [{
-                label: 'Mains Power (W)',
+                label: 'Mains Power',
                 data: data,
                 parsing: false,
                 normalized: true,
-                borderColor: 'rgb(75, 192, 192)',
-                backgroundColor: 'rgba(75, 192, 192, 0.2)',
-                borderWidth: 1,
+                borderColor: TRAINING_CHART_MAINS_COLOR,
+                backgroundColor: 'rgba(100, 116, 139, 0.14)',
+                borderWidth: 1.5,
                 pointRadius: 0,
                 tension: 0,
                 fill: true,
@@ -3487,12 +3497,12 @@
 
             if (currentSupervisionMode() === 'sensor' && Array.isArray(applianceSensorHistoryData) && applianceSensorHistoryData.length > 0) {
                 datasets.push({
-                    label: 'Appliance Power (W)',
+                    label: 'Appliance Power',
                     data: applianceSensorHistoryData,
                     parsing: false,
                     normalized: true,
-                    borderColor: 'rgb(14, 116, 144)',
-                    backgroundColor: 'rgba(14, 116, 144, 0.08)',
+                    borderColor: TRAINING_CHART_APPLIANCE_COLOR,
+                    backgroundColor: 'rgba(2, 132, 199, 0.08)',
                     borderWidth: 1.5,
                     pointRadius: 0,
                     tension: 0,
@@ -3561,7 +3571,7 @@
                         },
                         y: {
                             beginAtZero: true,
-                            title: { display: true, text: 'Power (Watts)' }
+                            title: { display: true, text: 'Power (W)' }
                         }
                     },
                     plugins: {
@@ -3586,7 +3596,18 @@
                             annotations: buildChartAnnotations()
                         },
                         legend: { display: datasets.length > 1 },
-                        tooltip: { enabled: false },
+                        tooltip: {
+                            enabled: true,
+                            callbacks: {
+                                title(items) {
+                                    const raw = items?.[0]?.parsed?.x;
+                                    return Number.isFinite(raw) ? formatUiDateTime(raw) : '';
+                                },
+                                label(context) {
+                                    return `${context.dataset.label}: ${Number(context.parsed?.y || 0).toFixed(1)} W`;
+                                }
+                            }
+                        },
                     }
                 }
             });
