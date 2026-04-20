@@ -3687,17 +3687,9 @@
 
             const metadata = embedding.metadata || {};
             const supervisionMode = String(metadata.supervision_mode || "").toLowerCase();
-            const applianceSensorId = String(metadata.appliance_sensor_id || "").trim();
             const supervisionLabel = supervisionMode === "sensor"
-                ? "Ground-truth power"
+                ? "Power sensor"
                 : (supervisionMode === "intervals" ? "ON intervals" : "Unknown");
-            const supervisionDetailMarkup = supervisionMode === "sensor" && applianceSensorId
-                ? `
-                    <div class="embedding-meta">
-                        Sensor: <strong>${escapeDashboardTrainingHtml(applianceSensorId)}</strong>
-                    </div>
-                `
-                : "";
             const publishOnline = Boolean(metadata.publish_online);
             const realtimeEntities = realtimeEntityIdsForModel(embedding);
             const liveOutputMarkup = embedding.bundle_mode === "online"
@@ -3741,7 +3733,6 @@
                 <div class="embedding-meta">
                     Updated: <strong>${formatTimestamp(embedding.updated_at)}</strong>
                 </div>
-                ${supervisionDetailMarkup}
                 ${liveOutputMarkup}
                 <div class="embedding-stats-actions">
                     <div class="embedding-stat">
