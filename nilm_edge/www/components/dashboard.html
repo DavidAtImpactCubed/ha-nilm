@@ -3686,8 +3686,18 @@
             card.className = "embedding-card";
 
             const metadata = embedding.metadata || {};
-            const bestF1Value = Number(metadata.onoff_f1);
-            const bestF1Text = Number.isFinite(bestF1Value) ? bestF1Value.toFixed(3) : "Unknown";
+            const supervisionMode = String(metadata.supervision_mode || "").toLowerCase();
+            const applianceSensorId = String(metadata.appliance_sensor_id || "").trim();
+            const supervisionLabel = supervisionMode === "sensor"
+                ? "Ground-truth power"
+                : (supervisionMode === "intervals" ? "ON intervals" : "Unknown");
+            const supervisionDetailMarkup = supervisionMode === "sensor" && applianceSensorId
+                ? `
+                    <div class="embedding-meta">
+                        Sensor: <strong>${escapeDashboardTrainingHtml(applianceSensorId)}</strong>
+                    </div>
+                `
+                : "";
             const publishOnline = Boolean(metadata.publish_online);
             const realtimeEntities = realtimeEntityIdsForModel(embedding);
             const liveOutputMarkup = embedding.bundle_mode === "online"
@@ -3731,11 +3741,12 @@
                 <div class="embedding-meta">
                     Updated: <strong>${formatTimestamp(embedding.updated_at)}</strong>
                 </div>
+                ${supervisionDetailMarkup}
                 ${liveOutputMarkup}
                 <div class="embedding-stats-actions">
                     <div class="embedding-stat">
-                        <div class="embedding-stat-label">Training Quality</div>
-                        <div class="embedding-stat-value">${bestF1Text} <span style="font-size:0.78rem;font-weight:700;color:#64748b;">(0-1)</span></div>
+                        <div class="embedding-stat-label">Supervision</div>
+                        <div class="embedding-stat-value">${escapeDashboardTrainingHtml(supervisionLabel)}</div>
                     </div>
                     <button class="embedding-preview-btn" type="button" data-embedding-preview="${embedding.model_key}" data-embedding-label="${embedding.name}" ${isDisaggregationRunning ? "disabled" : ""}>
                         <i class="fas fa-chart-line" aria-hidden="true"></i>
