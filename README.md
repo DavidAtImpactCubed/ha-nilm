@@ -1,7 +1,7 @@
 # NILM For Home Assistant
 
 <p align="center">
-  <img src="assets/ha-nilm-logo.png" alt="NILM for Home Assistant logo" width="240">
+  <img src="nilm_edge/logo.png" alt="NILM for Home Assistant logo" width="240">
 </p>
 
 This repository contains two Home Assistant apps that work together:
