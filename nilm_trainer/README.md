@@ -1,5 +1,9 @@
 # NILM Training Server
 
+<p align="center">
+  <img src="../assets/ha-nilm-logo.png" alt="NILM for Home Assistant logo" width="240">
+</p>
+
 This app receives prepared training jobs from `NILM`, runs appliance-model training, and returns trained outputs used by the NILM inference app.
 
 ## Main Role
