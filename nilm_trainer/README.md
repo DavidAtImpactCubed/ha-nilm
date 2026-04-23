@@ -1,6 +1,6 @@
 # NILM Training Server
 
-![NILM for Home Assistant logo](logo.png)
+![NILM for Home Assistant logo](https://raw.githubusercontent.com/lgarciamarrero92/ha-nilm/main/nilm_trainer/logo.png)
 
 This app receives prepared training jobs from `NILM`, runs appliance-model training, and returns trained outputs used by the NILM inference app.
 

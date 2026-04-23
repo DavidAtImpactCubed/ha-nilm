@@ -1,6 +1,6 @@
 # Home Assistant NILM App
 
-![NILM for Home Assistant logo](logo.png)
+![NILM for Home Assistant logo](https://raw.githubusercontent.com/lgarciamarrero92/ha-nilm/main/nilm_edge/logo.png)
 
 This app runs real-time NILM inference inside Home Assistant.
 
