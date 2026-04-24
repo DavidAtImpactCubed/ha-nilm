@@ -72,7 +72,7 @@ Training and live inference are split by design:
 2. Select a mains range that you can label completely.
 3. Prepare and send the training job to `NILM Training Server`.
 4. Wait for job completion in the Training Jobs table.
-5. Validate predictions in the Energy Dashboard.
+5. Validate predictions in the NILM Dashboard.
 6. Enable live publishing for selected models.
 
 Notes:

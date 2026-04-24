@@ -28,7 +28,7 @@ NILM provides estimation from aggregate mains data, not direct per-appliance mea
 2. In Training, choose manual interval labeling or sensor-based labeling.
 3. Prepare training data from Home Assistant history.
 4. Send the job to the training server.
-5. When training finishes, validate predictions in the Energy Dashboard.
+5. When training finishes, validate predictions in the NILM Dashboard.
 6. Enable live publishing for selected models.
 7. Use generated entities in dashboards and automations.
 
