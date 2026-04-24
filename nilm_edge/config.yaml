@@ -1,5 +1,5 @@
 name: "NILM"
-version: "1.1.120"
+version: "1.1.121"
 slug: "nilm"
 description: "Non-Intrusive Load Monitoring For Home Assistant"
 url: "https://ha-nilm.bigwicho.com/"
@@ -23,6 +23,3 @@ schema:
 arch:
   - aarch64
   - amd64
-  - armhf
-  - armv7
-  - i386
