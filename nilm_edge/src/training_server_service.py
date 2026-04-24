@@ -779,7 +779,7 @@ class TrainingServerServiceManager:
             await self._notify_training_result(
                 job_id=job_id,
                 title=f"NILM training finished: {appliance_name}",
-                message=f"Training completed successfully for {appliance_name}. The appliance model is now available for disaggregation in Energy Dashboard.",
+                message=f"Training completed successfully for {appliance_name}. The appliance model is now available for disaggregation in the NILM Dashboard.",
             )
             print(
                 f"Training finalize done local_job_id={job_id} training_server_job_id={training_server_job_id} "

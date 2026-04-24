@@ -142,6 +142,12 @@
             transition: all 0.2s ease-in-out;
             flex-shrink: 0;
         }
+        .tab-icon img {
+            width: 1.45rem;
+            height: 1.45rem;
+            object-fit: contain;
+            display: block;
+        }
         .tab-button.active .tab-icon {
             background: rgba(14, 165, 233, 0.12);
             color: #0284c7;
@@ -221,9 +227,9 @@
         <div class="nav-shell">
             <div class="nav-pills" role="tablist" aria-label="Main navigation">
             <button id="showDashboardBtn" class="tab-button focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-sky-500" role="tab" aria-selected="false">
-                <span class="tab-icon"><i class="fas fa-sliders-h"></i></span>
+                <span class="tab-icon"><img src="icon.png" alt="NILM add-on icon"></span>
                 <span class="tab-copy">
-                    <span class="tab-title">Energy Dashboard</span>
+                    <span class="tab-title">NILM Dashboard</span>
                     <span class="tab-subtitle">Mains, models, and insights</span>
                 </span>
             </button>
@@ -231,7 +237,7 @@
                 <span class="tab-icon"><i class="fas fa-brain"></i></span>
                 <span class="tab-copy">
                     <span class="tab-title">Training Interface</span>
-                    <span class="tab-subtitle">Label and prepare jobs</span>
+                    <span class="tab-subtitle">Label and train appliances</span>
                 </span>
             </button>
             </div>
