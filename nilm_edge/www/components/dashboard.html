@@ -2588,15 +2588,20 @@
                     y: source.clientY - rect.top,
                 };
             };
+            const safeRedraw = () => {
+                if (!chart?.ctx || !chart?.canvas?.isConnected) return;
+                chart.draw();
+            };
 
             const syncCursorGuide = (event) => {
+                if (!chart?.ctx || !chart?.canvas?.isConnected) return;
                 if (!chart.chartArea || !chart.scales?.x) return;
                 const pos = getPosition(event);
                 if (!pos) {
                     chart.$cursorGuideX = null;
                     chart.$cursorGuidePoint = null;
                     if (chart.canvas?.id === "mainsSignalChart") updateDashboardChartInfo(NaN);
-                    chart.draw();
+                    safeRedraw();
                     return;
                 }
 
@@ -2614,15 +2619,16 @@
                 if (chart.canvas?.id === "mainsSignalChart") {
                     updateDashboardChartInfo(Number.isFinite(timestamp) ? timestamp : NaN);
                 }
-                chart.draw();
+                safeRedraw();
             };
 
             const clearCursorGuide = () => {
+                if (!chart?.ctx || !chart?.canvas?.isConnected) return;
                 if (chart.$cursorGuideX == null && chart.$cursorGuidePoint == null) return;
                 chart.$cursorGuideX = null;
                 chart.$cursorGuidePoint = null;
                 if (chart.canvas?.id === "mainsSignalChart") updateDashboardChartInfo(NaN);
-                chart.draw();
+                safeRedraw();
             };
 
             const listeners = [
