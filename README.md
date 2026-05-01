@@ -65,6 +65,18 @@ Training and live inference are split by design:
 
 - `NILM` stays lightweight and responsive for continuous runtime.
 - `NILM Training Server` handles heavier ML training workloads.
+- `NILM Training Server` is only needed when you want to train or retrain models. After your models are trained and enabled in `NILM`, you can stop the training app and keep only `NILM` running for live inference.
+
+## Why NILM Requests Supervisor Manager Role
+
+The `NILM` app requests the Home Assistant Supervisor `manager` role so it can query the Supervisor API and autodetect the `NILM Training Server` add-on for you.
+
+This is used to:
+
+- Enumerate installed add-ons.
+- Detect whether `NILM Training Server` is installed and started.
+- Read its internal add-on hostname.
+- Build the internal training server URL automatically so you do not have to enter it manually in the common case.
 
 ## Main Workflow
 
