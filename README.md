@@ -8,6 +8,10 @@ Estimate appliance usage from a single mains power sensor.
 
 Use NILM to train appliance models from Home Assistant history, preview historical disaggregation, and publish live estimated entities for dashboards and automations without installing a dedicated meter on every device.
 
+<p align="center">
+  <img src="nilm_edge/www/ha-nilm.png" alt="NILM for Home Assistant interface preview">
+</p>
+
 This repository contains two Home Assistant apps that work together:
 
 - `NILM` (inference app)
