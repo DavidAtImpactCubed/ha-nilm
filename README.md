@@ -101,19 +101,6 @@ Main end-user documentation:
 
 - https://ha-nilm.bigwicho.com/
 
-## Publishing
-
-This repository is configured to publish pre-built multi-architecture app images to GitHub Container Registry (GHCR).
-
-Why this matters:
-- Home Assistant can pull ready-made containers instead of building them locally.
-- Installs and updates are much faster.
-- Backups and restores stay smaller because Home Assistant does not need to preserve local build context for these apps.
-
-Operational note:
-- The app `version` in each `config.yaml` must match an already-published container tag in GHCR.
-- Publish the images first, then release or merge the matching manifest version bump.
-
 ## License
 
 This project is licensed under the Apache License 2.0. See [LICENSE](LICENSE) for details.
