@@ -37,20 +37,27 @@ jobs:
         id: normalize
         shell: bash
         run: |
-          image='${{ steps.info.outputs.image }}'
+          unquote() {
+            local value="$1"
+            value="${value#\"}"
+            value="${value%\"}"
+            printf '%s' "$value"
+          }
+
+          image="$(unquote '${{ steps.info.outputs.image }}')"
           echo "image_name=${image##*/}" >> "$GITHUB_OUTPUT"
           echo "registry_prefix=${image%/*}" >> "$GITHUB_OUTPUT"
 
-          version='${{ steps.info.outputs.version }}'
+          version="$(unquote '${{ steps.info.outputs.version }}')"
           echo "version=${version}" >> "$GITHUB_OUTPUT"
 
-          name='${{ steps.info.outputs.name }}'
+          name="$(unquote '${{ steps.info.outputs.name }}')"
           echo "name=${name}" >> "$GITHUB_OUTPUT"
 
-          description='${{ steps.info.outputs.description }}'
+          description="$(unquote '${{ steps.info.outputs.description }}')"
           echo "description=${description}" >> "$GITHUB_OUTPUT"
 
-          url='${{ steps.info.outputs.url }}'
+          url="$(unquote '${{ steps.info.outputs.url }}')"
           if [[ -n "$url" && "$url" != "null" ]]; then
             echo "url=${url}" >> "$GITHUB_OUTPUT"
           fi
