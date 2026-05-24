@@ -1851,30 +1851,23 @@
 
             if (trainingServerConfigMeta) {
                 const lines = [];
-                const selectedOption = (Array.isArray(payload.available_training_servers) ? payload.available_training_servers : [])
-                    .find(item => (item.url || "") === (payload.configured_training_server_url || ""));
 
                 if (pendingTrainingServerSelectionMode === "placeholder") {
                     lines.push("Training server not selected yet.");
                 } else if (pendingTrainingServerSelectionMode === "custom") {
-                    lines.push("Custom external training server not saved yet.");
+                    lines.push("Custom training server not saved yet.");
                     if (pendingCustomTrainingServerDraftUrl) {
                         lines.push(`Draft URL: ${pendingCustomTrainingServerDraftUrl}`);
                     }
                 } else if (payload.effective_training_server_url) {
-                    lines.push(`Using training server: ${payload.effective_training_server_url}`);
-                    const autodetect = payload.autodetect || payload;
-                    if (selectedOption && selectedOption.description) {
-                        lines.push(selectedOption.description);
-                    }
                     if (payload.training_server_url_source === "external_custom") {
-                        lines.push("Source: custom external training server.");
+                        lines.push(`Using custom training server: ${payload.effective_training_server_url}`);
                     } else if (payload.training_server_url_source === "autodetect") {
-                        lines.push("Source: autodetected internal training app.");
+                        lines.push(`Using internal training server: ${payload.effective_training_server_url}`);
                     } else if (payload.training_server_url_source === "saved_config") {
-                        lines.push("Source: saved training server selection.");
-                    } else if (!payload.effective_training_server_url && autodetect && autodetect.message) {
-                        lines.push(autodetect.message);
+                        lines.push(`Using training server: ${payload.effective_training_server_url}`);
+                    } else {
+                        lines.push(`Using training server: ${payload.effective_training_server_url}`);
                     }
                 } else {
                     const autodetect = payload.autodetect || payload;
