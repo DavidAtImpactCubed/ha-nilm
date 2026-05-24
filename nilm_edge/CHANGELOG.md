@@ -1,15 +1,9 @@
 # Changelog
 
-## 1.1.3.3
+## 1.1.4
 
-- Made the autodetected internal training server the default selection when it is available.
-- Updated the Training page so the external URL input only appears when `Custom External Server` is selected explicitly.
-- Improved switching between internal and external training server modes.
-
-## 1.1.3.2
-
-- Added support for using an external training server URL from the Training page.
-- Added a `Custom External Server` option so users can connect to a remote `nilm_trainer` running on another machine.
-- Kept compatibility with the autodetected internal Home Assistant training app.
-- Improved training server selection and status messaging to make the active server source clearer.
-- Added validation and normalization for manually entered training server URLs before saving.
+- Added support for external training servers, so training can run on another machine using a saved URL such as `http://<host>:<port>/train`.
+- Added a `Custom External Server` option in the Training page alongside the autodetected internal Home Assistant training app.
+- Improved training server selection so the internal app is selected by default when available, while custom mode only appears when chosen explicitly.
+- Tightened training server validation and readiness checks to reject incomplete selections and invalid endpoints.
+- Improved status messaging in the Training page so the active training server is shown clearly as internal or custom.
