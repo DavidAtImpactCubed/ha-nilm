@@ -1762,7 +1762,8 @@
 
         function updateTrainingServerConfigUi(payload = {}) {
             if (trainingServerUrlSelect) {
-                const options = Array.isArray(payload.available_training_servers) ? payload.available_training_servers : [];
+                const allOptions = Array.isArray(payload.available_training_servers) ? payload.available_training_servers : [];
+                const options = allOptions.filter((item) => (item.id || "") !== "external_custom");
                 const selectedUrl = payload.configured_training_server_url
                     || (payload.training_server_url_source === "autodetect" ? (payload.effective_training_server_url || "") : "");
                 const selectedOption = options.find((item) => (item.url || "") === selectedUrl);
