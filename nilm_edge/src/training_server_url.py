@@ -37,6 +37,15 @@ def training_server_origin(training_server_url: str) -> str:
     return f"{parsed.scheme}://{parsed.netloc}"
 
 
+def is_valid_training_server_url(training_server_url: str) -> bool:
+    normalized = normalize_training_server_url(training_server_url)
+    if not normalized:
+        return False
+
+    parsed = urlparse(normalized)
+    return bool(parsed.scheme and parsed.netloc)
+
+
 def uses_homeassistant_gateway(training_server_url: str) -> bool:
     hostname = (urlparse(normalize_training_server_url(training_server_url)).hostname or "").strip().lower()
     return hostname in {"homeassistant.local", "supervisor", "homeassistant"}

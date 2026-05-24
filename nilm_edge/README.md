@@ -13,6 +13,7 @@ NILM provides estimation from aggregate mains data, not direct per-appliance mea
 - Live disaggregation from one aggregate mains sensor.
 - Built-in UI for setup, model management, and preview.
 - Training job preparation and handoff to the separate `NILM Training Server` app (or compatible external training server).
+- Training server selection supports either the local Home Assistant training app or a remote `nilm_trainer` URL on another machine.
 - Per-model live publish toggle.
 
 ## Quick Start
@@ -21,6 +22,7 @@ NILM provides estimation from aggregate mains data, not direct per-appliance mea
 2. Start `NILM Training Server` first, then start `NILM`.
 3. Open the `NILM` UI and save your mains power sensor.
 4. Open the Training page and confirm the training server is ready.
+5. If the trainer runs on another machine, choose `Custom External Server` and save its URL.
 
 ## Core Workflow
 
@@ -49,7 +51,7 @@ For each model enabled for live publishing:
 - Home Assistant app environment.
 - A mains power sensor already available in Home Assistant.
 - Recorder history for the selected training period.
-- Both NILM apps installed (`NILM` and `NILM Training Server`).
+- Either both NILM apps installed on Home Assistant, or `NILM` plus a reachable remote `nilm_trainer` server URL.
 - Around 4 GB RAM available for Home Assistant + NILM apps.
 - Mains updates in the order of seconds (1s, 3s, 5s, 10s typically work well).
 

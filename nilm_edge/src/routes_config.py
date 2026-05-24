@@ -1,6 +1,7 @@
 from aiohttp import web
 
 import app_state
+from training_server_url import is_valid_training_server_url, normalize_training_server_url
 
 
 async def get_config_handler(request):
@@ -29,6 +30,10 @@ async def post_config_handler(request):
             raise ValueError("Invalid format for 'main_sensor_id' (must be string).")
         if update_training_server_url and new_training_server_url is not None and not isinstance(new_training_server_url, str):
             raise ValueError("Invalid format for 'training_server_url' (must be string).")
+        if update_training_server_url and isinstance(new_training_server_url, str) and new_training_server_url.strip():
+            normalized_training_server_url = normalize_training_server_url(new_training_server_url)
+            if not is_valid_training_server_url(normalized_training_server_url):
+                raise ValueError("Invalid 'training_server_url'. Use a full host or URL such as http://trainer.local:8080/train.")
 
         app_state.save_config(
             main_sensor_id=new_main_sensor_id,
