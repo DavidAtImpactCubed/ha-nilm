@@ -19,6 +19,11 @@ This repository contains two Home Assistant apps that work together:
 
 NILM estimates appliance behavior from one aggregate mains power sensor. It provides useful estimation, not direct per-appliance metering.
 
+You can run the training server either:
+
+- as the `NILM Training Server` app inside Home Assistant
+- or as the `ha-nilm-trainer` Docker container on another machine and connect to it from `NILM`
+
 ## Why NILM
 
 - Estimate appliance usage from one mains sensor instead of installing a dedicated meter on every device.
@@ -31,7 +36,7 @@ NILM estimates appliance behavior from one aggregate mains power sensor. It prov
 - A working Home Assistant OS installation.
 - A mains power sensor already available in Home Assistant.
 - Recorder history for the time range you want to train.
-- Both apps installed: `NILM` and `NILM Training Server`.
+- Either both apps installed in Home Assistant, or `NILM` plus a reachable external trainer container URL.
 - At least 4 GB RAM for Home Assistant and the NILM apps.
 
 ## What Each App Does
@@ -49,19 +54,30 @@ NILM estimates appliance behavior from one aggregate mains power sensor. It prov
 - Runs model training in the background.
 - Returns trained embeddings and learned thresholds back to NILM.
 
+This training service can run:
+
+- as the Home Assistant `NILM Training Server` app
+- or as a Docker container on another machine reachable over your network
+
 ## Quick Start
 
 1. Open Home Assistant.
 2. Go to `Settings` > `Apps` > `Install App`.
 3. Add this repository: `https://github.com/lgarciamarrero92/ha-nilm`.
 4. Install `NILM`.
-5. Install `NILM Training Server`.
-6. Start `NILM Training Server` first.
+5. Choose one training server option:
+   - install `NILM Training Server` in Home Assistant
+   - or run the `ha-nilm-trainer` Docker container on another machine
+6. Start the training server first.
 7. Start `NILM`.
 8. Open the `NILM` interface.
 9. Select and save your mains sensor.
-10. Open the Training interface and confirm the training server is ready.
-11. Train appliance models, validate in dashboard preview, then enable live publishing.
+10. Open the Training interface.
+11. In the first Training step:
+   - use the autodetected internal training server if you installed the Home Assistant app
+   - or choose `Custom External Server` and save the external trainer URL in the form `http://<host-or-ip>:<port>/train`
+12. Confirm the training server is ready.
+13. Train appliance models, validate in dashboard preview, then enable live publishing.
 
 ## Why Two Apps
 
@@ -70,6 +86,7 @@ Training and live inference are split by design:
 - `NILM` stays lightweight and responsive for continuous runtime.
 - `NILM Training Server` handles heavier ML training workloads.
 - `NILM Training Server` is only needed when you want to train or retrain models. After your models are trained and enabled in `NILM`, you can stop the training app and keep only `NILM` running for live inference.
+- When the training server runs as a Docker container on another machine, `NILM` connects to it through the URL you save in the Training page.
 
 ## Why NILM Requests Supervisor Manager Role
 
@@ -85,11 +102,12 @@ This is used to:
 ## Main Workflow
 
 1. In `NILM` Training, choose manual interval labeling or sensor-based labeling.
-2. Select a mains range that you can label completely.
-3. Prepare and send the training job to `NILM Training Server`.
-4. Wait for job completion in the Training Jobs table.
-5. Validate predictions in the NILM Dashboard.
-6. Enable live publishing for selected models.
+2. Select the internal training server or save a custom external training server URL in the first Training step.
+3. Select a mains range that you can label completely.
+4. Prepare and send the training job to `NILM Training Server`.
+5. Wait for job completion in the Training Jobs table.
+6. Validate predictions in the NILM Dashboard.
+7. Enable live publishing for selected models.
 
 Notes:
 - Training range is limited to the previous 7 days.
