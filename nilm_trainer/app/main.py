@@ -40,18 +40,6 @@ SERVER_TRAINING = {
     "min_delta": 1e-4,
 }
 
-
-@app.on_event("startup")
-async def log_startup_info():
-    info = _connection_info()
-    if info["hostname"]:
-        print(f"NILM Training Server hostname: {info['hostname']}", flush=True)
-        print(f"NILM app should use this training_server_url: {info['training_server_url']}", flush=True)
-        print("Open the NILM Training Server Web UI to copy this URL later.", flush=True)
-    else:
-        print("NILM Training Server hostname is not available in HOSTNAME.", flush=True)
-
-
 class TrainPayload(BaseModel):
     appliance_name: str
     appliance_type: str = ""

@@ -8,7 +8,7 @@ from ha_client import HistoryQuery, fetch_history_points
 from model_registry import discover_model_bundles, get_latest_bundle_for_mode
 from online_runtime import MultiBundleOnlineRuntime
 from supervisor_addons import discover_training_server_addon
-from training_server_url import normalize_training_server_url
+from training_server_url import normalize_training_server_url, uses_homeassistant_gateway
 
 
 TRAINING_SERVER_API_KEY = os.getenv("TRAINING_SERVER_API_KEY", "").strip() or None
@@ -97,7 +97,7 @@ def _is_direct_training_server_url(url: str) -> bool:
     normalized = normalize_training_server_url(url)
     if not normalized:
         return False
-    return "homeassistant.local" not in normalized and "://supervisor" not in normalized and "://homeassistant" not in normalized
+    return not uses_homeassistant_gateway(normalized)
 
 
 def _append_training_server_option(options_list, seen_urls, *, option_id: str, label: str, url: str, description: str = ""):
@@ -117,25 +117,10 @@ async def resolve_training_server_url_state() -> Dict[str, Any]:
     available_training_servers = []
     seen_urls = set()
     configured_url = get_configured_training_server_url()
-    if _is_direct_training_server_url(configured_url):
-        normalized = normalize_training_server_url(configured_url)
-        _append_training_server_option(
-            available_training_servers,
-            seen_urls,
-            option_id="internal_addon_saved",
-            label="Internal App",
-            url=normalized,
-            description="Saved internal training server selection.",
-        )
-        return {
-            "configured_training_server_url": configured_url,
-            "effective_training_server_url": normalized,
-            "training_server_url_source": "ui_override",
-            "available_training_servers": available_training_servers,
-            "autodetect": None,
-        }
-
+    normalized_configured_url = normalize_training_server_url(configured_url)
     autodetect = await discover_training_server_addon(SUPERVISOR_API_URL, TOKEN)
+    autodetected_url = normalize_training_server_url(str(autodetect.get("training_server_url") or "").strip())
+
     if autodetect.get("ok") and autodetect.get("training_server_url"):
         hostname = autodetect.get("hostname") or "internal app"
         _append_training_server_option(
@@ -146,10 +131,48 @@ async def resolve_training_server_url_state() -> Dict[str, Any]:
             url=autodetect["training_server_url"],
             description=f"Detected internal app hostname: {hostname}",
         )
+
+    configured_matches_autodetect = bool(
+        normalized_configured_url
+        and autodetected_url
+        and normalized_configured_url == autodetected_url
+    )
+
+    if normalized_configured_url and _is_direct_training_server_url(normalized_configured_url) and not configured_matches_autodetect:
+        _append_training_server_option(
+            available_training_servers,
+            seen_urls,
+            option_id="external_custom",
+            label="External Server",
+            url=normalized_configured_url,
+            description="Saved external training server URL.",
+        )
+    elif normalized_configured_url:
+        _append_training_server_option(
+            available_training_servers,
+            seen_urls,
+            option_id="saved_server",
+            label="Saved Server",
+            url=normalized_configured_url,
+            description="Saved training server selection.",
+        )
+
+    effective_training_server_url = ""
+    training_server_url_source = "missing"
+    if configured_matches_autodetect:
+        effective_training_server_url = autodetected_url
+        training_server_url_source = "autodetect"
+    elif normalized_configured_url:
+        effective_training_server_url = normalized_configured_url
+        training_server_url_source = "external_custom" if _is_direct_training_server_url(normalized_configured_url) else "saved_config"
+    elif autodetect.get("ok") and autodetect.get("training_server_url"):
+        effective_training_server_url = autodetected_url
+        training_server_url_source = "autodetect"
+
     return {
         "configured_training_server_url": configured_url,
-        "effective_training_server_url": "",
-        "training_server_url_source": "missing",
+        "effective_training_server_url": effective_training_server_url,
+        "training_server_url_source": training_server_url_source,
         "available_training_servers": available_training_servers,
         "autodetect": autodetect,
     }

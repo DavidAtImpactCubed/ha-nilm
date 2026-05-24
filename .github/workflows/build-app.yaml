@@ -16,6 +16,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       architectures: ${{ steps.info.outputs.architectures }}
+      has_image: ${{ steps.normalize.outputs.has_image }}
       build_matrix: ${{ steps.matrix.outputs.matrix }}
       image_name: ${{ steps.normalize.outputs.image_name }}
       name: ${{ steps.normalize.outputs.name }}
@@ -45,8 +46,13 @@ jobs:
           }
 
           image="$(unquote '${{ steps.info.outputs.image }}')"
-          echo "image_name=${image##*/}" >> "$GITHUB_OUTPUT"
-          echo "registry_prefix=${image%/*}" >> "$GITHUB_OUTPUT"
+          if [[ -n "$image" && "$image" != "null" ]]; then
+            echo "has_image=true" >> "$GITHUB_OUTPUT"
+            echo "image_name=${image##*/}" >> "$GITHUB_OUTPUT"
+            echo "registry_prefix=${image%/*}" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_image=false" >> "$GITHUB_OUTPUT"
+          fi
 
           version="$(unquote '${{ steps.info.outputs.version }}')"
           echo "version=${version}" >> "$GITHUB_OUTPUT"
@@ -64,6 +70,7 @@ jobs:
 
       - name: Prepare build matrix
         id: matrix
+        if: steps.normalize.outputs.has_image == 'true'
         uses: home-assistant/builder/actions/prepare-multi-arch-matrix@2026.03.2
         with:
           architectures: ${{ steps.info.outputs.architectures }}
@@ -73,6 +80,7 @@ jobs:
   build:
     name: Build ${{ matrix.arch }} image
     needs: prepare
+    if: needs.prepare.outputs.has_image == 'true'
     runs-on: ${{ matrix.os }}
     permissions:
       contents: read
@@ -110,7 +118,7 @@ jobs:
     needs:
       - prepare
       - build
-    if: inputs.publish
+    if: inputs.publish && needs.prepare.outputs.has_image == 'true'
     runs-on: ubuntu-latest
     permissions:
       id-token: write

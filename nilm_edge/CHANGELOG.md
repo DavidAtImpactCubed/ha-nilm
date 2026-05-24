@@ -1,0 +1,9 @@
+# Changelog
+
+## 1.1.4
+
+- Added support for external training servers, so training can run on another machine using a saved URL such as `http://<host>:<port>/train`.
+- Added a `Custom External Server` option in the Training page alongside the autodetected internal Home Assistant training app.
+- Improved training server selection so the internal app is selected by default when available, while custom mode only appears when chosen explicitly.
+- Tightened training server validation and readiness checks to reject incomplete selections and invalid endpoints.
+- Improved status messaging in the Training page so the active training server is shown clearly as internal or custom.

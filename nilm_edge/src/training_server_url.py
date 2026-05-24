@@ -4,6 +4,7 @@ from urllib.parse import urlparse, urlunparse
 
 
 DEFAULT_TRAINING_SERVER_URL = "http://homeassistant.local:8080/train"
+DEFAULT_TRAINING_SERVER_PATH = "/train"
 
 
 def normalize_training_server_url(raw_url: str) -> str:
@@ -20,7 +21,7 @@ def normalize_training_server_url(raw_url: str) -> str:
 
     path = (parsed.path or "").rstrip("/")
     if not path:
-        path = "/train"
+        path = DEFAULT_TRAINING_SERVER_PATH
 
     normalized = parsed._replace(path=path, params="", query="", fragment="")
     return urlunparse(normalized)
@@ -35,6 +36,15 @@ def training_server_origin(training_server_url: str) -> str:
     if not parsed.scheme or not parsed.netloc:
         return ""
     return f"{parsed.scheme}://{parsed.netloc}"
+
+
+def is_valid_training_server_url(training_server_url: str) -> bool:
+    normalized = normalize_training_server_url(training_server_url)
+    if not normalized:
+        return False
+
+    parsed = urlparse(normalized)
+    return bool(parsed.scheme and parsed.netloc and (parsed.path or "") == DEFAULT_TRAINING_SERVER_PATH)
 
 
 def uses_homeassistant_gateway(training_server_url: str) -> bool:

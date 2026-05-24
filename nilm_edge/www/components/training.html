@@ -615,6 +615,14 @@
         margin-top: 12px;
     }
 
+    .training-server-custom-row {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto auto;
+        gap: 10px;
+        align-items: end;
+        margin-top: 10px;
+    }
+
     .training-server-status-title {
         color: #0f172a;
         font-size: 0.98rem;
@@ -1060,6 +1068,19 @@
                     <i class="fas fa-sync mr-2" aria-hidden="true"></i> Retry
                 </button>
             </div>
+            <div id="trainingServerCustomRow" class="training-server-custom-row hidden">
+                <div>
+                    <input
+                        id="trainingServerCustomUrlInput"
+                        class="field-input"
+                        type="text"
+                        inputmode="url"
+                        placeholder="http://trainer.local:8080/train"
+                        autocomplete="off">
+                </div>
+                <button id="saveTrainingServerCustomUrlBtn" class="action-btn action-primary" type="button">Save URL</button>
+                <button id="clearTrainingServerCustomUrlBtn" class="action-btn action-neutral" type="button">Clear</button>
+            </div>
             <div id="trainingServerConfigMeta" class="training-server-config-meta hidden"></div>
         </div>
     </div>
@@ -1349,6 +1370,9 @@
     let pendingTouchIntervalEditTimer = null;
     let selectedWindows = []; // Stores all selected time windows
     let trainingServerConnectionReady = false;
+    let pendingTrainingServerSelectionMode = "";
+    let pendingCustomTrainingServerSelection = false;
+    let pendingCustomTrainingServerDraftUrl = "";
     let trainingStepper;
     let suppressTrainingServerUrlSelectChange = false;
     let trainingWizardCurrentStep = "server";
@@ -1371,6 +1395,10 @@
     let trainingServerStatusMessage;
     let trainingServerStatusBadge;
     let trainingServerUrlSelect;
+    let trainingServerCustomRow;
+    let trainingServerCustomUrlInput;
+    let saveTrainingServerCustomUrlBtn;
+    let clearTrainingServerCustomUrlBtn;
     let trainingServerConfigMeta;
     let retryTrainingServerStatusBtn;
     let trainingApplianceStepPanel;
@@ -1459,6 +1487,9 @@
     let manualIntervalInputHandler;
     let retryTrainingServerStatusHandler;
     let trainingServerUrlSelectHandler;
+    let saveTrainingServerCustomUrlHandler;
+    let clearTrainingServerCustomUrlHandler;
+    let trainingServerCustomUrlKeydownHandler;
     let trainingWizardPrevHandler;
     let trainingWizardNextHandler;
     let trainingStepperClickHandler;
@@ -1710,48 +1741,139 @@
             updateTrainingStepper();
         }
 
+        const CUSTOM_TRAINING_SERVER_OPTION = "__custom__";
+
+        function isExternalTrainingServerUrl(url = "") {
+            const value = String(url || "").trim().toLowerCase();
+            return !!value
+                && !value.includes("homeassistant.local")
+                && !value.includes("://supervisor")
+                && !value.includes("://homeassistant");
+        }
+
+        function setTrainingServerCustomUi({ visible = false, value = "", disabled = false } = {}) {
+            if (trainingServerCustomRow) {
+                trainingServerCustomRow.classList.toggle("hidden", !visible);
+            }
+            if (trainingServerCustomUrlInput) {
+                trainingServerCustomUrlInput.value = value || "";
+                trainingServerCustomUrlInput.disabled = disabled;
+            }
+            if (saveTrainingServerCustomUrlBtn) saveTrainingServerCustomUrlBtn.disabled = disabled;
+            if (clearTrainingServerCustomUrlBtn) clearTrainingServerCustomUrlBtn.disabled = disabled;
+        }
+
+        function setPendingCustomTrainingServerSelection(active, draftUrl = "") {
+            pendingCustomTrainingServerSelection = !!active;
+            pendingTrainingServerSelectionMode = pendingCustomTrainingServerSelection ? "custom" : "";
+            pendingCustomTrainingServerDraftUrl = pendingCustomTrainingServerSelection ? String(draftUrl || "") : "";
+            setTrainingServerCustomUi({
+                visible: pendingCustomTrainingServerSelection,
+                value: pendingCustomTrainingServerDraftUrl,
+                disabled: false,
+            });
+        }
+
+        function clearPendingTrainingServerSelectionState() {
+            pendingTrainingServerSelectionMode = "";
+            pendingCustomTrainingServerSelection = false;
+            pendingCustomTrainingServerDraftUrl = "";
+            setTrainingServerCustomUi({ visible: false, value: "", disabled: false });
+        }
+
+        function setPendingTrainingServerPlaceholderSelection(active) {
+            pendingTrainingServerSelectionMode = active ? "placeholder" : "";
+            pendingCustomTrainingServerSelection = false;
+            if (active) {
+                pendingCustomTrainingServerDraftUrl = "";
+            } else if (!pendingCustomTrainingServerSelection) {
+                pendingCustomTrainingServerDraftUrl = "";
+            }
+            setTrainingServerCustomUi({ visible: false, value: "", disabled: false });
+        }
+
         function updateTrainingServerConfigUi(payload = {}) {
             if (trainingServerUrlSelect) {
-                const options = Array.isArray(payload.available_training_servers) ? payload.available_training_servers : [];
-                const selectedUrl = payload.configured_training_server_url || "";
+                const allOptions = Array.isArray(payload.available_training_servers) ? payload.available_training_servers : [];
+                const options = allOptions.filter((item) => (item.id || "") !== "external_custom");
+                const selectedUrl = payload.configured_training_server_url
+                    || (payload.training_server_url_source === "autodetect" ? (payload.effective_training_server_url || "") : "");
+                const selectedOption = options.find((item) => (item.url || "") === selectedUrl);
+                const hasSavedCustomSelection = payload.training_server_url_source === "external_custom"
+                    || (!selectedOption && isExternalTrainingServerUrl(selectedUrl));
+                const isCustomSelected = pendingTrainingServerSelectionMode === "custom" || hasSavedCustomSelection;
                 suppressTrainingServerUrlSelectChange = true;
                 trainingServerUrlSelect.innerHTML = "";
 
-                if (!options.length) {
-                    const emptyOption = document.createElement("option");
-                    emptyOption.value = "";
-                    emptyOption.textContent = "No training server available";
-                    trainingServerUrlSelect.appendChild(emptyOption);
-                } else {
-                    const placeholderOption = document.createElement("option");
-                    placeholderOption.value = "";
-                    placeholderOption.textContent = "Select a training server";
-                    trainingServerUrlSelect.appendChild(placeholderOption);
+                const placeholderOption = document.createElement("option");
+                placeholderOption.value = "";
+                placeholderOption.textContent = options.length
+                    ? "Select a training server"
+                    : "Select or enter a training server";
+                trainingServerUrlSelect.appendChild(placeholderOption);
 
-                    for (const item of options) {
-                        const optionEl = document.createElement("option");
-                        optionEl.value = item.url || "";
-                        optionEl.textContent = item.label || item.url || "Training server";
-                        trainingServerUrlSelect.appendChild(optionEl);
-                    }
+                for (const item of options) {
+                    const optionEl = document.createElement("option");
+                    optionEl.value = item.url || "";
+                    optionEl.textContent = item.label || item.url || "Training server";
+                    trainingServerUrlSelect.appendChild(optionEl);
                 }
 
-                trainingServerUrlSelect.value = selectedUrl;
-                trainingServerUrlSelect.disabled = options.length === 0;
+                const customOption = document.createElement("option");
+                customOption.value = CUSTOM_TRAINING_SERVER_OPTION;
+                customOption.textContent = "Custom External Server";
+                trainingServerUrlSelect.appendChild(customOption);
+
+                if (pendingTrainingServerSelectionMode === "placeholder") {
+                    trainingServerUrlSelect.value = "";
+                } else {
+                    trainingServerUrlSelect.value = isCustomSelected ? CUSTOM_TRAINING_SERVER_OPTION : selectedUrl;
+                }
+                trainingServerUrlSelect.disabled = false;
                 suppressTrainingServerUrlSelectChange = false;
+
+                if (pendingTrainingServerSelectionMode === "custom") {
+                    setTrainingServerCustomUi({
+                        visible: true,
+                        value: pendingCustomTrainingServerDraftUrl,
+                        disabled: false,
+                    });
+                } else if (hasSavedCustomSelection) {
+                    setTrainingServerCustomUi({
+                        visible: true,
+                        value: selectedUrl,
+                        disabled: false,
+                    });
+                } else {
+                    clearPendingTrainingServerSelectionState();
+                }
             }
 
             if (trainingServerConfigMeta) {
                 const lines = [];
-                if (payload.effective_training_server_url) {
-                    lines.push(`Using training server: ${payload.effective_training_server_url}`);
-                }
-                const autodetect = payload.autodetect || payload;
-                const selectedOption = (Array.isArray(payload.available_training_servers) ? payload.available_training_servers : [])
-                    .find(item => (item.url || "") === (payload.configured_training_server_url || ""));
-                if (selectedOption && selectedOption.description) {
-                } else if (!payload.effective_training_server_url && autodetect && autodetect.message) {
-                    lines.push(autodetect.message);
+
+                if (pendingTrainingServerSelectionMode === "placeholder") {
+                    lines.push("Training server not selected yet.");
+                } else if (pendingTrainingServerSelectionMode === "custom") {
+                    lines.push("Custom training server not saved yet.");
+                    if (pendingCustomTrainingServerDraftUrl) {
+                        lines.push(`Draft URL: ${pendingCustomTrainingServerDraftUrl}`);
+                    }
+                } else if (payload.effective_training_server_url) {
+                    if (payload.training_server_url_source === "external_custom") {
+                        lines.push(`Using custom training server: ${payload.effective_training_server_url}`);
+                    } else if (payload.training_server_url_source === "autodetect") {
+                        lines.push(`Using internal training server: ${payload.effective_training_server_url}`);
+                    } else if (payload.training_server_url_source === "saved_config") {
+                        lines.push(`Using training server: ${payload.effective_training_server_url}`);
+                    } else {
+                        lines.push(`Using training server: ${payload.effective_training_server_url}`);
+                    }
+                } else {
+                    const autodetect = payload.autodetect || payload;
+                    if (autodetect && autodetect.message) {
+                        lines.push(autodetect.message);
+                    }
                 }
                 trainingServerConfigMeta.textContent = lines.join("\n");
                 trainingServerConfigMeta.classList.toggle("hidden", lines.length === 0);
@@ -1788,7 +1910,43 @@
             }
         }
 
+        async function saveCustomTrainingServerUrl() {
+            const urlValue = trainingServerCustomUrlInput ? trainingServerCustomUrlInput.value.trim() : "";
+            if (!urlValue) {
+                throw new Error("Enter the external training server URL first.");
+            }
+            setPendingCustomTrainingServerSelection(false, "");
+            try {
+                await saveTrainingServerUrlOverride(urlValue);
+            } catch (error) {
+                setPendingCustomTrainingServerSelection(true, urlValue);
+                throw error;
+            }
+        }
+
         async function checkTrainingServerConnection(showSuccessFeedback = false) {
+            if (pendingTrainingServerSelectionMode === "placeholder") {
+                setTrainingServerStatusUi({
+                    ok: false,
+                    state: "missing_config",
+                    message: "Please select a training server before continuing."
+                });
+                return;
+            }
+
+            if (pendingCustomTrainingServerSelection) {
+                const draftUrl = trainingServerCustomUrlInput ? trainingServerCustomUrlInput.value.trim() : "";
+                setPendingCustomTrainingServerSelection(true, draftUrl);
+                setTrainingServerStatusUi({
+                    ok: false,
+                    state: "missing_config",
+                    message: draftUrl
+                        ? "Save the custom training server URL before continuing."
+                        : "Enter and save a custom training server URL before continuing."
+                });
+                return;
+            }
+
             setTrainingServerStatusUi({
                 ok: false,
                 state: "checking",
@@ -4183,15 +4341,71 @@
             trainingServerUrlSelectHandler = async () => {
                 if (suppressTrainingServerUrlSelectChange) return;
                 try {
-                    await saveTrainingServerUrlOverride(trainingServerUrlSelect ? trainingServerUrlSelect.value : "");
-                    if (trainingWizardCurrentStep === "server" && trainingServerConnectionReady) {
-                        goToTrainingWizardStep("appliance");
+                    const selectedValue = trainingServerUrlSelect ? trainingServerUrlSelect.value : "";
+                    if (!selectedValue) {
+                        setPendingTrainingServerPlaceholderSelection(true);
+                        setTrainingServerStatusUi({
+                            ok: false,
+                            state: "missing_config",
+                            message: "Please select a training server before continuing."
+                        });
+                        updateTrainingServerConfigUi({
+                            available_training_servers: Array.from(trainingServerUrlSelect.options)
+                                .filter((option) => option.value && option.value !== CUSTOM_TRAINING_SERVER_OPTION)
+                                .map((option) => ({ url: option.value, label: option.textContent || "" })),
+                        });
+                        return;
                     }
+                    if (selectedValue === CUSTOM_TRAINING_SERVER_OPTION) {
+                        setPendingCustomTrainingServerSelection(true, "");
+                        setTrainingServerStatusUi({
+                            ok: false,
+                            state: "missing_config",
+                            message: "Enter and save a custom training server URL before continuing."
+                        });
+                        updateTrainingServerConfigUi({
+                            available_training_servers: Array.from(trainingServerUrlSelect.options)
+                                .filter((option) => option.value && option.value !== CUSTOM_TRAINING_SERVER_OPTION)
+                                .map((option) => ({ url: option.value, label: option.textContent || "" })),
+                        });
+                        if (trainingServerCustomUrlInput) trainingServerCustomUrlInput.focus();
+                        return;
+                    }
+                    clearPendingTrainingServerSelectionState();
+                    await saveTrainingServerUrlOverride(selectedValue);
                 } catch (error) {
                     showValidationResultModal("Selection Error", error.message || "Failed to update the training server selection.", true);
                 }
             };
             if (trainingServerUrlSelect) trainingServerUrlSelect.addEventListener('change', trainingServerUrlSelectHandler);
+            saveTrainingServerCustomUrlHandler = async () => {
+                try {
+                    await saveCustomTrainingServerUrl();
+                } catch (error) {
+                    showValidationResultModal("Training Server URL", error.message || "Failed to save the external training server URL.", true);
+                }
+            };
+            clearTrainingServerCustomUrlHandler = async () => {
+                try {
+                    clearPendingTrainingServerSelectionState();
+                    if (trainingServerUrlSelect) {
+                        suppressTrainingServerUrlSelectChange = true;
+                        trainingServerUrlSelect.value = "";
+                        suppressTrainingServerUrlSelectChange = false;
+                    }
+                    await saveTrainingServerUrlOverride("");
+                } catch (error) {
+                    showValidationResultModal("Training Server URL", error.message || "Failed to clear the external training server URL.", true);
+                }
+            };
+            trainingServerCustomUrlKeydownHandler = async (event) => {
+                if (event.key !== "Enter") return;
+                event.preventDefault();
+                await saveTrainingServerCustomUrlHandler();
+            };
+            if (saveTrainingServerCustomUrlBtn) saveTrainingServerCustomUrlBtn.addEventListener('click', saveTrainingServerCustomUrlHandler);
+            if (clearTrainingServerCustomUrlBtn) clearTrainingServerCustomUrlBtn.addEventListener('click', clearTrainingServerCustomUrlHandler);
+            if (trainingServerCustomUrlInput) trainingServerCustomUrlInput.addEventListener('keydown', trainingServerCustomUrlKeydownHandler);
             if (trainingHelpBtn) trainingHelpBtn.addEventListener('click', trainingHelpOpenHandler);
             if (closeTrainingHelpModalBtn) closeTrainingHelpModalBtn.addEventListener('click', trainingHelpCloseHandler);
             if (trainingHelpModal) trainingHelpModal.addEventListener('click', trainingHelpOverlayHandler);
@@ -4238,6 +4452,9 @@
             if (trainingWizardNextBtn && trainingWizardNextHandler) trainingWizardNextBtn.removeEventListener('click', trainingWizardNextHandler);
             if (trainingStepper && trainingStepperClickHandler) trainingStepper.removeEventListener('click', trainingStepperClickHandler);
             if (trainingServerUrlSelect && trainingServerUrlSelectHandler) trainingServerUrlSelect.removeEventListener('change', trainingServerUrlSelectHandler);
+            if (saveTrainingServerCustomUrlBtn && saveTrainingServerCustomUrlHandler) saveTrainingServerCustomUrlBtn.removeEventListener('click', saveTrainingServerCustomUrlHandler);
+            if (clearTrainingServerCustomUrlBtn && clearTrainingServerCustomUrlHandler) clearTrainingServerCustomUrlBtn.removeEventListener('click', clearTrainingServerCustomUrlHandler);
+            if (trainingServerCustomUrlInput && trainingServerCustomUrlKeydownHandler) trainingServerCustomUrlInput.removeEventListener('keydown', trainingServerCustomUrlKeydownHandler);
             if (trainingHelpBtn && trainingHelpOpenHandler) trainingHelpBtn.removeEventListener('click', trainingHelpOpenHandler);
             if (closeTrainingHelpModalBtn && trainingHelpCloseHandler) closeTrainingHelpModalBtn.removeEventListener('click', trainingHelpCloseHandler);
             if (trainingHelpModal && trainingHelpOverlayHandler) trainingHelpModal.removeEventListener('click', trainingHelpOverlayHandler);
@@ -4335,6 +4552,10 @@
         trainingServerStatusMessage = document.getElementById("trainingServerStatusMessage");
         trainingServerStatusBadge = document.getElementById("trainingServerStatusBadge");
         trainingServerUrlSelect = document.getElementById("trainingServerUrlSelect");
+        trainingServerCustomRow = document.getElementById("trainingServerCustomRow");
+        trainingServerCustomUrlInput = document.getElementById("trainingServerCustomUrlInput");
+        saveTrainingServerCustomUrlBtn = document.getElementById("saveTrainingServerCustomUrlBtn");
+        clearTrainingServerCustomUrlBtn = document.getElementById("clearTrainingServerCustomUrlBtn");
         trainingServerConfigMeta = document.getElementById("trainingServerConfigMeta");
         retryTrainingServerStatusBtn = document.getElementById("retryTrainingServerStatusBtn");
         trainingStepper = document.getElementById("trainingStepper");
