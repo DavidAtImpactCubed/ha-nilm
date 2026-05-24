@@ -271,52 +271,59 @@ async def probe_training_server_connection(
 
     timeout = aiohttp.ClientTimeout(total=timeout_s, connect=5, sock_read=5)
     origin = training_server_origin(normalized_url)
-    candidates = [normalized_url]
-    if origin and origin != normalized_url:
-        candidates.append(origin)
     last_error = None
 
     try:
         async with aiohttp.ClientSession(timeout=timeout) as session:
-            for url in candidates:
-                try:
-                    async with session.get(url, headers=_headers(api_key)) as resp:
-                        text = await resp.text()
-                        if resp.status in (401, 403):
-                            return {
-                                "ok": False,
-                                "state": "auth_error",
-                                "message": f"Training server is reachable, but authorization failed (HTTP {resp.status}). Check the API key.",
-                                "http_status": resp.status,
-                                "checked_url": url,
-                            }
-                        if resp.status < 500:
-                            message = "Training server connection looks ready."
-                            if resp.status >= 400:
-                                message = f"Training server is reachable (HTTP {resp.status})."
-                            state = "ready"
-                            if uses_homeassistant_gateway(normalized_url):
-                                state = "proxy_route"
-                                message = (
-                                    "Training server is reachable through the Home Assistant gateway, "
-                                    "but direct app hostnames are more reliable for training uploads. "
-                                    "Open the NILM Training Server Web UI or logs and copy the displayed training_server_url."
-                                )
-                            return {
-                                "ok": True,
-                                "state": state,
-                                "message": message,
-                                "http_status": resp.status,
-                                "configured_url": training_server_url,
-                                "normalized_url": normalized_url,
-                                "checked_url": url,
-                                "response_excerpt": text[:200],
-                            }
-                        last_error = f"Training server responded with HTTP {resp.status}."
-                except asyncio.TimeoutError:
-                    last_error = f"Training server request to {url} timed out."
-                except aiohttp.ClientError as e:
-                    last_error = f"Training server request to {url} failed: {e}"
+            try:
+                async with session.get(normalized_url, headers=_headers(api_key)) as resp:
+                    text = await resp.text()
+                    if resp.status in (401, 403):
+                        return {
+                            "ok": False,
+                            "state": "auth_error",
+                            "message": f"Training server is reachable, but authorization failed (HTTP {resp.status}). Check the API key.",
+                            "http_status": resp.status,
+                            "checked_url": normalized_url,
+                        }
+                    if resp.status in (200, 405):
+                        message = "Training server connection looks ready."
+                        state = "ready"
+                        if uses_homeassistant_gateway(normalized_url):
+                            state = "proxy_route"
+                            message = (
+                                "Training server is reachable through the Home Assistant gateway, "
+                                "but direct app hostnames are more reliable for training uploads. "
+                                "Open the NILM Training Server Web UI or logs and copy the displayed training_server_url."
+                            )
+                        return {
+                            "ok": True,
+                            "state": state,
+                            "message": message,
+                            "http_status": resp.status,
+                            "configured_url": training_server_url,
+                            "normalized_url": normalized_url,
+                            "checked_url": normalized_url,
+                            "response_excerpt": text[:200],
+                        }
+                    if resp.status == 404:
+                        return {
+                            "ok": False,
+                            "state": "invalid_config",
+                            "message": (
+                                "Training server URL path was not found (HTTP 404). "
+                                "Use the exact /train endpoint, for example http://host:8080/train."
+                            ),
+                            "http_status": resp.status,
+                            "configured_url": training_server_url,
+                            "normalized_url": normalized_url,
+                            "checked_url": normalized_url,
+                        }
+                    last_error = f"Training server endpoint responded with HTTP {resp.status}."
+            except asyncio.TimeoutError:
+                last_error = f"Training server request to {normalized_url} timed out."
+            except aiohttp.ClientError as e:
+                last_error = f"Training server request to {normalized_url} failed: {e}"
 
     except asyncio.TimeoutError:
         last_error = "Training server connection timed out."
