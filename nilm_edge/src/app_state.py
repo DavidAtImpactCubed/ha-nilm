@@ -119,6 +119,7 @@ async def resolve_training_server_url_state() -> Dict[str, Any]:
     configured_url = get_configured_training_server_url()
     normalized_configured_url = normalize_training_server_url(configured_url)
     autodetect = await discover_training_server_addon(SUPERVISOR_API_URL, TOKEN)
+    autodetected_url = normalize_training_server_url(str(autodetect.get("training_server_url") or "").strip())
 
     if autodetect.get("ok") and autodetect.get("training_server_url"):
         hostname = autodetect.get("hostname") or "internal app"
@@ -131,7 +132,13 @@ async def resolve_training_server_url_state() -> Dict[str, Any]:
             description=f"Detected internal app hostname: {hostname}",
         )
 
-    if normalized_configured_url and _is_direct_training_server_url(normalized_configured_url):
+    configured_matches_autodetect = bool(
+        normalized_configured_url
+        and autodetected_url
+        and normalized_configured_url == autodetected_url
+    )
+
+    if normalized_configured_url and _is_direct_training_server_url(normalized_configured_url) and not configured_matches_autodetect:
         _append_training_server_option(
             available_training_servers,
             seen_urls,
@@ -152,11 +159,14 @@ async def resolve_training_server_url_state() -> Dict[str, Any]:
 
     effective_training_server_url = ""
     training_server_url_source = "missing"
-    if normalized_configured_url:
+    if configured_matches_autodetect:
+        effective_training_server_url = autodetected_url
+        training_server_url_source = "autodetect"
+    elif normalized_configured_url:
         effective_training_server_url = normalized_configured_url
         training_server_url_source = "external_custom" if _is_direct_training_server_url(normalized_configured_url) else "saved_config"
     elif autodetect.get("ok") and autodetect.get("training_server_url"):
-        effective_training_server_url = normalize_training_server_url(autodetect["training_server_url"])
+        effective_training_server_url = autodetected_url
         training_server_url_source = "autodetect"
 
     return {
