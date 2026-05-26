@@ -21,11 +21,17 @@ jobs:
     name: Initialize builds
     runs-on: ubuntu-latest
     outputs:
-      changed: ${{ steps.filter.outputs.changed }}
-      changed_apps: ${{ steps.filter.outputs.changed_apps }}
+      build_changed: ${{ steps.filter.outputs.build_changed }}
+      build_apps: ${{ steps.filter.outputs.build_apps }}
+      release_changed: ${{ steps.filter.outputs.release_changed }}
+      release_apps: ${{ steps.filter.outputs.release_apps }}
+      version_changed: ${{ steps.filter.outputs.version_changed }}
+      all_apps: ${{ steps.filter.outputs.all_apps }}
     steps:
       - name: Check out the repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Get changed files
         id: changed_files
@@ -40,33 +46,148 @@ jobs:
         env:
           APPS: ${{ steps.apps.outputs.addons }}
           CHANGED_FILES: ${{ steps.changed_files.outputs.all_changed_files }}
+          EVENT_NAME: ${{ github.event_name }}
+          PUSH_BEFORE_SHA: ${{ github.event.before }}
+          PR_BASE_REF: ${{ github.event.pull_request.base.ref }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        shell: bash
         run: |
-          changed_apps=()
+          set -euo pipefail
 
-          if [[ "${CHANGED_FILES}" =~ \.github/workflows/(builder|build-app)\.yaml ]]; then
-            changed_apps=(${APPS})
+          build_apps=()
+          release_apps=()
+          version_changed=false
+
+          add_unique_to_array() {
+            local array_name="$1"
+            local value="$2"
+            local existing
+
+            eval "local current_values=(\"\${${array_name}[@]}\")"
+
+            for existing in "${current_values[@]}"; do
+              if [[ "$existing" == "$value" ]]; then
+                return 0
+              fi
+            done
+
+            eval "${array_name}+=(\"\$value\")"
+          }
+
+          file_changed() {
+            local wanted="$1"
+            local changed
+
+            for changed in ${CHANGED_FILES}; do
+              if [[ "$changed" == "$wanted" || "$changed" == "$wanted/"* ]]; then
+                return 0
+              fi
+            done
+
+            return 1
+          }
+
+          read_version_from_file() {
+            local file="$1"
+
+            if [[ ! -f "$file" ]]; then
+              return 0
+            fi
+
+            sed -nE "s/^[[:space:]]*version:[[:space:]]*[\"']?([^\"'#]+)[\"']?.*$/\1/p" "$file" | head -n 1 | xargs
+          }
+
+          read_version_from_git() {
+            local ref="$1"
+            local file="$2"
+
+            if [[ -z "$ref" || "$ref" =~ ^0+$ ]]; then
+              return 0
+            fi
+
+            if git cat-file -e "$ref:$file" 2>/dev/null; then
+              git show "$ref:$file" | sed -nE "s/^[[:space:]]*version:[[:space:]]*[\"']?([^\"'#]+)[\"']?.*$/\1/p" | head -n 1 | xargs
+            fi
+          }
+
+          BASE_SHA=""
+
+          if [[ "$EVENT_NAME" == "pull_request" ]]; then
+            if [[ -n "${PR_BASE_REF}" ]]; then
+              git fetch origin "$PR_BASE_REF" --no-tags
+              BASE_SHA="$(git merge-base HEAD "origin/$PR_BASE_REF" 2>/dev/null || true)"
+            fi
+
+            BASE_SHA="${BASE_SHA:-$PR_BASE_SHA}"
+          else
+            BASE_SHA="$PUSH_BEFORE_SHA"
+          fi
+
+          if [[ "$BASE_SHA" =~ ^0+$ ]]; then
+            BASE_SHA=""
+          fi
+
+          echo "Using base SHA for version comparison: ${BASE_SHA:-none}"
+
+          workflow_changed=false
+
+          if file_changed ".github/workflows/builder.yaml" || file_changed ".github/workflows/build-app.yaml"; then
+            workflow_changed=true
+          fi
+
+          if [[ "$workflow_changed" == "true" ]]; then
+            for app in ${APPS}; do
+              add_unique_to_array build_apps "$app"
+            done
           else
             for app in ${APPS}; do
               for file in ${MONITORED_FILES}; do
-                if [[ "${CHANGED_FILES}" =~ ${app}/${file} ]]; then
-                  changed_apps+=("${app}")
+                if file_changed "$app/$file"; then
+                  add_unique_to_array build_apps "$app"
                   break
                 fi
               done
             done
           fi
 
-          if [[ ${#changed_apps[@]} -gt 0 ]]; then
-            echo "changed=true" >> "$GITHUB_OUTPUT"
-            echo "changed_apps=$(jq -nc '$ARGS.positional' --args "${changed_apps[@]}")" >> "$GITHUB_OUTPUT"
+          for app in ${APPS}; do
+            current_version="$(read_version_from_file "$app/config.yaml")"
+            previous_version="$(read_version_from_git "$BASE_SHA" "$app/config.yaml")"
+
+            if [[ -n "$current_version" && "$current_version" != "$previous_version" ]]; then
+              version_changed=true
+              add_unique_to_array release_apps "$app"
+              continue
+            fi
+
+            if file_changed "$app/CHANGELOG.md"; then
+              add_unique_to_array release_apps "$app"
+            fi
+          done
+
+          echo "all_apps=$(jq -nc '$ARGS.positional' --args ${APPS})" >> "$GITHUB_OUTPUT"
+          echo "version_changed=${version_changed}" >> "$GITHUB_OUTPUT"
+
+          if [[ ${#build_apps[@]} -gt 0 ]]; then
+            echo "build_changed=true" >> "$GITHUB_OUTPUT"
+            echo "build_apps=$(jq -nc '$ARGS.positional' --args "${build_apps[@]}")" >> "$GITHUB_OUTPUT"
           else
-            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "build_changed=false" >> "$GITHUB_OUTPUT"
+            echo "build_apps=[]" >> "$GITHUB_OUTPUT"
+          fi
+
+          if [[ ${#release_apps[@]} -gt 0 ]]; then
+            echo "release_changed=true" >> "$GITHUB_OUTPUT"
+            echo "release_apps=$(jq -nc '$ARGS.positional' --args "${release_apps[@]}")" >> "$GITHUB_OUTPUT"
+          else
+            echo "release_changed=false" >> "$GITHUB_OUTPUT"
+            echo "release_apps=[]" >> "$GITHUB_OUTPUT"
           fi
 
   build-app:
     name: Build ${{ matrix.app }}
     needs: init
-    if: needs.init.outputs.changed == 'true'
+    if: needs.init.outputs.build_changed == 'true'
     permissions:
       contents: read
       id-token: write
@@ -74,9 +195,357 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        app: ${{ fromJSON(needs.init.outputs.changed_apps) }}
+        app: ${{ fromJSON(needs.init.outputs.build_apps) }}
     uses: ./.github/workflows/build-app.yaml
     with:
       app: ${{ matrix.app }}
       publish: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
     secrets: inherit
+
+  release:
+    name: Create or update GitHub release
+    needs:
+      - init
+      - build-app
+    if: >
+      always() &&
+      github.event_name == 'push' &&
+      github.ref == 'refs/heads/main' &&
+      needs.init.result == 'success' &&
+      needs.init.outputs.release_changed == 'true' &&
+      (
+        needs.init.outputs.build_changed != 'true' ||
+        needs.build-app.result == 'success' ||
+        needs.build-app.result == 'skipped'
+      )
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Create release notes from changelogs
+        id: notes
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_APPS: ${{ needs.init.outputs.release_apps }}
+          ALL_APPS: ${{ needs.init.outputs.all_apps }}
+          VERSION_CHANGED: ${{ needs.init.outputs.version_changed }}
+          GITHUB_SHA: ${{ github.sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          python3 <<'PY'
+          import json
+          import os
+          import pathlib
+          import re
+          import subprocess
+          import sys
+
+          release_apps = json.loads(os.environ["RELEASE_APPS"])
+          all_apps = json.loads(os.environ["ALL_APPS"])
+          version_changed = os.environ["VERSION_CHANGED"].lower() == "true"
+
+          MARKER_NAME = "ha-nilm-release-apps"
+
+          def read_config_value(app: str, key: str) -> str:
+              path = pathlib.Path(app) / "config.yaml"
+
+              if not path.exists():
+                  return ""
+
+              pattern = re.compile(rf"^\s*{re.escape(key)}\s*:\s*(.*?)\s*$")
+
+              for line in path.read_text(encoding="utf-8").splitlines():
+                  match = pattern.match(line)
+
+                  if not match:
+                      continue
+
+                  value = match.group(1).strip()
+
+                  if " #" in value:
+                      value = value.split(" #", 1)[0].strip()
+
+                  if (value.startswith('"') and value.endswith('"')) or (
+                      value.startswith("'") and value.endswith("'")
+                  ):
+                      value = value[1:-1]
+
+                  return value.strip()
+
+              return ""
+
+          def extract_changelog(app: str, version: str) -> str:
+              path = pathlib.Path(app) / "CHANGELOG.md"
+
+              if not path.exists():
+                  sys.exit(f"Missing changelog file for included app: {path}")
+
+              text = path.read_text(encoding="utf-8").strip()
+
+              if not text:
+                  sys.exit(f"Changelog file is empty for included app: {path}")
+
+              escaped_version = re.escape(version)
+
+              heading = re.compile(
+                  rf"^\s*##\s+\[?v?{escaped_version}\]?(?:\s|$|-)",
+                  re.IGNORECASE,
+              )
+
+              next_heading = re.compile(r"^\s*##\s+")
+
+              lines = text.splitlines()
+              start = None
+
+              for index, line in enumerate(lines):
+                  if heading.match(line):
+                      start = index + 1
+                      break
+
+              if start is None:
+                  sys.exit(
+                      f"No changelog section found for version '{version}' in {path}. "
+                      f"Expected a heading like '## {version}'."
+                  )
+
+              end = len(lines)
+
+              for index in range(start, len(lines)):
+                  if next_heading.match(lines[index]):
+                      end = index
+                      break
+
+              notes = "\n".join(lines[start:end]).strip()
+
+              if not notes:
+                  sys.exit(f"Changelog section '{version}' is empty in {path}.")
+
+              return notes
+
+          def app_metadata(app: str) -> dict:
+              return {
+                  "path": app,
+                  "name": read_config_value(app, "name") or app,
+                  "version": read_config_value(app, "version"),
+                  "image": read_config_value(app, "image"),
+              }
+
+          def release_exists(tag: str) -> bool:
+              result = subprocess.run(
+                  ["gh", "release", "view", tag],
+                  stdout=subprocess.DEVNULL,
+                  stderr=subprocess.DEVNULL,
+                  check=False,
+              )
+
+              return result.returncode == 0
+
+          def release_body(tag: str) -> str:
+              result = subprocess.run(
+                  ["gh", "release", "view", tag, "--json", "body", "-q", ".body"],
+                  stdout=subprocess.PIPE,
+                  stderr=subprocess.DEVNULL,
+                  text=True,
+                  check=False,
+              )
+
+              if result.returncode != 0:
+                  return ""
+
+              return result.stdout or ""
+
+          def marker_apps_from_body(body: str) -> list[str]:
+              match = re.search(
+                  rf"<!--\s*{re.escape(MARKER_NAME)}:\s*(\[.*?\])\s*-->",
+                  body,
+                  flags=re.DOTALL,
+              )
+
+              if not match:
+                  return []
+
+              try:
+                  value = json.loads(match.group(1))
+              except json.JSONDecodeError:
+                  return []
+
+              if not isinstance(value, list):
+                  return []
+
+              valid_apps = set(all_apps)
+
+              return [
+                  app
+                  for app in value
+                  if isinstance(app, str) and app in valid_apps
+              ]
+
+          def unique_apps(apps: list[str]) -> list[str]:
+              result = []
+
+              for app in apps:
+                  if app in all_apps and app not in result:
+                      result.append(app)
+
+              return result
+
+          edge_version = read_config_value("nilm_edge", "version")
+          trainer_version = read_config_value("nilm_trainer", "version")
+
+          if not edge_version or not trainer_version:
+              sys.exit("Could not read nilm_edge or nilm_trainer version from config.yaml")
+
+          tag = f"nilm-{edge_version}-trainer-{trainer_version}"
+          title = f"NILM {edge_version} / Training Server {trainer_version}"
+
+          existing_release = release_exists(tag)
+          existing_body = release_body(tag) if existing_release else ""
+          existing_marker_apps = marker_apps_from_body(existing_body)
+
+          first_missing_release_mode = not version_changed and not existing_release
+
+          if first_missing_release_mode:
+              apps_for_notes = all_apps
+              notes_mode = (
+                  "All app changelogs are included because this version combination "
+                  "does not have a GitHub Release yet."
+              )
+          elif existing_release:
+              if existing_marker_apps:
+                  apps_for_notes = unique_apps(existing_marker_apps + release_apps)
+                  notes_mode = (
+                      "Release notes were regenerated for the apps already tracked by this release, "
+                      "plus any app changed in this push."
+                  )
+              elif version_changed:
+                  apps_for_notes = unique_apps(release_apps)
+                  notes_mode = "Only apps with a changed version or changed changelog are included."
+              else:
+                  apps_for_notes = all_apps
+                  notes_mode = (
+                      "All app changelogs are included because the existing release did not contain "
+                      "the internal app-tracking marker."
+                  )
+          else:
+              apps_for_notes = unique_apps(release_apps)
+              notes_mode = "Only apps with a changed version or changed changelog are included."
+
+          if not apps_for_notes:
+              sys.exit("No apps selected for release notes.")
+
+          metadata = [app_metadata(app) for app in apps_for_notes]
+
+          for app in metadata:
+              if not app["version"]:
+                  sys.exit(f"Could not read version for included app: {app['path']}")
+
+          lines = []
+
+          lines.append(f"<!-- {MARKER_NAME}: {json.dumps(apps_for_notes)} -->")
+          lines.append("")
+
+          lines.append("## App versions")
+          lines.append("")
+          lines.append(f"- NILM: `{edge_version}`")
+          lines.append(f"- NILM Training Server: `{trainer_version}`")
+          lines.append("")
+          lines.append(f"_{notes_mode}_")
+          lines.append("")
+
+          lines.append("## Included changelog notes")
+          lines.append("")
+
+          for app in metadata:
+              version = app["version"]
+              lines.append(f"- {app['name']}: `{version}`")
+
+          lines.append("")
+
+          for app in metadata:
+              version = app["version"]
+              lines.append(f"## {app['name']} {version}")
+              lines.append("")
+              lines.append(extract_changelog(app["path"], version))
+              lines.append("")
+
+          images = [app for app in metadata if app["image"] and app["version"]]
+
+          if images:
+              lines.append("## Container images")
+              lines.append("")
+
+              for app in images:
+                  lines.append(f"- `{app['image']}:{app['version']}`")
+
+              lines.append("")
+
+          lines.append("---")
+          lines.append("")
+          lines.append(
+              f"Automated release generated from commit `{os.environ['GITHUB_SHA']}` "
+              "after a push to `main`."
+          )
+          lines.append("")
+
+          pathlib.Path("release-notes.md").write_text("\n".join(lines), encoding="utf-8")
+
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
+              output.write(f"tag={tag}\n")
+              output.write(f"title={title}\n")
+              output.write(f"release_exists={'true' if existing_release else 'false'}\n")
+          PY
+
+      - name: Check release and tag state
+        id: state
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ steps.notes.outputs.tag }}
+          RELEASE_EXISTS: ${{ steps.notes.outputs.release_exists }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          git fetch --tags --force
+
+          if git rev-parse -q --verify "refs/tags/$TAG" >/dev/null; then
+            tag_sha="$(git rev-list -n 1 "$TAG")"
+
+            echo "tag_exists=true" >> "$GITHUB_OUTPUT"
+            echo "tag_sha=$tag_sha" >> "$GITHUB_OUTPUT"
+
+            if [[ "$RELEASE_EXISTS" != "true" && "$tag_sha" != "$GITHUB_SHA" ]]; then
+              echo "Tag $TAG already exists at $tag_sha, not at $GITHUB_SHA."
+              echo "Refusing to create a release that would point to an older commit."
+              exit 1
+            fi
+          else
+            echo "tag_exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Create or update GitHub release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ steps.notes.outputs.tag }}
+          TITLE: ${{ steps.notes.outputs.title }}
+          RELEASE_EXISTS: ${{ steps.notes.outputs.release_exists }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [[ "$RELEASE_EXISTS" == "true" ]]; then
+            gh release edit "$TAG" \
+              --title "$TITLE" \
+              --notes-file release-notes.md
+          else
+            gh release create "$TAG" \
+              --target "$GITHUB_SHA" \
+              --title "$TITLE" \
+              --notes-file release-notes.md
+          fi
