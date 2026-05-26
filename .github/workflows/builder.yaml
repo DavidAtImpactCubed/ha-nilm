@@ -213,7 +213,6 @@ jobs:
       github.event_name == 'push' &&
       github.ref == 'refs/heads/main' &&
       needs.init.result == 'success' &&
-      needs.init.outputs.release_changed == 'true' &&
       (
         needs.init.outputs.build_changed != 'true' ||
         needs.build-app.result == 'success' ||
@@ -233,6 +232,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           RELEASE_APPS: ${{ needs.init.outputs.release_apps }}
+          RELEASE_CHANGED: ${{ needs.init.outputs.release_changed }}
           ALL_APPS: ${{ needs.init.outputs.all_apps }}
           VERSION_CHANGED: ${{ needs.init.outputs.version_changed }}
           GITHUB_SHA: ${{ github.sha }}
@@ -249,6 +249,7 @@ jobs:
           import sys
 
           release_apps = json.loads(os.environ["RELEASE_APPS"])
+          release_changed = os.environ["RELEASE_CHANGED"].lower() == "true"
           all_apps = json.loads(os.environ["ALL_APPS"])
           version_changed = os.environ["VERSION_CHANGED"].lower() == "true"
 
@@ -409,6 +410,15 @@ jobs:
           existing_release = release_exists(tag)
           existing_body = release_body(tag) if existing_release else ""
           existing_marker_apps = marker_apps_from_body(existing_body)
+          should_publish = release_changed or not existing_release
+
+          if not should_publish:
+              with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
+                  output.write(f"tag={tag}\n")
+                  output.write(f"title={title}\n")
+                  output.write(f"release_exists={'true' if existing_release else 'false'}\n")
+                  output.write("skip_release=true\n")
+              sys.exit(0)
 
           first_missing_release_mode = not version_changed and not existing_release
 
@@ -501,10 +511,12 @@ jobs:
               output.write(f"tag={tag}\n")
               output.write(f"title={title}\n")
               output.write(f"release_exists={'true' if existing_release else 'false'}\n")
+              output.write("skip_release=false\n")
           PY
 
       - name: Check release and tag state
         id: state
+        if: steps.notes.outputs.skip_release != 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG: ${{ steps.notes.outputs.tag }}
@@ -531,6 +543,7 @@ jobs:
           fi
 
       - name: Create or update GitHub release
+        if: steps.notes.outputs.skip_release != 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG: ${{ steps.notes.outputs.tag }}
