@@ -3,10 +3,13 @@ import json
 import os
 from typing import Any, Dict, Optional
 
+import aiohttp
+
 from embedding_store import migrate_legacy_models, rename_bundle_models_dir
 from ha_client import HistoryQuery, fetch_history_points
 from model_registry import discover_model_bundles, get_latest_bundle_for_mode
 from online_runtime import MultiBundleOnlineRuntime
+from power_units import normalize_power_to_watts
 from supervisor_addons import discover_training_server_addon
 from training_server_url import normalize_training_server_url, uses_homeassistant_gateway
 
@@ -30,6 +33,7 @@ if not INGRESS_URL_BASE.endswith("/"):
 
 current_config = {
     "main_sensor_id": (os.getenv("MAIN_SENSOR", "").strip() or None),
+    "main_sensor_unit": None,
     "training_server_url": None,
 }
 
@@ -39,6 +43,30 @@ model_bundles = []
 
 async def maybe_await(value):
     return await value if inspect.isawaitable(value) else value
+
+
+async def resolve_sensor_unit(entity_id: Optional[str]) -> Optional[str]:
+    sensor = str(entity_id or "").strip()
+    if not sensor:
+        return None
+
+    headers = {
+        "Authorization": f"Bearer {TOKEN}",
+        "Content-Type": "application/json",
+    }
+
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.get(f"{HA_REST_API_URL}/states/{sensor}", headers=headers) as response:
+                response.raise_for_status()
+                payload = await response.json()
+        unit = str(payload.get("attributes", {}).get("unit_of_measurement") or "").strip() or None
+        if unit:
+            current_config["main_sensor_unit"] = unit
+        return unit
+    except Exception as exc:
+        print(f"Warning: could not resolve unit for {sensor}: {exc}")
+        return None
 
 
 def get_training_server_url() -> str:
@@ -83,6 +111,8 @@ async def history_fetcher(start_dt, end_dt):
     if not sensor_id:
         return []
 
+    sensor_unit = current_config.get("main_sensor_unit") or await resolve_sensor_unit(sensor_id)
+
     query = HistoryQuery(
         entity_id=sensor_id,
         start_dt=start_dt,
@@ -90,7 +120,11 @@ async def history_fetcher(start_dt, end_dt):
         minimal_response=True,
         max_span_days=7,
     )
-    return await fetch_history_points(HA_REST_API_URL, TOKEN, query)
+    raw_points = await fetch_history_points(HA_REST_API_URL, TOKEN, query)
+    try:
+        return [(float(ts), normalize_power_to_watts(value, sensor_unit)) for ts, value in raw_points]
+    except Exception:
+        return raw_points
 
 
 def _is_direct_training_server_url(url: str) -> bool:
@@ -187,8 +221,10 @@ def load_config():
         with open(CONFIG_FILE_PATH, "r", encoding="utf-8") as file_handle:
             loaded_config = json.load(file_handle)
         loaded_sensor_id = loaded_config.get("main_sensor_id", current_config["main_sensor_id"])
+        loaded_sensor_unit = loaded_config.get("main_sensor_unit", current_config["main_sensor_unit"])
         loaded_training_server_url = loaded_config.get("training_server_url", current_config["training_server_url"])
         current_config["main_sensor_id"] = (str(loaded_sensor_id).strip() if loaded_sensor_id is not None else None) or None
+        current_config["main_sensor_unit"] = (str(loaded_sensor_unit).strip() if loaded_sensor_unit is not None else None) or None
         current_config["training_server_url"] = (
             normalize_training_server_url(str(loaded_training_server_url).strip())
             if loaded_training_server_url
@@ -204,12 +240,16 @@ def load_config():
 def save_config(
     *,
     main_sensor_id=None,
+    main_sensor_unit=None,
     training_server_url=None,
     update_main_sensor_id=False,
+    update_main_sensor_unit=False,
     update_training_server_url=False,
 ):
     if update_main_sensor_id:
         current_config["main_sensor_id"] = (str(main_sensor_id).strip() if main_sensor_id is not None else None) or None
+    if update_main_sensor_unit:
+        current_config["main_sensor_unit"] = (str(main_sensor_unit).strip() if main_sensor_unit is not None else None) or None
     if update_training_server_url:
         current_config["training_server_url"] = (
             normalize_training_server_url(str(training_server_url).strip())

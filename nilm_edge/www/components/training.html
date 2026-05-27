@@ -1498,6 +1498,8 @@
 
     // --- FIX: Define MAIN_SENSOR_ENTITY_ID for history API calls ---
     let MAIN_SENSOR_ENTITY_ID = "";
+    let MAIN_SENSOR_UNIT = "";
+    let availablePowerSensorsById = new Map();
     let trainingJobId = null;
 
     // Define initializeTrainingUI in the global scope so web_ui.html can call it
@@ -2445,6 +2447,14 @@
             return await response.json();
         }
 
+        function normalizeTrainingPowerValue(rawValue, sensorMeta = null, fallbackUnit = "") {
+            const numericValue = Number(rawValue);
+            if (!Number.isFinite(numericValue)) return NaN;
+            const unit = String(sensorMeta?.unit_of_measurement || fallbackUnit || "").trim();
+            if (unit === "kW") return numericValue * 1000;
+            return numericValue;
+        }
+
         function populateApplianceSensorSelect(sensors, mainsSensorId) {
             if (!applianceSensorSelect) return;
             const previous = applianceSensorSelect.value;
@@ -2534,10 +2544,11 @@
 
             const data = await response.json();
             const sensorDataRaw = data && data.length > 0 && data[0] ? data[0] : [];
+            const sensorMeta = availablePowerSensorsById.get(entityId);
             return sensorDataRaw
                 .map((d) => {
                     const timeValue = Date.parse(d.x);
-                    const stateValue = parseFloat(d.y);
+                    const stateValue = normalizeTrainingPowerValue(d.y, sensorMeta);
                     if (isNaN(timeValue) || isNaN(stateValue)) return null;
                     return { x: timeValue, y: stateValue };
                 })
@@ -4116,11 +4127,12 @@
                 console.log("DEBUG: Raw data from /history:", data); 
 
                 const sensorDataRaw = data && data.length > 0 && data[0] ? data[0] : [];
+                const mainSensorMeta = availablePowerSensorsById.get(MAIN_SENSOR_ENTITY_ID);
 
                 if (sensorDataRaw.length > 0) {
                     const sensorData = sensorDataRaw.map((d, index) => { 
                         const timeValue = Date.parse(d.x); 
-                        const stateValue = parseFloat(d.y); 
+                        const stateValue = normalizeTrainingPowerValue(d.y, mainSensorMeta, MAIN_SENSOR_UNIT); 
                         
                         if (index < 10 || index > sensorDataRaw.length - 10 || isNaN(timeValue) || isNaN(stateValue)) {
                             console.log(`DEBUG: Item ${index}: x='${d.x}', y='${d.y}'`);
@@ -4727,9 +4739,15 @@
 
         fetchConfig().then(async cfg => {
             if (cfg?.main_sensor_id) MAIN_SENSOR_ENTITY_ID = cfg.main_sensor_id;
+            MAIN_SENSOR_UNIT = cfg?.main_sensor_unit || "";
             updateTrainingServerConfigUi(cfg || {});
             try {
                 const sensors = await fetchAvailablePowerSensors();
+                availablePowerSensorsById = new Map((Array.isArray(sensors) ? sensors : []).map((sensor) => [sensor.entity_id, sensor]));
+                const mainsSensorMeta = availablePowerSensorsById.get(MAIN_SENSOR_ENTITY_ID);
+                if (mainsSensorMeta?.unit_of_measurement) {
+                    MAIN_SENSOR_UNIT = mainsSensorMeta.unit_of_measurement;
+                }
                 populateApplianceSensorSelect(sensors, MAIN_SENSOR_ENTITY_ID);
             } catch (error) {
                 console.error('Error fetching appliance sensors:', error);

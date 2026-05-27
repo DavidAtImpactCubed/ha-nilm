@@ -11,6 +11,7 @@ import websockets
 
 import app_state
 from embedding_store import save_embedding_npy
+from power_units import normalize_power_to_watts
 from routes_config import register_config_routes
 from routes_ha import register_ha_routes
 from routes_models import register_model_routes
@@ -307,7 +308,14 @@ async def run_live_loop(session: aiohttp.ClientSession):
                     if not new_state or new_state.get("entity_id") != sensor_to_monitor:
                         continue
 
-                    total_power = float(new_state["state"])
+                    sensor_unit = (
+                        new_state.get("attributes", {}).get("unit_of_measurement")
+                        or app_state.current_config.get("main_sensor_unit")
+                    )
+                    if sensor_unit and sensor_unit != app_state.current_config.get("main_sensor_unit"):
+                        app_state.current_config["main_sensor_unit"] = str(sensor_unit).strip()
+
+                    total_power = normalize_power_to_watts(new_state["state"], sensor_unit)
                     now = datetime.now(timezone.utc)
 
                     if app_state.refquery_instance:

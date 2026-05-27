@@ -3937,6 +3937,8 @@
         const configPayload = {};
         if (mainSensorSelect?.value) {
             configPayload.main_sensor_id = mainSensorSelect.value;
+            const sensorMeta = allSensorsById.get(mainSensorSelect.value);
+            configPayload.main_sensor_unit = sensorMeta?.unit_of_measurement || null;
         }
 
         const response = await fetch("config", {
