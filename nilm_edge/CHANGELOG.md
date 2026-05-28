@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.1.5
+
+- Added support for mains and appliance power sensors reported in `kW` by normalizing them to `W` across training and live disaggregation.
+- Improved compatibility for existing configurations by resolving the mains sensor unit automatically when needed.
+
 ## 1.1.4
 
 - Added support for external training servers, so training can run on another machine using a saved URL such as `http://<host>:<port>/train`.
