@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.1.6
+
+- Publish per-appliance energy sensors (`sensor.nilm_*_energy`) with `device_class: energy` and `state_class: total_increasing` for use in the HA Energy Dashboard.
+- Energy is accumulated internally at the model's 8-second inference cadence, giving more accurate totals than an external Riemann-sum integral helper.
+- Accumulated energy is persisted to `/data/energy_accumulators.json` and restored on restart, so totals are not lost when the add-on is restarted or updated.
+
 ## 1.1.5
 
 - Added support for mains and appliance power sensors reported in `kW` by normalizing them to `W` across training and live disaggregation.
