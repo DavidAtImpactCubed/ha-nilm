@@ -20,6 +20,7 @@ LEGACY_EMBEDDINGS_DIR = "/data/embeddings"
 INFERENCE_ROOT = "/app/inference"
 CONFIG_FILE_PATH = "/data/config.json"
 OPTIONS_FILE_PATH = "/data/options.json"
+ENERGY_FILE_PATH = "/data/energy_accumulators.json"
 SUPERVISOR_API_URL = os.getenv("SUPERVISOR_API_URL", "http://supervisor")
 DEFAULT_BATCH_SIZE = 1024
 
@@ -39,6 +40,57 @@ current_config = {
 
 refquery_instance = None
 model_bundles = []
+
+# Energy accumulator state: { slug: {"energy_wh": float, "last_timestamp": float | None} }
+_energy_state: dict = {}
+
+# Maximum time delta to accumulate over in a single step (caps runaway after gaps/restarts)
+_MAX_ENERGY_STEP_SECONDS = 120.0
+
+
+def load_energy_accumulators() -> None:
+    global _energy_state
+    if not os.path.exists(ENERGY_FILE_PATH):
+        _energy_state = {}
+        return
+    try:
+        with open(ENERGY_FILE_PATH, "r", encoding="utf-8") as fh:
+            loaded = json.load(fh)
+        _energy_state = loaded if isinstance(loaded, dict) else {}
+        print(f"Energy accumulators loaded from {ENERGY_FILE_PATH}")
+    except Exception as exc:
+        print(f"Warning: could not load energy accumulators from {ENERGY_FILE_PATH}: {exc}")
+        _energy_state = {}
+
+
+def save_energy_accumulators() -> None:
+    try:
+        with open(ENERGY_FILE_PATH, "w", encoding="utf-8") as fh:
+            json.dump(_energy_state, fh, indent=2)
+    except Exception as exc:
+        print(f"Warning: could not save energy accumulators to {ENERGY_FILE_PATH}: {exc}")
+
+
+def accumulate_energy(slug: str, power_w: float, prediction_timestamp: float) -> float:
+    """Accumulate energy for an appliance step and return the running total in Wh.
+
+    Uses the elapsed time between consecutive prediction timestamps so the
+    accumulation is always aligned to the model's internal cadence rather than
+    wall-clock polling jitter.
+    """
+    if slug not in _energy_state:
+        _energy_state[slug] = {"energy_wh": 0.0, "last_timestamp": None}
+
+    entry = _energy_state[slug]
+    last_ts = entry.get("last_timestamp")
+
+    if last_ts is not None:
+        dt = prediction_timestamp - last_ts
+        dt = max(0.0, min(dt, _MAX_ENERGY_STEP_SECONDS))
+        entry["energy_wh"] = entry.get("energy_wh", 0.0) + power_w * dt / 3600.0
+
+    entry["last_timestamp"] = prediction_timestamp
+    return entry["energy_wh"]
 
 
 async def maybe_await(value):

@@ -21,6 +21,9 @@ from training_server_service import TrainingServerServiceManager
 
 running = True
 
+_publish_step_count = 0
+_PERSIST_ENERGY_EVERY_N_STEPS = 75  # ~10 minutes at 8 s/step
+
 
 def shutdown_handler(sig, frame):
     global running
@@ -43,6 +46,7 @@ async def publish_disaggregation_dl(
     session: aiohttp.ClientSession,
     duration=None,
 ):
+    global _publish_step_count
     if not dl_result or not isinstance(dl_result, dict):
         return
 
@@ -137,6 +141,27 @@ async def publish_disaggregation_dl(
         }
         publish_tasks.append(post_state(power_entity_id, power_data))
 
+        energy_wh = app_state.accumulate_energy(
+            slug,
+            power,
+            appliance_prediction_target_dt.timestamp(),
+        )
+        energy_entity_id = f"sensor.nilm_{slug}_energy"
+        energy_data = {
+            "state": round(energy_wh, 4),
+            "attributes": {
+                "unit_of_measurement": "Wh",
+                "device_class": "energy",
+                "state_class": "total_increasing",
+                "friendly_name": f"NILM {display_name.replace('_', ' ').title()} Energy{bundle_label}",
+                "last_updated": timestamp.isoformat(),
+                "bundle_id": bundle_id or None,
+                "icon": "mdi:lightning-bolt",
+                "source": "dl",
+            },
+        }
+        publish_tasks.append(post_state(energy_entity_id, energy_data))
+
         is_on = onoff >= onoff_threshold
         on_entity_id = f"binary_sensor.nilm_{slug}_on"
         on_data = {
@@ -181,6 +206,10 @@ async def publish_disaggregation_dl(
 
     if publish_tasks:
         await asyncio.gather(*publish_tasks, return_exceptions=True)
+
+    _publish_step_count += 1
+    if _publish_step_count % _PERSIST_ENERGY_EVERY_N_STEPS == 0:
+        app_state.save_energy_accumulators()
 
 
 async def retry_websocket_connection(url, max_retries=10, initial_delay=1):
@@ -352,6 +381,7 @@ async def main():
         return
 
     app_state.load_config()
+    app_state.load_energy_accumulators()
     app_state.reload_algorithm_config()
 
     app = build_web_app()
@@ -367,6 +397,7 @@ async def main():
             await run_live_loop(session)
         finally:
             print("Shutting down NILM service.")
+            app_state.save_energy_accumulators()
             await runner.cleanup()
             print("Web server stopped.")
 
